@@ -1,28 +1,23 @@
 import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(
-  'https://pnwzbnmvpzipnlwrewjf.supabase.co',
-  'sb_secret_cUbmPT5VAJFppkLezqyjKA_LLSrXo8U'
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_KEY
 )
 
 export default async function handler(req, res) {
   const teste = {
-    id_tmdb: 1396,
+    id_tmdb: 1402, // MUDEI O ID PRA NÃO DAR DUPLICADO
     tipo: 'serie',
-    titulo: 'Breaking Bad',
-    ano: 2008
+    titulo: 'The Walking Dead',
+    ano: 2010
   }
 
   const { data, error } = await supabase.from('titulos').insert(teste)
 
   if (error) {
-    return res.status(500).json({ 
-      ok: false,
-      erro_supabase: error.message,
-      codigo: error.code,
-      msg: "AINDA DEU RUIM"
-    })
+    return res.status(500).json({ ok: false, erro: error.message, codigo: error.code })
   }
 
-  res.status(200).json({ ok: true, inseriu: data, msg: "FUNCIONOU CARALHO!" })
+  res.status(200).json({ ok: true, inseriu: data })
 }
