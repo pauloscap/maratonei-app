@@ -27,7 +27,7 @@ async function salvaTitulo(tmdbId, tipo) {
     status: d.status
   }
 
-  await supabase.from('titulos').upsert(titulo, { onConflict: 'id_tmdb' })
+  await supabase.from('series').upsert(titulo, { onConflict: 'id_tmdb' })
 }
 
 export default async function handler(req, res) {
