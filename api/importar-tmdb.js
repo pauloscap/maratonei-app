@@ -13,7 +13,8 @@ export default async function handler(req, res) {
   }
 
   try {
-    const urlTmdb = `https://api.themoviedb.org/3/${tipo}/${id_tmdb}?language=pt-BR`
+    const tipoTmdb = tipo === 'serie' ? 'tv' : tipo
+const urlTmdb = `https://api.themoviedb.org/3/${tipoTmdb}/${id_tmdb}?language=pt-BR`
     const respostaTmdb = await fetch(urlTmdb, {
       headers: {
         Authorization: `Bearer ${process.env.TMDB_API_KEY}`,
