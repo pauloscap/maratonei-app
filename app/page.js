@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic' //
 'use client' // ← IMPORTANTE: isso faz o JavaScript rodar no navegador
 import { useState, useEffect } from 'react'
 import { createClient } from '@supabase/supabase-js'
