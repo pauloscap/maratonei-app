@@ -16,7 +16,7 @@ export default function Admin() {
       const data = await res.json()
       setResultados(data.results || [])
     } catch (e) {
-      alert('Erro ao buscar')
+      alert('Erro ao buscar: ' + e.message)
     } finally {
       setCarregando(false)
     }
@@ -74,7 +74,7 @@ export default function Admin() {
               <button
                 onClick={() => importarTitulo(item)}
                 disabled={importando === item.id}
-                style={{ marginTop: 10 }}
+                style={{ marginTop: 10, padding: '5px 10px' }}
               >
                 {importando === item.id ? 'Importando...' : 'Importar'}
               </button>
