@@ -1,37 +1,38 @@
+'use client' // ← IMPORTANTE: isso faz o JavaScript rodar no navegador
+import { useState, useEffect } from 'react'
+import { createClient } from '@supabase/supabase-js'
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_KEY
+)
+
 export default function Home() {
-  return (
-    <main className="main active" id="series">
-      <div className="tab-header">
-        <h2>Séries</h2>
-        <div className="view-toggle">
-          <button className="active">
-            <svg viewBox="0 0 24" fill="none" strokeWidth="2">
-              <rect x="3" y="3" width="7" height="7"></rect>
-              <rect x="14" y="3" width="7" height="7"></rect>
-              <rect x="14" y="14" width="7" height="7"></rect>
-              <rect x="3" y="14" width="7" height="7"></rect>
-            </svg>
-          </button>
-          <button>
-            <svg viewBox="0 0 24 24" fill="none" strokeWidth="2">
-              <line x1="8" y1="6" x2="21" y2="6"></line>
-              <line x1="8" y1="12" x2="21" y2="12"></line>
-              <line x1="8" y1="18" x2="21" y2="18"></line>
-              <line x1="3" y1="6" x2="3.01" y2="6"></line>
-              <line x1="3" y1="12" x2="3.01" y2="12"></line>
-              <line x1="3" y1="18" x2="3.01" y2="18"></line>
-            </svg>
-          </button>
-        </div>
-      </div>
-      <div className="grid" id="series-grade">
-        <div className="poster"></div>
-        <div className="poster"></div>
-        <div className="poster"></div>
-        <div className="poster"></div>
-        <div className="poster"></div>
-        <div className="poster"></div>
-      </div>
-    </main>
-  )
-}
+  const [aba, setAba] = useState('series')
+  const [view, setView] = useState('grade')
+  const [series, setSeries] = useState([])
+  const [filmes, setFilmes] = useState([])
+
+  useEffect(() => {
+    async function buscarDados() {
+      const { data } = await supabase
+        .from('series')
+        .select('*')
+        .order('nota', { ascending: false })
+      
+      if (data) {
+        setSeries(data.filter(s => s.tipo !== 'filme'))
+        setFilmes(data.filter(s => s.tipo === 'filme'))
+      }
+    }
+    buscarDados()
+  }, [])
+
+  function trocarAba(novaAba) {
+    setAba(novaAba)
+    // Muda a cor do menu lá embaixo
+    document.querySelectorAll('.nav-item').forEach(el => {
+      el.classList.remove('active')
+      el.classList.add('inactive')
+    })
+    document.querySelector(`[data-tab="${novaAba}"]`).classList.add('
