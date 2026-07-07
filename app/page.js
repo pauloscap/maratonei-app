@@ -1,8 +1,7 @@
-'use client' // ← TEM QUE SER A PRIMEIRA LINHA DO ARQUIVO
+'use client'
+export const dynamic = 'force-dynamic'
 
-import { useState, useEffect } from 'react'
 import { createClient } from '@supabase/supabase-js'
-
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.NEXT_PUBLIC_SUPABASE_KEY
