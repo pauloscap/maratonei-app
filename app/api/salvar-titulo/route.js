@@ -3,22 +3,29 @@ import { createClient } from '@supabase/supabase-js'
 export async function POST(request) {
   try {
     const item = await request.json()
-    if (item.media_type!== 'tv') {
-      return Response.json({ error: 'Essa tabela é só pra séries' }, { status: 400 })
-    }
+
+    // LOG 1: Ver o que chegou do botão
+    console.log('Item recebido:', item)
+
+    // Força ser 'tv' se não vier nada, pq sua tabela é só de série
+    const tipo = item.media_type === 'movie'? 'movie' : 'tv'
 
     const tmdbKey = process.env.TMDB_API_KEY
-    const detalhesRes = await fetch(
-      `https://api.themoviedb.org/3/tv/${item.id}?api_key=${tmdbKey}&language=pt-BR`
-    )
+    console.log('Tem TMDB key?',!!tmdbKey) // LOG 2: true/false
+
+    const url = `https://api.themoviedb.org/3/${tipo}/${item.id}?api_key=${tmdbKey}&language=pt-BR`
+    console.log('URL TMDB:', url) // LOG 3: Ver a URL completa
+
+    const detalhesRes = await fetch(url)
 
     if (!detalhesRes.ok) {
-      return Response.json({ error: 'TMDB recusou a requisição' }, { status: 500 })
+      const erroTMDB = await detalhesRes.text()
+      console.log('Erro TMDB:', erroTMDB) // LOG 4: Erro real do TMDB
+      return Response.json({ error: 'TMDB recusou: ' + erroTMDB }, { status: 500 })
     }
 
     const d = await detalhesRes.json()
 
-    // MUDEI AQUI: usando SUPABASE_URL e SUPABASE_KEY que você já tem
     const supabase = createClient(
       process.env.SUPABASE_URL,
       process.env.SUPABASE_KEY
@@ -38,10 +45,14 @@ export async function POST(request) {
       status: d.status
     }, { onConflict: 'id_tmdb' })
 
-    if (error) return Response.json({ error: error.message }, { status: 500 })
+    if (error) {
+      console.log('Erro Supabase:', error) // LOG 5
+      return Response.json({ error: error.message }, { status: 500 })
+    }
     return Response.json({ sucesso: true })
 
   } catch (e) {
+    console.log('Erro geral:', e) // LOG 6
     return Response.json({ error: 'Erro interno: ' + e.message }, { status: 500 })
   }
 }
