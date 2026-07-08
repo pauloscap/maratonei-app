@@ -13,6 +13,7 @@ const supabase = createClient(
 export default function Feed() {
   const [user, setUser] = useState(null)
   const [atividades, setAtividades] = useState([])
+  const [abaAtiva, setAbaAtiva] = useState('seguindo')
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
@@ -22,7 +23,7 @@ export default function Feed() {
 
   useEffect(() => {
     if (user) buscarFeed()
-  }, [user])
+  }, [user, abaAtiva])
 
   async function checkUser() {
     const { data: { session } } = await supabase.auth.getSession()
@@ -34,33 +35,63 @@ export default function Feed() {
   }
 
   async function buscarFeed() {
-    // 1. Busca últimos 50 episódios assistidos
-    const { data: episodios } = await supabase
-  .from('user_episodios')
-  .select('user_id, serie_id, temporada_numero, episodio_numero, created_at')
-  .order('created_at', { ascending: false })
-  .limit(50)
+    let userIds = []
 
-    // 2. Busca últimas 50 avaliações
-    const { data: avaliacoes } = await supabase
-  .from('user_avaliacoes')
-  .select('user_id, serie_id, temporada_numero, episodio_numero, nota, comentario, created_at')
-  .order('created_at', { ascending: false })
-  .limit(50)
+    if (abaAtiva === 'seguindo') {
+      // Busca quem o usuário segue
+      const { data: seguindo } = await supabase
+    .from('seguidores')
+    .select('seguindo_id')
+    .eq('seguidor_id', user.id)
+
+      userIds = seguindo?.map(s => s.seguindo_id) || []
+
+      if (userIds.length === 0) {
+        setAtividades([])
+        setLoading(false)
+        return
+      }
+    }
+
+    // 1. Busca episódios
+    let queryEps = supabase
+ .from('user_episodios')
+ .select('user_id, serie_id, temporada_numero, episodio_numero, created_at')
+ .order('created_at', { ascending: false })
+ .limit(50)
+
+    if (abaAtiva === 'seguindo') {
+      queryEps = queryEps.in('user_id', userIds)
+    }
+
+    const { data: episodios } = await queryEps
+
+    // 2. Busca avaliações
+    let queryAval = supabase
+ .from('user_avaliacoes')
+ .select('user_id, serie_id, temporada_numero, episodio_numero, nota, comentario, created_at')
+ .order('created_at', { ascending: false })
+ .limit(50)
+
+    if (abaAtiva === 'seguindo') {
+      queryAval = queryAval.in('user_id', userIds)
+    }
+
+    const { data: avaliacoes } = await queryAval
 
     // 3. Busca perfis e séries
-    const userIds = [...new Set([...episodios?.map(e => e.user_id) || [],...avaliacoes?.map(a => a.user_id) || []])]
+    const todosUserIds = [...new Set([...episodios?.map(e => e.user_id) || [],...avaliacoes?.map(a => a.user_id) || []])]
     const seriesIds = [...new Set([...episodios?.map(e => e.serie_id) || [],...avaliacoes?.map(a => a.serie_id) || []])]
 
     const { data: perfis } = await supabase
-  .from('profiles')
-  .select('id, nome, avatar_url, username')
-  .in('id', userIds)
+ .from('profiles')
+ .select('id, nome, avatar_url, username')
+ .in('id', todosUserIds)
 
     const { data: series } = await supabase
-  .from('series')
-  .select('id, titulo, poster')
-  .in('id', seriesIds)
+ .from('series')
+ .select('id, titulo, poster')
+ .in('id', seriesIds)
 
     // 4. Monta mapa
     const perfisMap = {}
@@ -118,17 +149,43 @@ export default function Feed() {
   if (!user) return <main className="main"><div className="card">Redirecionando...</div></main>
   if (loading) return <main className="main"><div className="card">Carregando feed...</div></main>
 
+  const Aba = ({ valor, texto }) => (
+    <button
+      onClick={() => setAbaAtiva(valor)}
+      style={{
+        flex: 1,
+        background: abaAtiva === valor? '#FACC15' : '#1E293B',
+        color: abaAtiva === valor? '#000' : '#94A3B8',
+        border: 'none',
+        padding: '12px',
+        fontSize: '14px',
+        fontWeight: abaAtiva === valor? 'bold' : 'normal',
+        cursor: 'pointer'
+      }}
+    >
+      {texto}
+    </button>
+  )
+
   return (
     <main className="main">
       <Link href="/" style={{color: '#FACC15', textDecoration: 'none', marginBottom: '16px', display: 'block'}}>
         ← Voltar
       </Link>
 
-      <h1 style={{color: '#FACC15', marginBottom: '24px', fontSize: '28px'}}>📱 Feed</h1>
+      <h1 style={{color: '#FACC15', marginBottom: '16px', fontSize: '28px'}}>📱 Feed</h1>
+
+      <div style={{display: 'flex', marginBottom: '24px', borderRadius: '8px', overflow: 'hidden'}}>
+        <Aba valor="seguindo" texto="Seguindo" />
+        <Aba valor="global" texto="Global" />
+      </div>
 
       {atividades.length === 0? (
         <div className="card" style={{textAlign: 'center', color: '#64748B'}}>
-          Ninguém assistiu nada ainda. Seja o primeiro!
+          {abaAtiva === 'seguindo'?
+            'Você ainda não segue ninguém. Vá pro Ranking e siga amigos!' :
+            'Ninguém assistiu nada ainda. Seja o primeiro!'
+          }
         </div>
       ) : (
         atividades.map((atv, index) => (
