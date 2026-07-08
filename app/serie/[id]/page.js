@@ -21,24 +21,21 @@ export default function SerieDetalhe({ params }) {
   }, [params.id])
 
   async function buscarDados() {
-    // 1. Busca série
     const { data: serieData } = await supabase.from('series').select('*').eq('id', params.id).single()
     if (serieData) {
       setSerie(serieData)
 
-      // 2. Busca temporadas
       const { data: tempsData } = await supabase
-       .from('temporadas')
-       .select('*')
-       .eq('serie_id', params.id)
-       .order('numero', { ascending: true })
+      .from('temporadas')
+      .select('*')
+      .eq('serie_id', params.id)
+      .order('numero', { ascending: true })
       if (tempsData) setTemporadas(tempsData)
 
-      // 3. Busca episódios assistidos
       const { data: epsData } = await supabase
-       .from('user_episodios')
-       .select('*')
-       .eq('serie_id', params.id)
+      .from('user_episodios')
+      .select('*')
+      .eq('serie_id', params.id)
 
       if (epsData) {
         const assistidosMap = {}
@@ -56,28 +53,48 @@ export default function SerieDetalhe({ params }) {
     const jaAssistido = assistidos[key]
 
     if (jaAssistido) {
-      // Desmarca
       await supabase
-       .from('user_episodios')
-       .delete()
-       .eq('serie_id', params.id)
-       .eq('temporada_numero', tempNumero)
-       .eq('episodio_numero', epNumero)
+      .from('user_episodios')
+      .delete()
+      .eq('serie_id', params.id)
+      .eq('temporada_numero', tempNumero)
+      .eq('episodio_numero', epNumero)
 
       const novos = {...assistidos}
       delete novos[key]
       setAssistidos(novos)
     } else {
-      // Marca
       await supabase
-       .from('user_episodios')
-       .insert({
+      .from('user_episodios')
+      .insert({
           serie_id: parseInt(params.id),
           temporada_numero: tempNumero,
           episodio_numero: epNumero
         })
 
       setAssistidos({...assistidos, [key]: true})
+    }
+  }
+
+  async function marcarTemporadaCompleta(tempNumero, totalEps) {
+    const episodiosParaMarcar = []
+    for (let ep = 1; ep <= totalEps; ep++) {
+      if (!assistidos[`${tempNumero}-${ep}`]) {
+        episodiosParaMarcar.push({
+          serie_id: parseInt(params.id),
+          temporada_numero: tempNumero,
+          episodio_numero: ep
+        })
+      }
+    }
+
+    if (episodiosParaMarcar.length > 0) {
+      await supabase.from('user_episodios').insert(episodiosParaMarcar)
+      const novos = {...assistidos}
+      episodiosParaMarcar.forEach(ep => {
+        novos[`${ep.temporada_numero}-${ep.episodio_numero}`] = true
+      })
+      setAssistidos(novos)
     }
   }
 
@@ -107,73 +124,97 @@ export default function SerieDetalhe({ params }) {
 
       <h3 style={{color: '#FACC15', marginTop: '24px', marginBottom: '12px'}}>Temporadas</h3>
 
-      {temporadas.map(temp => (
-        <div key={temp.id} className="card" style={{marginBottom: '12px'}}>
-          <div
-            style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer'}}
-            onClick={() => setTempAberta(tempAberta === temp.id? null : temp.id)}
-          >
-            <div>
-              <strong>Temporada {temp.numero}</strong>
-              <p style={{color: '#94A3B8', fontSize: '14px', marginTop: '4px'}}>
-                {temp.episodios} episódios • {temp.ano}
-              </p>
-            </div>
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              strokeWidth="2"
-              stroke="currentColor"
-              style={{
-                width: '20px',
-                transform: tempAberta === temp.id? 'rotate(180deg)' : 'rotate(0deg)',
-                transition: 'transform 0.2s'
-              }}
-            >
-              <polyline points="6 9 12 15 18 9"></polyline>
-            </svg>
-          </div>
+      {temporadas.map(temp => {
+        const epsAssistidos = Array.from({length: temp.episodios}, (_, i) => i + 1)
+         .filter(ep => assistidos[`${temp.numero}-${ep}`]).length
+        const completa = epsAssistidos === temp.episodios
 
-          {tempAberta === temp.id && (
-            <div style={{marginTop: '16px', borderTop: '1px solid #334155', paddingTop: '16px'}}>
-              {Array.from({length: temp.episodios}, (_, i) => i + 1).map(ep => {
-                const assistido = assistidos[`${temp.numero}-${ep}`]
-                return (
-                  <div
-                    key={ep}
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      padding: '10px 0',
-                      borderBottom: '1px solid #1E293B'
-                    }}
-                  >
-                    <span style={{color: assistido? '#FACC15' : '#fff'}}>
-                      Episódio {ep} {assistido && '✓'}
-                    </span>
-                    <button
-                      onClick={() => toggleEpisodio(temp.numero, ep)}
+        return (
+          <div key={temp.id} className="card" style={{marginBottom: '12px'}}>
+            <div
+              style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer'}}
+              onClick={() => setTempAberta(tempAberta === temp.id? null : temp.id)}
+            >
+              <div>
+                <strong>Temporada {temp.numero} {completa && '✓'}</strong>
+                <p style={{color: '#94A3B8', fontSize: '14px', marginTop: '4px'}}>
+                  {epsAssistidos}/{temp.episodios} episódios • {temp.ano}
+                </p>
+              </div>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                strokeWidth="2"
+                stroke="currentColor"
+                style={{
+                  width: '20px',
+                  transform: tempAberta === temp.id? 'rotate(180deg)' : 'rotate(0deg)',
+                  transition: 'transform 0.2s'
+                }}
+              >
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </div>
+
+            {tempAberta === temp.id && (
+              <div style={{marginTop: '16px', borderTop: '1px solid #334155', paddingTop: '16px'}}>
+                <button
+                  onClick={() => marcarTemporadaCompleta(temp.numero, temp.episodios)}
+                  disabled={completa}
+                  style={{
+                    width: '100%',
+                    background: completa? '#1E293B' : '#FACC15',
+                    color: completa? '#64748B' : '#000',
+                    border: 'none',
+                    padding: '10px',
+                    borderRadius: '6px',
+                    cursor: completa? 'not-allowed' : 'pointer',
+                    fontWeight: 'bold',
+                    marginBottom: '12px'
+                  }}
+                >
+                  {completa? 'Temporada Completa ✓' : 'Marcar Temporada Inteira'}
+                </button>
+
+                {Array.from({length: temp.episodios}, (_, i) => i + 1).map(ep => {
+                  const assistido = assistidos[`${temp.numero}-${ep}`]
+                  return (
+                    <div
+                      key={ep}
                       style={{
-                        background: assistido? '#FACC15' : '#1E293B',
-                        color: assistido? '#000' : '#94A3B8',
-                        border: '1px solid #334155',
-                        padding: '6px 12px',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        fontSize: '12px',
-                        fontWeight: assistido? 'bold' : 'normal'
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '10px 0',
+                        borderBottom: '1px solid #1E293B'
                       }}
                     >
-                      {assistido? 'Assistido' : 'Marcar'}
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      ))}
+                      <span style={{color: assistido? '#FACC15' : '#fff'}}>
+                        Episódio {ep} {assistido && '✓'}
+                      </span>
+                      <button
+                        onClick={() => toggleEpisodio(temp.numero, ep)}
+                        style={{
+                          background: assistido? '#FACC15' : '#1E293B',
+                          color: assistido? '#000' : '#94A3B8',
+                          border: '1px solid #334155',
+                          padding: '6px 12px',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                          fontWeight: assistido? 'bold' : 'normal'
+                        }}
+                      >
+                        {assistido? 'Assistido' : 'Marcar'}
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )
+      })}
     </main>
   )
 }
