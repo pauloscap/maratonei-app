@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@supabase/supabase-js'
+import Link from 'next/link'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -49,13 +50,9 @@ export default function Home() {
           {view === 'grade' ? (
             <div className="grid">
               {series.map(serie => (
-                <div key={serie.id} className="poster">
-                  <img 
-                    src={`https://image.tmdb.org/t/p/w500${serie.poster}`} 
-                    alt={serie.titulo}
-                    style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px'}}
-                  />
-                </div>
+                <Link key={serie.id} href={`/serie/${serie.id}`} className="poster">
+  <img src={`https://image.tmdb.org/t/p/w500${serie.poster}`} alt={serie.titulo} ... />
+</Link>
               ))}
             </div>
           ) : (
