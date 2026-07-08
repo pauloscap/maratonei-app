@@ -12,22 +12,20 @@ const supabase = createClient(
 export default function Home() {
   const [series, setSeries] = useState([])
   const [progresso, setProgresso] = useState({})
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     buscarDados()
   }, [])
 
   async function buscarDados() {
-    // 1. Busca todas as séries
     const { data: seriesData } = await supabase.from('series').select('*')
     if (seriesData) {
       setSeries(seriesData)
       
-      // 2. Pra cada série, calcula o progresso
       const progressoMap = {}
       
       for (const serie of seriesData) {
-        // Total de episódios da série
         const { data: temps } = await supabase
          .from('temporadas')
          .select('episodios')
@@ -35,7 +33,6 @@ export default function Home() {
         
         const totalEps = temps?.reduce((acc, t) => acc + t.episodios, 0) || 0
         
-        // Quantos já assistiu
         const { data: assistidos } = await supabase
          .from('user_episodios')
          .select('id')
@@ -49,7 +46,10 @@ export default function Home() {
       
       setProgresso(progressoMap)
     }
+    setLoading(false)
   }
+
+  if (loading) return <main className="main"><div className="card">Carregando...</div></main>
 
   return (
     <main className="main">
@@ -60,11 +60,17 @@ export default function Home() {
         
         return (
           <Link key={serie.id} href={`/serie/${serie.id}`} style={{textDecoration: 'none'}}>
-            <div className="card" style={{position: 'relative', overflow: 'hidden'}}>
+            <div className="card" style={{marginBottom: '16px'}}>
               <img
                 src={`https://image.tmdb.org/t/p/w500${serie.poster}`}
                 alt={serie.titulo}
-                style={{width: '100%', borderRadius: '8px', marginBottom: '12px'}}
+                style={{
+                  width: '100%',
+                  height: '180px',
+                  objectFit: 'cover',
+                  borderRadius: '8px',
+                  marginBottom: '12px'
+                }}
               />
               <h3 style={{color: '#FACC15', marginBottom: '4px'}}>{serie.titulo}</h3>
               <div style={{color: '#94A3B8', fontSize: '14px', marginBottom: '12px'}}>
