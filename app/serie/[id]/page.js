@@ -15,14 +15,13 @@ export default function Serie() {
   const [user, setUser] = useState(null)
   const [serie, setSerie] = useState(null)
   const [temporadas, setTemporadas] = useState([])
+  const [temporadaAberta, setTemporadaAberta] = useState(null)
   const [episodiosAssistidos, setEpisodiosAssistidos] = useState({})
   const [avaliacoes, setAvaliacoes] = useState({})
+  const [comentarios, setComentarios] = useState({})
+  const [comentarioAtivo, setComentarioAtivo] = useState(null)
+  const [textoComentario, setTextoComentario] = useState('')
   const [loading, setLoading] = useState(true)
-  const [modalAberto, setModalAberto] = useState(false)
-  const [epSelecionado, setEpSelecionado] = useState(null)
-  const [notaTemp, setNotaTemp] = useState(5)
-  const [comentarioTemp, setComentarioTemp] = useState('')
-  const [salvando, setSalvando] = useState(false)
 
   useEffect(() => {
     checkUser()
@@ -30,71 +29,90 @@ export default function Serie() {
 
   useEffect(() => {
     if (user) buscarDados()
-  }, [user, params.id])
+  }, [params.id, user])
 
   async function checkUser() {
     const { data: { session } } = await supabase.auth.getSession()
-    if (session) {
-      setUser(session.user)
-    }
+    setUser(session?.user || null)
   }
 
   async function buscarDados() {
     const { data: serieData } = await supabase
-     .from('series')
-     .select('*')
-     .eq('id', params.id)
-     .single()
+ .from('series')
+ .select('*')
+ .eq('id', params.id)
+ .single()
 
     if (serieData) {
       setSerie(serieData)
 
       const { data: temps } = await supabase
-       .from('temporadas')
-       .select('*')
-       .eq('serie_id', params.id)
-       .order('numero')
+   .from('temporadas')
+   .select('*')
+   .eq('serie_id', params.id)
+   .order('numero')
 
-      setTemporadas(temps || [])
+      if (temps) {
+        setTemporadas(temps)
+        if (temps.length > 0) setTemporadaAberta(temps[0].numero)
+      }
 
-      const { data: assistidos } = await supabase
-       .from('user_episodios')
-       .select('temporada_numero, episodio_numero')
-       .eq('serie_id', params.id)
+      if (user) {
+        const { data: assistidos } = await supabase
+     .from('user_episodios')
+     .select('*')
+     .eq('user_id', user.id)
+     .eq('serie_id', params.id)
 
-      const assistidosMap = {}
-      assistidos?.forEach(e => {
-        const key = `${e.temporada_numero}-${e.episodio_numero}`
-        assistidosMap[key] = true
+        const assistidosObj = {}
+        assistidos?.forEach(a => {
+          assistidosObj[`${a.temporada_numero}-${a.episodio_numero}`] = true
+        })
+        setEpisodiosAssistidos(assistidosObj)
+
+        const { data: avals } = await supabase
+     .from('user_avaliacoes')
+     .select('*')
+     .eq('user_id', user.id)
+     .eq('serie_id', params.id)
+
+        const avalsObj = {}
+        avals?.forEach(a => {
+          avalsObj[`${a.temporada_numero}-${a.episodio_numero}`] = a
+        })
+        setAvaliacoes(avalsObj)
+      }
+
+      // Busca comentários públicos
+      const { data: coments } = await supabase
+   .from('comentarios_episodios')
+   .select('*, profiles(nome, avatar_url)')
+   .eq('serie_id', params.id)
+   .order('created_at', { ascending: false })
+
+      const comentsObj = {}
+      coments?.forEach(c => {
+        const key = `${c.temporada_numero}-${c.episodio_numero}`
+        if (!comentsObj[key]) comentsObj[key] = []
+        comentsObj[key].push(c)
       })
-      setEpisodiosAssistidos(assistidosMap)
-
-      const { data: avaliacoesData } = await supabase
-       .from('user_avaliacoes')
-       .select('*')
-       .eq('serie_id', params.id)
-
-      const avaliacoesMap = {}
-      avaliacoesData?.forEach(a => {
-        const key = `${a.temporada_numero}-${a.episodio_numero}`
-        avaliacoesMap[key] = a
-      })
-      setAvaliacoes(avaliacoesMap)
+      setComentarios(comentsObj)
     }
     setLoading(false)
   }
 
-  async function toggleEpisodio(temporada, episodio) {
-    const key = `${temporada}-${episodio}`
-    const jaAssistido = episodiosAssistidos[key]
+  async function toggleEpisodio(tempNum, epNum) {
+    const key = `${tempNum}-${epNum}`
+    const jaAssistiu = episodiosAssistidos[key]
 
-    if (jaAssistido) {
+    if (jaAssistiu) {
       await supabase
-       .from('user_episodios')
-       .delete()
-       .eq('serie_id', params.id)
-       .eq('temporada_numero', temporada)
-       .eq('episodio_numero', episodio)
+   .from('user_episodios')
+   .delete()
+   .eq('user_id', user.id)
+   .eq('serie_id', params.id)
+   .eq('temporada_numero', tempNum)
+   .eq('episodio_numero', epNum)
 
       setEpisodiosAssistidos(prev => {
         const novo = {...prev }
@@ -103,110 +121,223 @@ export default function Serie() {
       })
     } else {
       await supabase
-       .from('user_episodios')
-       .insert({
-          serie_id: params.id,
-          temporada_numero: temporada,
-          episodio_numero: episodio
-        })
+   .from('user_episodios')
+   .insert({
+      user_id: user.id,
+      serie_id: params.id,
+      temporada_numero: tempNum,
+      episodio_numero: epNum
+    })
 
-      setEpisodiosAssistidos(prev => ({
-       ...prev,
-        [key]: true
-      }))
+      setEpisodiosAssistidos(prev => ({...prev, [key]: true }))
     }
   }
 
-  async function marcarTemporada(temporadaNumero, totalEps) {
-    const todosMarcados = Array.from({ length: totalEps }, (_, i) => i + 1)
-     .every(ep => episodiosAssistidos[`${temporadaNumero}-${ep}`])
+  async function salvarAvaliacao(tempNum, epNum, nota, comentario) {
+    const key = `${tempNum}-${epNum}`
 
-    if (todosMarcados) {
-      // Desmarca todos
-      for (let ep = 1; ep <= totalEps; ep++) {
-        await supabase
-         .from('user_episodios')
-         .delete()
-         .eq('serie_id', params.id)
-         .eq('temporada_numero', temporadaNumero)
-         .eq('episodio_numero', ep)
-      }
-      setEpisodiosAssistidos(prev => {
-        const novo = {...prev }
-        for (let ep = 1; ep <= totalEps; ep++) {
-          delete novo[`${temporadaNumero}-${ep}`]
-        }
-        return novo
-      })
-    } else {
-      // Marca todos
-      const inserts = Array.from({ length: totalEps }, (_, i) => ({
-        serie_id: params.id,
-        temporada_numero: temporadaNumero,
-        episodio_numero: i + 1
-      }))
-      await supabase.from('user_episodios').insert(inserts)
+    await supabase
+ .from('user_avaliacoes')
+ .upsert({
+    user_id: user.id,
+    serie_id: params.id,
+    temporada_numero: tempNum,
+    episodio_numero: epNum,
+    nota,
+    comentario
+  })
 
-      setEpisodiosAssistidos(prev => {
-        const novo = {...prev }
-        for (let ep = 1; ep <= totalEps; ep++) {
-          novo[`${temporadaNumero}-${ep}`] = true
-        }
-        return novo
-      })
-    }
+    setAvaliacoes(prev => ({
+     ...prev,
+      [key]: { nota, comentario }
+    }))
   }
 
-  function abrirModalAvaliacao(temporada, episodio) {
-    const key = `${temporada}-${episodio}`
-    const avaliacaoExistente = avaliacoes[key]
+  async function enviarComentario(tempNum, epNum) {
+    if (!textoComentario.trim()) return
 
-    setEpSelecionado({ temporada, episodio })
-    setNotaTemp(avaliacaoExistente?.nota || 5)
-    setComentarioTemp(avaliacaoExistente?.comentario || '')
-    setModalAberto(true)
+    await supabase
+ .from('comentarios_episodios')
+ .insert({
+    user_id: user.id,
+    serie_id: params.id,
+    temporada_numero: tempNum,
+    episodio_numero: epNum,
+    comentario: textoComentario
+  })
+
+    setTextoComentario('')
+    setComentarioAtivo(null)
+    buscarDados()
   }
 
-  async function salvarAvaliacao() {
-    if (!epSelecionado) return
-    setSalvando(true)
+  function tempoAtras(data) {
+    const agora = new Date()
+    const diff = agora - new Date(data)
+    const minutos = Math.floor(diff / 60000)
+    const horas = Math.floor(minutos / 60)
+    const dias = Math.floor(horas / 24)
 
-    const { temporada, episodio } = epSelecionado
-    const key = `${temporada}-${episodio}`
-
-    try {
-      const { error } = await supabase
-       .from('user_avaliacoes')
-       .upsert({
-          serie_id: params.id,
-          temporada_numero: temporada,
-          episodio_numero: episodio,
-          nota: notaTemp,
-          comentario: comentarioTemp
-        }, {
-          onConflict: 'user_id,serie_id,temporada_numero,episodio_numero'
-        })
-
-      if (error) throw error
-
-      setAvaliacoes(prev => ({
-       ...prev,
-        [key]: {
-          nota: notaTemp,
-          comentario: comentarioTemp
-        }
-      }))
-
-      setModalAberto(false)
-    } catch (err) {
-      console.error(err)
-      alert('Erro ao salvar avaliação')
-    }
-    setSalvando(false)
+    if (dias > 0) return `${dias}d`
+    if (horas > 0) return `${horas}h`
+    if (minutos > 0) return `${minutos}min`
+    return 'agora'
   }
 
   if (loading) return <main className="main"><div className="card">Carregando...</div></main>
   if (!serie) return <main className="main"><div className="card">Série não encontrada</div></main>
+
+  const EpisodioItem = ({ tempNum, epNum }) => {
+    const key = `${tempNum}-${epNum}`
+    const assistido = episodiosAssistidos[key]
+    const avaliacao = avaliacoes[key]
+    const coments = comentarios[key] || []
+    const mostrandoComents = comentarioAtivo === key
+
+    return (
+      <div style={{
+        background: assistido? '#1E293B' : 'transparent',
+        border: '1px solid #334155',
+        borderRadius: '8px',
+        marginBottom: '12px'
+      }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          padding: '12px'
+        }}>
+          <div
+            onClick={() => toggleEpisodio(tempNum, epNum)}
+            style={{
+              width: '20px',
+              height: '20px',
+              borderRadius: '50%',
+              border: '2px solid #FACC15',
+              background: assistido? '#FACC15' : 'transparent',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '12px'
+            }}
+          >
+            {assistido && '✓'}
+          </div>
+
+          <div style={{flex: 1}}>
+            <p style={{color: '#fff', fontSize: '14px'}}>Episódio {epNum}</p>
+          </div>
+
+          {assistido && (
+            <div style={{display: 'flex', gap: '4px'}}>
+              {Array.from({ length: 5 }, (_, i) => (
+                <span
+                  key={i}
+                  onClick={() => salvarAvaliacao(tempNum, epNum, i + 1, avaliacao?.comentario || '')}
+                  style={{
+                    cursor: 'pointer',
+                    fontSize: '16px',
+                    color: i < (avaliacao?.nota || 0)? '#FACC15' : '#334155'
+                  }}
+                >
+                  ⭐
+                </span>
+              ))}
+            </div>
+          )}
+
+          <button
+            onClick={() => setComentarioAtivo(mostrandoComents? null : key)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: '#FACC15',
+              fontSize: '14px',
+              cursor: 'pointer'
+            }}
+          >
+            💬 {coments.length}
+          </button>
+        </div>
+
+        {mostrandoComents && (
+          <div style={{padding: '0 12px 12px'}}>
+            {user && (
+              <div style={{marginBottom: '12px', display: 'flex', gap: '8px'}}>
+                <input
+                  type="text"
+                  value={textoComentario}
+                  onChange={(e) => setTextoComentario(e.target.value)}
+                  placeholder="Comente sobre esse episódio..."
+                  style={{
+                    flex: 1,
+                    background: '#0F172A',
+                    border: '1px solid #334155',
+                    color: '#fff',
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    outline: 'none'
+                  }}
+                  onKeyPress={(e) => e.key === 'Enter' && enviarComentario(tempNum, epNum)}
+                />
+                <button
+                  onClick={() => enviarComentario(tempNum, epNum)}
+                  style={{
+                    background: '#FACC15',
+                    color: '#000',
+                    border: 'none',
+                    padding: '8px 16px',
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Enviar
+                </button>
+              </div>
+            )}
+
+            {coments.map((c, i) => (
+              <div key={i} style={{
+                background: '#0F172A',
+                padding: '10px',
+                borderRadius: '6px',
+                marginBottom: '8px'
+              }}>
+                <div style={{display: 'flex', gap: '8px', marginBottom: '6px'}}>
+                  <img
+                    src={c.profiles?.avatar_url || 'https://via.placeholder.com/24'}
+                    alt={c.profiles?.nome}
+                    style={{width: '24px', height: '24px', borderRadius: '50%'}}
+                  />
+                  <div style={{flex: 1}}>
+                    <p style={{color: '#FACC15', fontSize: '12px', fontWeight: 'bold'}}>
+                      {c.profiles?.nome || 'Anônimo'}
+                    </p>
+                    <p style={{color: '#64748B', fontSize: '11px'}}>
+                      {tempoAtras(c.created_at)}
+                    </p>
+                  </div>
+                </div>
+                <p style={{color: '#94A3B8', fontSize: '13px', lineHeight: '1.5'}}>
+                  {c.comentario}
+                </p>
+              </div>
+            ))}
+
+            {coments.length === 0 && (
+              <p style={{color: '#64748B', fontSize: '12px', textAlign: 'center', padding: '8px'}}>
+                Seja o primeiro a comentar!
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <main className="main">
@@ -231,219 +362,47 @@ export default function Serie() {
           <span>⭐ {serie.nota?.toFixed(1)}</span>
           <span style={{margin: '0 8px'}}>•</span>
           <span>{serie.ano}</span>
-          {serie.generos && (
-            <>
-              <span style={{margin: '0 8px'}}>•</span>
-              <span>{serie.generos}</span>
-            </>
-          )}
         </div>
         <p style={{color: '#94A3B8', fontSize: '14px', lineHeight: '1.6'}}>
           {serie.sinopse}
         </p>
       </div>
 
-      {temporadas.map(temp => {
-        const totalEps = temp.episodios
-        const marcados = Array.from({ length: totalEps }, (_, i) => i + 1)
-         .filter(ep => episodiosAssistidos[`${temp.numero}-${ep}`]).length
-        const percentual = totalEps > 0? Math.round((marcados / totalEps) * 100) : 0
-        const todosMarcados = marcados === totalEps
+      {temporadas.map(temp => (
+        <div key={temp.id} style={{marginBottom: '16px'}}>
+          <button
+            onClick={() => setTemporadaAberta(temporadaAberta === temp.numero? null : temp.numero)}
+            style={{
+              width: '100%',
+              background: '#1E293B',
+              border: '1px solid #334155',
+              color: '#fff',
+              padding: '12px 16px',
+              borderRadius: '8px',
+              textAlign: 'left',
+              cursor: 'pointer',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}
+          >
+            <span>Temporada {temp.numero}</span>
+            <span>{temporadaAberta === temp.numero? '▼' : '▶'}</span>
+          </button>
 
-        return (
-          <div key={temp.numero} className="card" style={{marginBottom: '16px'}}>
-            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px'}}>
-              <h3 style={{color: '#FACC15', margin: 0}}>
-                Temporada {temp.numero}
-              </h3>
-              <button
-                onClick={() => marcarTemporada(temp.numero, totalEps)}
-                style={{
-                  background: todosMarcados? '#22C55E' : '#1E293B',
-                  color: todosMarcados? '#fff' : '#94A3B8',
-                  border: 'none',
-                  padding: '6px 12px',
-                  borderRadius: '6px',
-                  fontSize: '12px',
-                  cursor: 'pointer',
-                  fontWeight: 'bold'
-                }}
-              >
-                {todosMarcados? '✓ Completa' : 'Marcar todos'}
-              </button>
+          {temporadaAberta === temp.numero && (
+            <div style={{padding: '12px 0'}}>
+              {Array.from({ length: temp.episodios }, (_, i) => (
+                <EpisodioItem
+                  key={i}
+                  tempNum={temp.numero}
+                  epNum={i + 1}
+                />
+              ))}
             </div>
-
-            <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#94A3B8', marginBottom: '8px'}}>
-              <span>{marcados}/{totalEps} episódios</span>
-              <span style={{color: '#FACC15', fontWeight: 'bold'}}>{percentual}%</span>
-            </div>
-            <div style={{width: '100%', height: '6px', background: '#1E293B', borderRadius: '3px', overflow: 'hidden', marginBottom: '12px'}}>
-              <div style={{
-                width: `${percentual}%`,
-                height: '100%',
-                background: '#FACC15',
-                transition: 'width 0.3s'
-              }} />
-            </div>
-
-            <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(50px, 1fr))', gap: '8px'}}>
-              {Array.from({ length: totalEps }, (_, i) => i + 1).map(ep => {
-                const key = `${temp.numero}-${ep}`
-                const assistido = episodiosAssistidos[key]
-                const avaliacao = avaliacoes[key]
-
-                return (
-                  <div key={ep} style={{position: 'relative'}}>
-                    <button
-                      onClick={() => toggleEpisodio(temp.numero, ep)}
-                      style={{
-                        width: '100%',
-                        background: assistido? '#22C55E' : '#1E293B',
-                        color: assistido? '#fff' : '#94A3B8',
-                        border: 'none',
-                        padding: '10px 0',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        fontSize: '13px',
-                        fontWeight: assistido? 'bold' : 'normal',
-                        transition: 'all 0.2s'
-                      }}
-                    >
-                      {ep}
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        abrirModalAvaliacao(temp.numero, ep)
-                      }}
-                      style={{
-                        position: 'absolute',
-                        top: '-4px',
-                        right: '-4px',
-                        background: avaliacao? '#FACC15' : '#334155',
-                        color: avaliacao? '#000' : '#94A3B8',
-                        border: 'none',
-                        width: '20px',
-                        height: '20px',
-                        borderRadius: '50%',
-                        fontSize: '10px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                    >
-                      {avaliacao? '⭐' : '+'}
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )
-      })}
-
-      {/* Modal de Avaliação */}
-      {modalAberto && epSelecionado && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0,0,0,0.8)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000,
-          padding: '20px'
-        }}>
-          <div className="card" style={{maxWidth: '400px', width: '100%'}}>
-            <h3 style={{color: '#FACC15', marginBottom: '16px'}}>
-              Avaliar T{epSelecionado.temporada}E{epSelecionado.episodio}
-            </h3>
-
-            <div style={{marginBottom: '16px'}}>
-              <p style={{color: '#94A3B8', fontSize: '14px', marginBottom: '8px'}}>Nota:</p>
-              <div style={{display: 'flex', gap: '8px'}}>
-                {[1,2,3,4,5].map(n => (
-                  <button
-                    key={n}
-                    onClick={() => setNotaTemp(n)}
-                    style={{
-                      background: n <= notaTemp? '#FACC15' : '#1E293B',
-                      color: n <= notaTemp? '#000' : '#94A3B8',
-                      border: 'none',
-                      width: '40px',
-                      height: '40px',
-                      borderRadius: '8px',
-                      fontSize: '18px',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    ⭐
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div style={{marginBottom: '20px'}}>
-              <p style={{color: '#94A3B8', fontSize: '14px', marginBottom: '8px'}}>Comentário:</p>
-              <textarea
-                value={comentarioTemp}
-                onChange={(e) => setComentarioTemp(e.target.value)}
-                placeholder="O que achou do episódio?"
-                rows={4}
-                style={{
-                  width: '100%',
-                  background: '#1E293B',
-                  border: '1px solid #334155',
-                  color: '#fff',
-                  padding: '12px',
-                  borderRadius: '8px',
-                  fontSize: '14px',
-                  outline: 'none',
-                  resize: 'none'
-                }}
-              />
-            </div>
-
-            <div style={{display: 'flex', gap: '8px'}}>
-              <button
-                onClick={() => setModalAberto(false)}
-                style={{
-                  flex: 1,
-                  background: '#1E293B',
-                  color: '#94A3B8',
-                  border: 'none',
-                  padding: '12px',
-                  borderRadius: '8px',
-                  cursor: 'pointer'
-                }}
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={salvarAvaliacao}
-                disabled={salvando}
-                style={{
-                  flex: 1,
-                  background: '#FACC15',
-                  color: '#000',
-                  border: 'none',
-                  padding: '12px',
-                  borderRadius: '8px',
-                  fontWeight: 'bold',
-                  cursor: salvando? 'not-allowed' : 'pointer',
-                  opacity: salvando? 0.5 : 1
-                }}
-              >
-                {salvando? 'Salvando...' : 'Salvar'}
-              </button>
-            </div>
-          </div>
+          )}
         </div>
-      )}
+      ))}
     </main>
   )
 }
