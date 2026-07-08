@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -11,17 +11,30 @@ const supabase = createClient(
 )
 
 export default function Adicionar() {
+  const [user, setUser] = useState(null)
   const [busca, setBusca] = useState('')
   const [resultados, setResultados] = useState([])
   const [loading, setLoading] = useState(false)
   const [adicionando, setAdicionando] = useState(null)
   const router = useRouter()
 
-  // Pega a chave do TMDB do .env
   const TMDB_KEY = process.env.NEXT_PUBLIC_TMDB_API_KEY || 'a1e42d1491eedff27ee9e352a1f70735'
 
+  useEffect(() => {
+    checkUser()
+  }, [])
+
+  async function checkUser() {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      router.push('/login')
+    } else {
+      setUser(session.user)
+    }
+  }
+
   async function buscarSeries() {
-    if (!busca) return
+    if (!busca.trim()) return
     setLoading(true)
     
     try {
@@ -31,6 +44,7 @@ export default function Adicionar() {
       const data = await res.json()
       setResultados(data.results?.slice(0, 10) || [])
     } catch (err) {
+      console.error(err)
       alert('Erro ao buscar séries')
     }
     setLoading(false)
@@ -66,10 +80,10 @@ export default function Adicionar() {
           tmdb_id: serieTmdb.id,
           titulo: detalhes.name,
           poster: detalhes.poster_path,
-          sinopse: detalhes.overview,
-          nota: detalhes.vote_average,
-          ano: new Date(detalhes.first_air_date).getFullYear(),
-          generos: detalhes.genres?.map(g => g.name).join(', ')
+          sinopse: detalhes.overview || '',
+          nota: detalhes.vote_average || 0,
+          ano: detalhes.first_air_date? new Date(detalhes.first_air_date).getFullYear() : null,
+          generos: detalhes.genres?.map(g => g.name).join(', ') || ''
         })
         .select()
         .single()
@@ -77,13 +91,8 @@ export default function Adicionar() {
       if (erroSerie) throw erroSerie
 
       // 4. Busca e insere as temporadas
-      const resTemps = await fetch(
-        `https://api.themoviedb.org/3/tv/${serieTmdb.id}?api_key=${TMDB_KEY}&language=pt-BR&append_to_response=season/1,season/2,season/3,season/4,season/5,season/6,season/7,season/8,season/9,season/10`
-      )
-      const dadosCompletos = await resTemps.json()
-
-      const temporadas = dadosCompletos.seasons
-        ?.filter(s => s.season_number > 0) // Remove temporada 0 que são especiais
+      const temporadas = detalhes.seasons
+        ?.filter(s => s.season_number > 0 && s.episode_count > 0)
         ?.map(s => ({
           serie_id: novaSerie.id,
           numero: s.season_number,
@@ -91,7 +100,8 @@ export default function Adicionar() {
         })) || []
 
       if (temporadas.length > 0) {
-        await supabase.from('temporadas').insert(temporadas)
+        const { error: erroTemps } = await supabase.from('temporadas').insert(temporadas)
+        if (erroTemps) throw erroTemps
       }
 
       alert(`✅ ${detalhes.name} adicionada com sucesso!`)
@@ -104,6 +114,8 @@ export default function Adicionar() {
     
     setAdicionando(null)
   }
+
+  if (!user) return <main className="main"><div className="card">Redirecionando...</div></main>
 
   return (
     <main className="main">
@@ -176,7 +188,7 @@ export default function Adicionar() {
           <div style={{flex: 1}}>
             <h3 style={{color: '#FACC15', marginBottom: '4px'}}>{serie.name}</h3>
             <p style={{color: '#94A3B8', fontSize: '14px', marginBottom: '8px'}}>
-              {serie.first_air_date? new Date(serie.first_air_date).getFullYear() : 'Ano?'} • ⭐ {serie.vote_average?.toFixed(1)}
+              {serie.first_air_date? new Date(serie.first_air_date).getFullYear() : 'Ano desconhecido'} • ⭐ {serie.vote_average?.toFixed(1)}
             </p>
             <p style={{color: '#64748B', fontSize: '13px', marginBottom: '12px', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden'}}>
               {serie.overview || 'Sem sinopse disponível'}
