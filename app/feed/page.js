@@ -36,31 +36,31 @@ export default function Feed() {
   async function buscarFeed() {
     // 1. Busca últimos 50 episódios assistidos
     const { data: episodios } = await supabase
-   .from('user_episodios')
-   .select('user_id, serie_id, temporada_numero, episodio_numero, created_at')
-   .order('created_at', { ascending: false })
-   .limit(50)
+  .from('user_episodios')
+  .select('user_id, serie_id, temporada_numero, episodio_numero, created_at')
+  .order('created_at', { ascending: false })
+  .limit(50)
 
     // 2. Busca últimas 50 avaliações
     const { data: avaliacoes } = await supabase
-   .from('user_avaliacoes')
-   .select('user_id, serie_id, temporada_numero, episodio_numero, nota, comentario, created_at')
-   .order('created_at', { ascending: false })
-   .limit(50)
+  .from('user_avaliacoes')
+  .select('user_id, serie_id, temporada_numero, episodio_numero, nota, comentario, created_at')
+  .order('created_at', { ascending: false })
+  .limit(50)
 
     // 3. Busca perfis e séries
     const userIds = [...new Set([...episodios?.map(e => e.user_id) || [],...avaliacoes?.map(a => a.user_id) || []])]
     const seriesIds = [...new Set([...episodios?.map(e => e.serie_id) || [],...avaliacoes?.map(a => a.serie_id) || []])]
 
     const { data: perfis } = await supabase
-   .from('profiles')
-   .select('id, nome, avatar_url, username')
-   .in('id', userIds)
+  .from('profiles')
+  .select('id, nome, avatar_url, username')
+  .in('id', userIds)
 
     const { data: series } = await supabase
-   .from('series')
-   .select('id, titulo, poster')
-   .in('id', seriesIds)
+  .from('series')
+  .select('id, titulo, poster')
+  .in('id', seriesIds)
 
     // 4. Monta mapa
     const perfisMap = {}
