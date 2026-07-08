@@ -20,7 +20,7 @@ export default function Serie() {
   const [avaliacoes, setAvaliacoes] = useState({})
   const [comentarios, setComentarios] = useState({})
   const [comentarioAtivo, setComentarioAtivo] = useState(null)
-  const [textoComentario, setTextoComentario] = useState('')
+  const [textosComentario, setTextosComentario] = useState({}) // ← CORRIGIDO: objeto por episódio
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -47,10 +47,10 @@ export default function Serie() {
       setSerie(serieData)
 
       const { data: temps } = await supabase
-   .from('temporadas')
-   .select('*')
-   .eq('serie_id', params.id)
-   .order('numero')
+ .from('temporadas')
+ .select('*')
+ .eq('serie_id', params.id)
+ .order('numero')
 
       if (temps) {
         setTemporadas(temps)
@@ -59,10 +59,10 @@ export default function Serie() {
 
       if (user) {
         const { data: assistidos } = await supabase
-     .from('user_episodios')
-     .select('*')
-     .eq('user_id', user.id)
-     .eq('serie_id', params.id)
+   .from('user_episodios')
+   .select('*')
+   .eq('user_id', user.id)
+   .eq('serie_id', params.id)
 
         const assistidosObj = {}
         assistidos?.forEach(a => {
@@ -71,10 +71,10 @@ export default function Serie() {
         setEpisodiosAssistidos(assistidosObj)
 
         const { data: avals } = await supabase
-     .from('user_avaliacoes')
-     .select('*')
-     .eq('user_id', user.id)
-     .eq('serie_id', params.id)
+   .from('user_avaliacoes')
+   .select('*')
+   .eq('user_id', user.id)
+   .eq('serie_id', params.id)
 
         const avalsObj = {}
         avals?.forEach(a => {
@@ -85,10 +85,10 @@ export default function Serie() {
 
       // Busca comentários públicos
       const { data: coments } = await supabase
-   .from('comentarios_episodios')
-   .select('*, profiles(nome, avatar_url)')
-   .eq('serie_id', params.id)
-   .order('created_at', { ascending: false })
+ .from('comentarios_episodios')
+ .select('*, profiles(nome, avatar_url)')
+ .eq('serie_id', params.id)
+ .order('created_at', { ascending: false })
 
       const comentsObj = {}
       coments?.forEach(c => {
@@ -107,12 +107,12 @@ export default function Serie() {
 
     if (jaAssistiu) {
       await supabase
-   .from('user_episodios')
-   .delete()
-   .eq('user_id', user.id)
-   .eq('serie_id', params.id)
-   .eq('temporada_numero', tempNum)
-   .eq('episodio_numero', epNum)
+ .from('user_episodios')
+ .delete()
+ .eq('user_id', user.id)
+ .eq('serie_id', params.id)
+ .eq('temporada_numero', tempNum)
+ .eq('episodio_numero', epNum)
 
       setEpisodiosAssistidos(prev => {
         const novo = {...prev }
@@ -121,8 +121,8 @@ export default function Serie() {
       })
     } else {
       await supabase
-   .from('user_episodios')
-   .insert({
+ .from('user_episodios')
+ .insert({
       user_id: user.id,
       serie_id: params.id,
       temporada_numero: tempNum,
@@ -148,27 +148,37 @@ export default function Serie() {
   })
 
     setAvaliacoes(prev => ({
-     ...prev,
+   ...prev,
       [key]: { nota, comentario }
     }))
   }
 
   async function enviarComentario(tempNum, epNum) {
-    if (!textoComentario.trim()) return
+    const key = `${tempNum}-${epNum}`
+    const texto = textosComentario[key]?.trim()
 
-    await supabase
+    if (!texto) return
+
+    const { error } = await supabase
  .from('comentarios_episodios')
  .insert({
     user_id: user.id,
     serie_id: params.id,
     temporada_numero: tempNum,
     episodio_numero: epNum,
-    comentario: textoComentario
+    comentario: texto
   })
 
-    setTextoComentario('')
+    if (error) {
+      console.error(error)
+      alert('Erro ao comentar: ' + error.message)
+      return
+    }
+
+    // Limpa só o input desse episódio
+    setTextosComentario(prev => ({...prev, [key]: '' }))
     setComentarioAtivo(null)
-    buscarDados()
+    buscarDados() // Recarrega comentários
   }
 
   function tempoAtras(data) {
@@ -208,18 +218,19 @@ export default function Serie() {
           padding: '12px'
         }}>
           <div
-            onClick={() => toggleEpisodio(tempNum, epNum)}
+            onClick={() => user && toggleEpisodio(tempNum, epNum)}
             style={{
               width: '20px',
               height: '20px',
               borderRadius: '50%',
               border: '2px solid #FACC15',
               background: assistido? '#FACC15' : 'transparent',
-              cursor: 'pointer',
+              cursor: user? 'pointer' : 'not-allowed',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: '12px'
+              fontSize: '12px',
+              flexShrink: 0
             }}
           >
             {assistido && '✓'}
@@ -229,7 +240,7 @@ export default function Serie() {
             <p style={{color: '#fff', fontSize: '14px'}}>Episódio {epNum}</p>
           </div>
 
-          {assistido && (
+          {assistido && user && (
             <div style={{display: 'flex', gap: '4px'}}>
               {Array.from({ length: 5 }, (_, i) => (
                 <span
@@ -254,7 +265,8 @@ export default function Serie() {
               border: 'none',
               color: '#FACC15',
               fontSize: '14px',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              flexShrink: 0
             }}
           >
             💬 {coments.length}
@@ -267,8 +279,8 @@ export default function Serie() {
               <div style={{marginBottom: '12px', display: 'flex', gap: '8px'}}>
                 <input
                   type="text"
-                  value={textoComentario}
-                  onChange={(e) => setTextoComentario(e.target.value)}
+                  value={textosComentario[key] || ''} // ← CORRIGIDO: usa key do episódio
+                  onChange={(e) => setTextosComentario(prev => ({...prev, [key]: e.target.value }))} // ← CORRIGIDO
                   placeholder="Comente sobre esse episódio..."
                   style={{
                     flex: 1,
