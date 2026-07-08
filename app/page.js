@@ -15,6 +15,7 @@ export default function Home() {
   const [series, setSeries] = useState([])
   const [seriesFiltradas, setSeriesFiltradas] = useState([])
   const [continuarAssistindo, setContinuarAssistindo] = useState([])
+  const [notificacoesNaoLidas, setNotificacoesNaoLidas] = useState(0)
   const [loading, setLoading] = useState(true)
   const [busca, setBusca] = useState('')
   const [filtro, setFiltro] = useState('todas')
@@ -25,7 +26,10 @@ export default function Home() {
   }, [])
 
   useEffect(() => {
-    if (user) buscarDados()
+    if (user) {
+      buscarDados()
+      buscarNotificacoes()
+    }
   }, [user])
 
   useEffect(() => {
@@ -46,6 +50,16 @@ export default function Home() {
     router.push('/login')
   }
 
+  async function buscarNotificacoes() {
+    const { count } = await supabase
+.from('notificacoes')
+.select('*', { count: 'exact', head: true })
+.eq('user_id', user.id)
+.eq('lida', false)
+
+    setNotificacoesNaoLidas(count || 0)
+  }
+
   async function buscarDados() {
     const { data: seriesData } = await supabase.from('series').select('*')
     if (seriesData) {
@@ -53,24 +67,24 @@ export default function Home() {
 
       for (const serie of seriesData) {
         const { data: temps } = await supabase
-      .from('temporadas')
-      .select('episodios')
-      .eq('serie_id', serie.id)
+  .from('temporadas')
+  .select('episodios')
+  .eq('serie_id', serie.id)
 
         const totalEps = temps?.reduce((acc, t) => acc + t.episodios, 0) || 0
 
         const { data: assistidos } = await supabase
-      .from('user_episodios')
-      .select('id, created_at')
-      .eq('serie_id', serie.id)
-      .order('created_at', { ascending: false })
+  .from('user_episodios')
+  .select('id, created_at')
+  .eq('serie_id', serie.id)
+  .order('created_at', { ascending: false })
 
         const assistidosCount = assistidos?.length || 0
         const percentual = totalEps > 0? Math.round((assistidosCount / totalEps) * 100) : 0
         const ultimoAssistido = assistidos?.[0]?.created_at || null
 
         progressoArray.push({
-      ...serie,
+  ...serie,
           totalEps,
           assistidosCount,
           percentual,
@@ -79,8 +93,8 @@ export default function Home() {
       }
 
       const emAndamento = progressoArray
-    .filter(s => s.percentual > 0 && s.percentual < 100)
-    .sort((a, b) => new Date(b.ultimoAssistido) - new Date(a.ultimoAssistido))
+.filter(s => s.percentual > 0 && s.percentual < 100)
+.sort((a, b) => new Date(b.ultimoAssistido) - new Date(a.ultimoAssistido))
 
       setContinuarAssistindo(emAndamento)
       setSeries(progressoArray)
@@ -217,6 +231,35 @@ export default function Home() {
               fontWeight: 'bold'
             }}>
               📱
+            </div>
+          </Link>
+          <Link href="/notificacoes" style={{textDecoration: 'none', position: 'relative'}}>
+            <div style={{
+              background: '#1E293B',
+              padding: '8px 14px',
+              borderRadius: '8px',
+              color: '#FACC15',
+              fontSize: '14px',
+              fontWeight: 'bold'
+            }}>
+              🔔
+              {notificacoesNaoLidas > 0 && (
+                <div style={{
+                  position: 'absolute',
+                  top: '-4px',
+                  right: '-4px',
+                  background: '#EF4444',
+                  color: '#fff',
+                  fontSize: '10px',
+                  fontWeight: 'bold',
+                  padding: '2px 6px',
+                  borderRadius: '10px',
+                  minWidth: '16px',
+                  textAlign: 'center'
+                }}>
+                  {notificacoesNaoLidas}
+                </div>
+              )}
             </div>
           </Link>
           <Link href="/stats" style={{textDecoration: 'none'}}>
