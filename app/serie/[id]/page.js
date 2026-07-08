@@ -12,35 +12,74 @@ const supabase = createClient(
 export default function SerieDetalhe({ params }) {
   const [serie, setSerie] = useState(null)
   const [temporadas, setTemporadas] = useState([])
+  const [assistidos, setAssistidos] = useState({})
   const [loading, setLoading] = useState(true)
   const [tempAberta, setTempAberta] = useState(null)
 
   useEffect(() => {
-    async function buscarSerie() {
-      // 1. Busca dados da série
-      const { data: serieData } = await supabase
-        .from('series')
-        .select('*')
-        .eq('id', params.id)
-        .single()
-      
-      if (serieData) {
-        setSerie(serieData)
-        
-        // 2. Busca temporadas dessa série
-        const { data: tempsData } = await supabase
-          .from('temporadas')
-          .select('*')
-          .eq('serie_id', params.id)
-          .order('numero', { ascending: true })
-        
-        if (tempsData) setTemporadas(tempsData)
-      }
-      
-      setLoading(false)
-    }
-    buscarSerie()
+    buscarDados()
   }, [params.id])
+
+  async function buscarDados() {
+    // 1. Busca série
+    const { data: serieData } = await supabase.from('series').select('*').eq('id', params.id).single()
+    if (serieData) {
+      setSerie(serieData)
+
+      // 2. Busca temporadas
+      const { data: tempsData } = await supabase
+       .from('temporadas')
+       .select('*')
+       .eq('serie_id', params.id)
+       .order('numero', { ascending: true })
+      if (tempsData) setTemporadas(tempsData)
+
+      // 3. Busca episódios assistidos
+      const { data: epsData } = await supabase
+       .from('user_episodios')
+       .select('*')
+       .eq('serie_id', params.id)
+
+      if (epsData) {
+        const assistidosMap = {}
+        epsData.forEach(ep => {
+          assistidosMap[`${ep.temporada_numero}-${ep.episodio_numero}`] = true
+        })
+        setAssistidos(assistidosMap)
+      }
+    }
+    setLoading(false)
+  }
+
+  async function toggleEpisodio(tempNumero, epNumero) {
+    const key = `${tempNumero}-${epNumero}`
+    const jaAssistido = assistidos[key]
+
+    if (jaAssistido) {
+      // Desmarca
+      await supabase
+       .from('user_episodios')
+       .delete()
+       .eq('serie_id', params.id)
+       .eq('temporada_numero', tempNumero)
+       .eq('episodio_numero', epNumero)
+
+      const novos = {...assistidos}
+      delete novos[key]
+      setAssistidos(novos)
+    } else {
+      // Marca
+      await supabase
+       .from('user_episodios')
+       .insert({
+          serie_id: parseInt(params.id),
+          temporada_numero: tempNumero,
+          episodio_numero: epNumero
+        })
+
+      setAssistidos({...assistidos, [key]: true})
+    }
+  }
 
   if (loading) return <main className="main"><div className="card">Carregando...</div></main>
   if (!serie) return <main className="main"><div className="card">Série não encontrada</div></main>
@@ -50,38 +89,29 @@ export default function SerieDetalhe({ params }) {
       <Link href="/" style={{color: '#FACC15', textDecoration: 'none', marginBottom: '16px', display: 'block'}}>
         ← Voltar
       </Link>
-      
+
       <div className="card">
-        <img 
-          src={`https://image.tmdb.org/t/p/w500${serie.poster}`} 
+        <img
+          src={`https://image.tmdb.org/t/p/w500${serie.poster}`}
           alt={serie.titulo}
           style={{width: '100%', borderRadius: '8px', marginBottom: '16px'}}
         />
-        
         <h1 style={{color: '#FACC15', marginBottom: '8px'}}>{serie.titulo}</h1>
-        
         <div style={{color: '#94A3B8', marginBottom: '16px'}}>
           <span>⭐ {serie.nota?.toFixed(1)}</span>
           <span style={{margin: '0 8px'}}>•</span>
           <span>{serie.ano}</span>
         </div>
-
-        <p style={{lineHeight: '1.6', marginBottom: '20px'}}>{serie.sinopse}</p>
+        <p style={{lineHeight: '1.6'}}>{serie.sinopse}</p>
       </div>
 
       <h3 style={{color: '#FACC15', marginTop: '24px', marginBottom: '12px'}}>Temporadas</h3>
-      
-      {temporadas.length === 0 && (
-        <div className="card">
-          <p style={{color: '#94A3B8'}}>Nenhuma temporada cadastrada ainda</p>
-        </div>
-      )}
 
       {temporadas.map(temp => (
         <div key={temp.id} className="card" style={{marginBottom: '12px'}}>
-          <div 
+          <div
             style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer'}}
-            onClick={() => setTempAberta(tempAberta === temp.id ? null : temp.id)}
+            onClick={() => setTempAberta(tempAberta === temp.id? null : temp.id)}
           >
             <div>
               <strong>Temporada {temp.numero}</strong>
@@ -89,14 +119,14 @@ export default function SerieDetalhe({ params }) {
                 {temp.episodios} episódios • {temp.ano}
               </p>
             </div>
-            <svg 
-              viewBox="0 0 24 24" 
-              fill="none" 
-              strokeWidth="2" 
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              strokeWidth="2"
               stroke="currentColor"
               style={{
-                width: '20px', 
-                transform: tempAberta === temp.id ? 'rotate(180deg)' : 'rotate(0deg)',
+                width: '20px',
+                transform: tempAberta === temp.id? 'rotate(180deg)' : 'rotate(0deg)',
                 transition: 'transform 0.2s'
               }}
             >
@@ -106,33 +136,40 @@ export default function SerieDetalhe({ params }) {
 
           {tempAberta === temp.id && (
             <div style={{marginTop: '16px', borderTop: '1px solid #334155', paddingTop: '16px'}}>
-              {Array.from({length: temp.episodios}, (_, i) => i + 1).map(ep => (
-                <div 
-                  key={ep} 
-                  style={{
-                    display: 'flex', 
-                    justifyContent: 'space-between', 
-                    alignItems: 'center',
-                    padding: '10px 0',
-                    borderBottom: '1px solid #1E293B'
-                  }}
-                >
-                  <span>Episódio {ep}</span>
-                  <button 
+              {Array.from({length: temp.episodios}, (_, i) => i + 1).map(ep => {
+                const assistido = assistidos[`${temp.numero}-${ep}`]
+                return (
+                  <div
+                    key={ep}
                     style={{
-                      background: '#1E293B',
-                      border: '1px solid #334155',
-                      color: '#94A3B8',
-                      padding: '6px 12px',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      fontSize: '12px'
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '10px 0',
+                      borderBottom: '1px solid #1E293B'
                     }}
                   >
-                    Marcar
-                  </button>
-                </div>
-              ))}
+                    <span style={{color: assistido? '#FACC15' : '#fff'}}>
+                      Episódio {ep} {assistido && '✓'}
+                    </span>
+                    <button
+                      onClick={() => toggleEpisodio(temp.numero, ep)}
+                      style={{
+                        background: assistido? '#FACC15' : '#1E293B',
+                        color: assistido? '#000' : '#94A3B8',
+                        border: '1px solid #334155',
+                        padding: '6px 12px',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        fontWeight: assistido? 'bold' : 'normal'
+                      }}
+                    >
+                      {assistido? 'Assistido' : 'Marcar'}
+                    </button>
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>
