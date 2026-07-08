@@ -39,10 +39,19 @@ export default function Home() {
             <h2>Séries</h2>
             <div className="view-toggle">
               <button className={view === 'grade' ? 'active' : ''} onClick={() => setView('grade')}>
-                <svg viewBox="0 0 24 24" fill="none" strokeWidth="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                <svg viewBox="0 0 24 24" fill="none" strokeWidth="2">
+                  <rect x="3" y="3" width="7" height="7"></rect>
+                  <rect x="14" y="3" width="7" height="7"></rect>
+                  <rect x="14" y="14" width="7" height="7"></rect>
+                  <rect x="3" y="14" width="7" height="7"></rect>
+                </svg>
               </button>
               <button className={view === 'lista' ? 'active' : ''} onClick={() => setView('lista')}>
-                <svg viewBox="0 0 24 24" fill="none" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line></svg>
+                <svg viewBox="0 0 24 24" fill="none" strokeWidth="2">
+                  <line x1="8" y1="6" x2="21" y2="6"></line>
+                  <line x1="8" y1="12" x2="21" y2="12"></line>
+                  <line x1="8" y1="18" x2="21" y2="18"></line>
+                </svg>
               </button>
             </div>
           </div>
@@ -51,20 +60,26 @@ export default function Home() {
             <div className="grid">
               {series.map(serie => (
                 <Link key={serie.id} href={`/serie/${serie.id}`} className="poster">
-  <img src={`https://image.tmdb.org/t/p/w500${serie.poster}`} alt={serie.titulo} ... />
-</Link>
+                  <img 
+                    src={`https://image.tmdb.org/t/p/w500${serie.poster}`} 
+                    alt={serie.titulo}
+                    style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px'}}
+                  />
+                </Link>
               ))}
             </div>
           ) : (
             <div>
               {series.map(serie => (
-                <div key={serie.id} className="card episode-card">
-                  <img src={`https://image.tmdb.org/t/p/w200${serie.poster}`} className="poster" alt={serie.titulo} />
-                  <div>
-                    <strong style={{color:'#FACC15'}}>{serie.titulo}</strong><br/>
-                    <span style={{color:'#64748B'}}>⭐ {serie.nota?.toFixed(1)} • {serie.ano}</span>
+                <Link key={serie.id} href={`/serie/${serie.id}`} style={{textDecoration: 'none'}}>
+                  <div className="card episode-card">
+                    <img src={`https://image.tmdb.org/t/p/w200${serie.poster}`} className="poster" alt={serie.titulo} />
+                    <div>
+                      <strong style={{color:'#FACC15'}}>{serie.titulo}</strong><br/>
+                      <span style={{color:'#64748B'}}>⭐ {serie.nota?.toFixed(1)} • {serie.ano}</span>
+                    </div>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           )}
@@ -76,17 +91,38 @@ export default function Home() {
           <div className="tab-header"><h2>Filmes</h2></div>
           <div className="grid">
             {filmes.map(filme => (
-              <div key={filme.id} className="poster">
-                <img src={`https://image.tmdb.org/t/p/w500${filme.poster}`} alt={filme.titulo} style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px'}} />
-              </div>
+              <Link key={filme.id} href={`/serie/${filme.id}`} className="poster">
+                <img 
+                  src={`https://image.tmdb.org/t/p/w500${filme.poster}`} 
+                  alt={filme.titulo} 
+                  style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px'}} 
+                />
+              </Link>
             ))}
           </div>
         </main>
       )}
 
-      {aba === 'localizar' && <main className="main active"><h2 style={{color:'#FACC15',marginBottom:'16px'}}>Localizar</h2><input className="input" placeholder="Buscar filmes, séries, pessoas..." /></main>}
-      {aba === 'agenda' && <main className="main active"><h2 style={{color:'#FACC15',marginBottom:'16px'}}>Agenda</h2><div className="card"><h3>Em breve...</h3></div></main>}
-      {aba === 'perfil' && <main className="main active"><h2 style={{color:'#FACC15',marginBottom:'16px'}}>Perfil</h2><div className="card"><h3>Em breve...</h3></div></main>}
+      {aba === 'localizar' && (
+        <main className="main active">
+          <h2 style={{color:'#FACC15',marginBottom:'16px'}}>Localizar</h2>
+          <input className="input" placeholder="Buscar filmes, séries, pessoas..." />
+        </main>
+      )}
+      
+      {aba === 'agenda' && (
+        <main className="main active">
+          <h2 style={{color:'#FACC15',marginBottom:'16px'}}>Agenda</h2>
+          <div className="card"><h3>Em breve...</h3></div>
+        </main>
+      )}
+      
+      {aba === 'perfil' && (
+        <main className="main active">
+          <h2 style={{color:'#FACC15',marginBottom:'16px'}}>Perfil</h2>
+          <div className="card"><h3>Em breve...</h3></div>
+        </main>
+      )}
 
       <nav className="bottom-nav">
         <div className={`nav-item ${aba === 'series' ? 'active' : 'inactive'}`} onClick={() => setAba('series')}>
