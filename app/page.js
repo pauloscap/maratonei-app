@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -10,20 +11,40 @@ const supabase = createClient(
 )
 
 export default function Home() {
+  const [user, setUser] = useState(null)
   const [series, setSeries] = useState([])
   const [seriesFiltradas, setSeriesFiltradas] = useState([])
   const [continuarAssistindo, setContinuarAssistindo] = useState([])
   const [loading, setLoading] = useState(true)
   const [busca, setBusca] = useState('')
   const [filtro, setFiltro] = useState('todas')
+  const router = useRouter()
 
   useEffect(() => {
-    buscarDados()
+    checkUser()
   }, [])
+
+  useEffect(() => {
+    if (user) buscarDados()
+  }, [user])
 
   useEffect(() => {
     aplicarFiltros()
   }, [busca, filtro, series])
+
+  async function checkUser() {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      router.push('/login')
+    } else {
+      setUser(session.user)
+    }
+  }
+
+  async function signOut() {
+    await supabase.auth.signOut()
+    router.push('/login')
+  }
 
   async function buscarDados() {
     const { data: seriesData } = await supabase.from('series').select('*')
@@ -32,24 +53,24 @@ export default function Home() {
 
       for (const serie of seriesData) {
         const { data: temps } = await supabase
-      .from('temporadas')
-      .select('episodios')
-      .eq('serie_id', serie.id)
+    .from('temporadas')
+    .select('episodios')
+    .eq('serie_id', serie.id)
 
         const totalEps = temps?.reduce((acc, t) => acc + t.episodios, 0) || 0
 
         const { data: assistidos } = await supabase
-      .from('user_episodios')
-      .select('id, created_at')
-      .eq('serie_id', serie.id)
-      .order('created_at', { ascending: false })
+    .from('user_episodios')
+    .select('id, created_at')
+    .eq('serie_id', serie.id)
+    .order('created_at', { ascending: false })
 
         const assistidosCount = assistidos?.length || 0
         const percentual = totalEps > 0? Math.round((assistidosCount / totalEps) * 100) : 0
         const ultimoAssistido = assistidos?.[0]?.created_at || null
 
         progressoArray.push({
-       ...serie,
+     ...serie,
           totalEps,
           assistidosCount,
           percentual,
@@ -58,8 +79,8 @@ export default function Home() {
       }
 
       const emAndamento = progressoArray
-    .filter(s => s.percentual > 0 && s.percentual < 100)
-    .sort((a, b) => new Date(b.ultimoAssistido) - new Date(a.ultimoAssistido))
+  .filter(s => s.percentual > 0 && s.percentual < 100)
+  .sort((a, b) => new Date(b.ultimoAssistido) - new Date(a.ultimoAssistido))
 
       setContinuarAssistindo(emAndamento)
       setSeries(progressoArray)
@@ -88,6 +109,7 @@ export default function Home() {
     setSeriesFiltradas(resultado)
   }
 
+  if (!user) return <main className="main"><div className="card">Redirecionando...</div></main>
   if (loading) return <main className="main"><div className="card">Carregando...</div></main>
 
   const CardSerie = ({ serie }) => (
@@ -155,18 +177,40 @@ export default function Home() {
     <main className="main">
       <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px'}}>
         <h1 style={{color: '#FACC15', fontSize: '28px', margin: 0}}>Maratonei</h1>
-        <Link href="/stats" style={{textDecoration: 'none'}}>
-          <div style={{
-            background: '#1E293B',
-            padding: '8px 14px',
-            borderRadius: '8px',
-            color: '#FACC15',
-            fontSize: '14px',
-            fontWeight: 'bold'
-          }}>
-            📊 Stats
-          </div>
-        </Link>
+        <div style={{display: 'flex', gap: '8px', alignItems: 'center'}}>
+          <img
+            src={user.user_metadata?.avatar_url}
+            alt="Avatar"
+            style={{width: '32px', height: '32px', borderRadius: '50%'}}
+          />
+          <Link href="/stats" style={{textDecoration: 'none'}}>
+            <div style={{
+              background: '#1E293B',
+              padding: '8px 14px',
+              borderRadius: '8px',
+              color: '#FACC15',
+              fontSize: '14px',
+              fontWeight: 'bold'
+            }}>
+              📊
+            </div>
+          </Link>
+          <button
+            onClick={signOut}
+            style={{
+              background: '#1E293B',
+              padding: '8px 14px',
+              borderRadius: '8px',
+              color: '#EF4444',
+              fontSize: '14px',
+              fontWeight: 'bold',
+              border: 'none',
+              cursor: 'pointer'
+            }}
+          >
+            Sair
+          </button>
+        </div>
       </div>
 
       <input
