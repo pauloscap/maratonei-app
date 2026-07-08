@@ -11,58 +11,83 @@ const supabase = createClient(
 
 export default function Home() {
   const [series, setSeries] = useState([])
+  const [seriesFiltradas, setSeriesFiltradas] = useState([])
   const [continuarAssistindo, setContinuarAssistindo] = useState([])
   const [loading, setLoading] = useState(true)
+  const [busca, setBusca] = useState('')
+  const [filtro, setFiltro] = useState('todas') // todas, andamento, concluidas, nao_iniciadas
 
   useEffect(() => {
     buscarDados()
   }, [])
 
+  useEffect(() => {
+    aplicarFiltros()
+  }, [busca, filtro, series])
+
   async function buscarDados() {
     const { data: seriesData } = await supabase.from('series').select('*')
     if (seriesData) {
-      setSeries(seriesData)
-
       const progressoArray = []
 
       for (const serie of seriesData) {
         const { data: temps } = await supabase
-        .from('temporadas')
-        .select('episodios')
-        .eq('serie_id', serie.id)
+       .from('temporadas')
+       .select('episodios')
+       .eq('serie_id', serie.id)
 
         const totalEps = temps?.reduce((acc, t) => acc + t.episodios, 0) || 0
 
         const { data: assistidos } = await supabase
-        .from('user_episodios')
-        .select('id, created_at')
-        .eq('serie_id', serie.id)
-        .order('created_at', { ascending: false })
+       .from('user_episodios')
+       .select('id, created_at')
+       .eq('serie_id', serie.id)
+       .order('created_at', { ascending: false })
 
         const assistidosCount = assistidos?.length || 0
         const percentual = totalEps > 0? Math.round((assistidosCount / totalEps) * 100) : 0
         const ultimoAssistido = assistidos?.[0]?.created_at || null
 
-        const progressoObj = {
-         ...serie,
+        progressoArray.push({
+        ...serie,
           totalEps,
           assistidosCount,
           percentual,
           ultimoAssistido
-        }
-
-        progressoArray.push(progressoObj)
+        })
       }
 
-      // Separa as que estão em andamento: > 0% e < 100%
       const emAndamento = progressoArray
-      .filter(s => s.percentual > 0 && s.percentual < 100)
-      .sort((a, b) => new Date(b.ultimoAssistido) - new Date(a.ultimoAssistido))
+     .filter(s => s.percentual > 0 && s.percentual < 100)
+     .sort((a, b) => new Date(b.ultimoAssistido) - new Date(a.ultimoAssistido))
 
       setContinuarAssistindo(emAndamento)
       setSeries(progressoArray)
+      setSeriesFiltradas(progressoArray)
     }
     setLoading(false)
+  }
+
+  function aplicarFiltros() {
+    let resultado = [...series]
+
+    // Filtro de busca
+    if (busca) {
+      resultado = resultado.filter(s =>
+        s.titulo.toLowerCase().includes(busca.toLowerCase())
+      )
+    }
+
+    // Filtro de status
+    if (filtro === 'andamento') {
+      resultado = resultado.filter(s => s.percentual > 0 && s.percentual < 100)
+    } else if (filtro === 'concluidas') {
+      resultado = resultado.filter(s => s.percentual === 100)
+    } else if (filtro === 'nao_iniciadas') {
+      resultado = resultado.filter(s => s.percentual === 0)
+    }
+
+    setSeriesFiltradas(resultado)
   }
 
   if (loading) return <main className="main"><div className="card">Carregando...</div></main>
@@ -108,11 +133,56 @@ export default function Home() {
     </Link>
   )
 
+  const BotaoFiltro = ({ valor, texto }) => (
+    <button
+      onClick={() => setFiltro(valor)}
+      style={{
+        background: filtro === valor? '#FACC15' : '#1E293B',
+        color: filtro === valor? '#000' : '#94A3B8',
+        border: 'none',
+        padding: '8px 14px',
+        borderRadius: '20px',
+        cursor: 'pointer',
+        fontSize: '13px',
+        fontWeight: filtro === valor? 'bold' : 'normal',
+        marginRight: '8px',
+        marginBottom: '8px'
+      }}
+    >
+      {texto}
+    </button>
+  )
+
   return (
     <main className="main">
-      <h1 style={{color: '#FACC15', marginBottom: '24px', fontSize: '28px'}}>Maratonei</h1>
+      <h1 style={{color: '#FACC15', marginBottom: '16px', fontSize: '28px'}}>Maratonei</h1>
 
-      {continuarAssistindo.length > 0 && (
+      <input
+        type="text"
+        placeholder="Buscar série..."
+        value={busca}
+        onChange={(e) => setBusca(e.target.value)}
+        style={{
+          width: '100%',
+          background: '#1E293B',
+          border: '1px solid #334155',
+          color: '#fff',
+          padding: '12px 16px',
+          borderRadius: '8px',
+          fontSize: '16px',
+          marginBottom: '16px',
+          outline: 'none'
+        }}
+      />
+
+      <div style={{marginBottom: '24px'}}>
+        <BotaoFiltro valor="todas" texto="Todas" />
+        <BotaoFiltro valor="andamento" texto="Em andamento" />
+        <BotaoFiltro valor="concluidas" texto="Concluídas" />
+        <BotaoFiltro valor="nao_iniciadas" texto="Não iniciadas" />
+      </div>
+
+      {!busca && filtro === 'todas' && continuarAssistindo.length > 0 && (
         <div style={{marginBottom: '32px'}}>
           <h2 style={{color: '#FACC15', fontSize: '20px', marginBottom: '16px'}}>Continuar Assistindo</h2>
           {continuarAssistindo.map(serie => <CardSerie key={serie.id} serie={serie} />)}
@@ -120,9 +190,16 @@ export default function Home() {
       )}
 
       <h2 style={{color: '#94A3B8', fontSize: '18px', marginBottom: '16px'}}>
-        {continuarAssistindo.length > 0? 'Todas as Séries' : 'Suas Séries'}
+        {busca || filtro!== 'todas'? `Resultados (${seriesFiltradas.length})` : 'Todas as Séries'}
       </h2>
-      {series.map(serie => <CardSerie key={serie.id} serie={serie} />)}
+
+      {seriesFiltradas.length === 0? (
+        <div className="card" style={{textAlign: 'center', color: '#64748B'}}>
+          Nenhuma série encontrada
+        </div>
+      ) : (
+        seriesFiltradas.map(serie => <CardSerie key={serie.id} serie={serie} />)
+      )}
     </main>
   )
 }
