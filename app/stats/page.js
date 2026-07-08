@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -10,58 +11,67 @@ const supabase = createClient(
 )
 
 export default function Stats() {
+  const [user, setUser] = useState(null)
   const [stats, setStats] = useState({
     totalEps: 0,
     totalSeries: 0,
-    seriesCompletas: 0,
+    concluidas: 0,
+    emAndamento: 0,
     tempoTotal: 0,
-    sequencia: 0,
-    epsUltimos7Dias: 0
+    sequencia: 0
   })
   const [loading, setLoading] = useState(true)
+  const router = useRouter()
 
   useEffect(() => {
-    calcularStats()
+    checkUser()
   }, [])
 
+  useEffect(() => {
+    if (user) calcularStats()
+  }, [user])
+
+  async function checkUser() {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      router.push('/login')
+    } else {
+      setUser(session.user)
+    }
+  }
+
   async function calcularStats() {
-    // 1. Total de episódios assistidos
     const { data: eps } = await supabase
-    .from('user_episodios')
-    .select('serie_id, created_at')
-    .order('created_at', { ascending: false })
+ .from('user_episodios')
+ .select('serie_id, created_at')
 
     const totalEps = eps?.length || 0
-
-    // 2. Quantas séries diferentes você começou
     const seriesUnicas = [...new Set(eps?.map(e => e.serie_id) || [])]
-    const totalSeries = seriesUnicas.length
 
-    // 3. Quantas séries completou 100%
-    let seriesCompletas = 0
+    const { data: temporadas } = await supabase.from('temporadas').select('serie_id, episodios')
+
+    let concluidas = 0
+    let emAndamento = 0
+
     for (const serieId of seriesUnicas) {
-      const { data: temps } = await supabase
-      .from('temporadas')
-      .select('episodios')
-      .eq('serie_id', serieId)
+      const epsSerie = eps.filter(e => e.serie_id === serieId).length
+      const totalEpsSerie = temporadas
+   .filter(t => t.serie_id === serieId)
+   .reduce((acc, t) => acc + t.episodios, 0)
 
-      const totalEpsSerie = temps?.reduce((acc, t) => acc + t.episodios, 0) || 0
-      const assistidos = eps?.filter(e => e.serie_id === serieId).length || 0
-
-      if (totalEpsSerie > 0 && assistidos >= totalEpsSerie) {
-        seriesCompletas++
+      if (epsSerie >= totalEpsSerie && totalEpsSerie > 0) {
+        concluidas++
+      } else if (epsSerie > 0) {
+        emAndamento++
       }
     }
 
-    // 4. Tempo total - média de 45min por episódio
-    const tempoTotal = Math.round(totalEps * 45 / 60) // em horas
+    const tempoTotal = totalEps * 45
 
-    // 5. Sequência de dias assistindo
     let sequencia = 0
     if (eps && eps.length > 0) {
-      const datasUnicas = [...new Set(eps.map(e =>
-        new Date(e.created_at).toDateString()
-      ))].sort((a, b) => new Date(b) - new Date(a))
+      const datas = eps.map(e => new Date(e.created_at).toDateString())
+      const datasUnicas = [...new Set(datas)].sort((a, b) => new Date(b) - new Date(a))
 
       const hoje = new Date().toDateString()
       const ontem = new Date(Date.now() - 86400000).toDateString()
@@ -79,34 +89,30 @@ export default function Stats() {
       }
     }
 
-    // 6. Eps nos últimos 7 dias
-    const seteDiasAtras = new Date(Date.now() - 7 * 86400000)
-    const epsUltimos7Dias = eps?.filter(e =>
-      new Date(e.created_at) >= seteDiasAtras
-    ).length || 0
-
     setStats({
       totalEps,
-      totalSeries,
-      seriesCompletas,
+      totalSeries: seriesUnicas.length,
+      concluidas,
+      emAndamento,
       tempoTotal,
-      sequencia,
-      epsUltimos7Dias
+      sequencia
     })
     setLoading(false)
   }
 
-  if (loading) return <main className="main"><div className="card">Calculando...</div></main>
+  if (!user) return <main className="main"><div className="card">Redirecionando...</div></main>
+  if (loading) return <main className="main"><div className="card">Carregando...</div></main>
 
-  const StatCard = ({ titulo, valor, emoji, cor = '#FACC15' }) => (
-    <div className="card" style={{marginBottom: '12px'}}>
-      <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
-        <div>
-          <p style={{color: '#94A3B8', fontSize: '14px', marginBottom: '4px'}}>{titulo}</p>
-          <p style={{color: cor, fontSize: '28px', fontWeight: 'bold'}}>{valor}</p>
-        </div>
-        <span style={{fontSize: '40px'}}>{emoji}</span>
+  const horas = Math.floor(stats.tempoTotal / 60)
+  const minutos = stats.tempoTotal % 60
+
+  const CardStat = ({ valor, label, emoji }) => (
+    <div className="card" style={{textAlign: 'center', padding: '20px'}}>
+      <div style={{fontSize: '32px', marginBottom: '8px'}}>{emoji}</div>
+      <div style={{fontSize: '28px', fontWeight: 'bold', color: '#FACC15', marginBottom: '4px'}}>
+        {valor}
       </div>
+      <div style={{fontSize: '14px', color: '#94A3B8'}}>{label}</div>
     </div>
   )
 
@@ -118,52 +124,32 @@ export default function Stats() {
 
       <h1 style={{color: '#FACC15', marginBottom: '24px', fontSize: '28px'}}>Suas Estatísticas</h1>
 
-      <StatCard
-        titulo="Episódios Assistidos"
-        valor={stats.totalEps}
-        emoji="📺"
-      />
+      <div style={{display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px', marginBottom: '24px'}}>
+        <CardStat valor={stats.totalEps} label="Episódios" emoji="📺" />
+        <CardStat valor={stats.totalSeries} label="Séries" emoji="🎬" />
+        <CardStat valor={stats.concluidas} label="Concluídas" emoji="✅" />
+        <CardStat valor={stats.emAndamento} label="Em andamento" emoji="⏳" />
+      </div>
 
-      <StatCard
-        titulo="Tempo Total"
-        valor={`${stats.tempoTotal}h`}
-        emoji="⏱️"
-        cor="#60A5FA"
-      />
-
-      <StatCard
-        titulo="Séries Iniciadas"
-        valor={stats.totalSeries}
-        emoji="🎬"
-        cor="#34D399"
-      />
-
-      <StatCard
-        titulo="Séries Concluídas"
-        valor={stats.seriesCompletas}
-        emoji="🏆"
-        cor="#F59E0B"
-      />
-
-      <StatCard
-        titulo="Sequência Atual"
-        valor={`${stats.sequencia} ${stats.sequencia === 1? 'dia' : 'dias'}`}
-        emoji="🔥"
-        cor="#EF4444"
-      />
-
-      <StatCard
-        titulo="Últimos 7 dias"
-        valor={`${stats.epsUltimos7Dias} episódios`}
-        emoji="📈"
-        cor="#A78BFA"
-      />
-
-      {stats.totalEps === 0 && (
-        <div className="card" style={{textAlign: 'center', color: '#64748B', marginTop: '20px'}}>
-          Comece a marcar episódios pra ver suas stats!
+      <div className="card" style={{marginBottom: '16px'}}>
+        <h3 style={{color: '#FACC15', marginBottom: '12px', fontSize: '16px'}}>⏱️ Tempo Total</h3>
+        <div style={{fontSize: '32px', fontWeight: 'bold', color: '#fff'}}>
+          {horas}h {minutos}min
         </div>
-      )}
+        <p style={{color: '#64748B', fontSize: '12px', marginTop: '8px'}}>
+          Baseado em 45min por episódio
+        </p>
+      </div>
+
+      <div className="card">
+        <h3 style={{color: '#FACC15', marginBottom: '12px', fontSize: '16px'}}>🔥 Sequência Atual</h3>
+        <div style={{fontSize: '32px', fontWeight: 'bold', color: '#fff'}}>
+          {stats.sequencia} {stats.sequencia === 1? 'dia' : 'dias'}
+        </div>
+        <p style={{color: '#64748B', fontSize: '12px', marginTop: '8px'}}>
+          {stats.sequencia > 0? 'Continue marcando todo dia!' : 'Marque um episódio pra começar'}
+        </p>
+      </div>
     </main>
   )
 }
