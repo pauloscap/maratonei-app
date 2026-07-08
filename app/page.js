@@ -53,24 +53,24 @@ export default function Home() {
 
       for (const serie of seriesData) {
         const { data: temps } = await supabase
-       .from('temporadas')
-       .select('episodios')
-       .eq('serie_id', serie.id)
+      .from('temporadas')
+      .select('episodios')
+      .eq('serie_id', serie.id)
 
         const totalEps = temps?.reduce((acc, t) => acc + t.episodios, 0) || 0
 
         const { data: assistidos } = await supabase
-       .from('user_episodios')
-       .select('id, created_at')
-       .eq('serie_id', serie.id)
-       .order('created_at', { ascending: false })
+      .from('user_episodios')
+      .select('id, created_at')
+      .eq('serie_id', serie.id)
+      .order('created_at', { ascending: false })
 
         const assistidosCount = assistidos?.length || 0
         const percentual = totalEps > 0? Math.round((assistidosCount / totalEps) * 100) : 0
         const ultimoAssistido = assistidos?.[0]?.created_at || null
 
         progressoArray.push({
-       ...serie,
+      ...serie,
           totalEps,
           assistidosCount,
           percentual,
@@ -79,8 +79,8 @@ export default function Home() {
       }
 
       const emAndamento = progressoArray
-     .filter(s => s.percentual > 0 && s.percentual < 100)
-     .sort((a, b) => new Date(b.ultimoAssistido) - new Date(a.ultimoAssistido))
+    .filter(s => s.percentual > 0 && s.percentual < 100)
+    .sort((a, b) => new Date(b.ultimoAssistido) - new Date(a.ultimoAssistido))
 
       setContinuarAssistindo(emAndamento)
       setSeries(progressoArray)
@@ -205,6 +205,18 @@ export default function Home() {
               fontWeight: 'bold'
             }}>
               🏆
+            </div>
+          </Link>
+          <Link href="/feed" style={{textDecoration: 'none'}}>
+            <div style={{
+              background: '#1E293B',
+              padding: '8px 14px',
+              borderRadius: '8px',
+              color: '#FACC15',
+              fontSize: '14px',
+              fontWeight: 'bold'
+            }}>
+              📱
             </div>
           </Link>
           <Link href="/stats" style={{textDecoration: 'none'}}>
