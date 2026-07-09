@@ -10,6 +10,210 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_KEY
 )
 
+function EpisodioItem({
+  tempNum,
+  epNum,
+  assistido,
+  avaliacao,
+  coments,
+  mostrandoComents,
+  textoComentario,
+  user,
+  onToggle,
+  onAvaliar,
+  onToggleComents,
+  onTextoChange,
+  onEnviarComentario,
+  onToggleCurtida
+}) {
+  const key = `${tempNum}-${epNum}`
+
+  function tempoAtras(data) {
+    const agora = new Date()
+    const diff = agora - new Date(data)
+    const minutos = Math.floor(diff / 60000)
+    const horas = Math.floor(minutos / 60)
+    const dias = Math.floor(horas / 24)
+
+    if (dias > 0) return `${dias}d`
+    if (horas > 0) return `${horas}h`
+    if (minutos > 0) return `${minutos}min`
+    return 'agora'
+  }
+
+  return (
+    <div style={{
+      background: assistido? '#1E293B' : 'transparent',
+      border: '1px solid #334155',
+      borderRadius: '8px',
+      marginBottom: '12px'
+    }}>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+        padding: '12px'
+      }}>
+        <div
+          onClick={() => user && onToggle(tempNum, epNum)}
+          style={{
+            width: '20px',
+            height: '20px',
+            borderRadius: '50%',
+            border: '2px solid #FACC15',
+            background: assistido? '#FACC15' : 'transparent',
+            cursor: user? 'pointer' : 'not-allowed',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '12px',
+            flexShrink: 0
+          }}
+        >
+          {assistido && '✓'}
+        </div>
+
+        <div style={{flex: 1}}>
+          <p style={{color: '#fff', fontSize: '14px'}}>Episódio {epNum}</p>
+        </div>
+
+        {assistido && user && (
+          <div style={{display: 'flex', gap: '4px'}}>
+            {Array.from({ length: 5 }, (_, i) => (
+              <span
+                key={i}
+                onClick={() => onAvaliar(tempNum, epNum, i + 1, avaliacao?.comentario || '')}
+                style={{
+                  cursor: 'pointer',
+                  fontSize: '16px',
+                  color: i < (avaliacao?.nota || 0)? '#FACC15' : '#334155'
+                }}
+              >
+                ⭐
+              </span>
+            ))}
+          </div>
+        )}
+
+        <button
+          onClick={() => onToggleComents(key)}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: '#FACC15',
+            fontSize: '14px',
+            cursor: 'pointer',
+            flexShrink: 0
+          }}
+        >
+          💬 {coments.length}
+        </button>
+      </div>
+
+      {mostrandoComents && (
+        <div style={{padding: '0 12px 12px'}}>
+          {user && (
+            <div style={{marginBottom: '12px', display: 'flex', gap: '8px'}}>
+              <input
+                type="text"
+                value={textoComentario}
+                onChange={(e) => onTextoChange(key, e.target.value)}
+                placeholder="Comente sobre esse episódio..."
+                style={{
+                  flex: 1,
+                  background: '#0F172A',
+                  border: '1px solid #334155',
+                  color: '#fff',
+                  padding: '8px 12px',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  outline: 'none'
+                }}
+                onKeyPress={(e) => e.key === 'Enter' && onEnviarComentario(tempNum, epNum)}
+              />
+              <button
+                onClick={() => onEnviarComentario(tempNum, epNum)}
+                style={{
+                  background: '#FACC15',
+                  color: '#000',
+                  border: 'none',
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer'
+                }}
+              >
+                Enviar
+              </button>
+            </div>
+          )}
+
+          {coments.sort((a, b) => b.curtidas_count - a.curtidas_count).map((c, i) => (
+            <div key={i} style={{
+              background: '#0F172A',
+              padding: '10px',
+              borderRadius: '6px',
+              marginBottom: '8px'
+            }}>
+              <div style={{display: 'flex', gap: '8px', marginBottom: '6px'}}>
+                <img
+                  src={c.profiles?.avatar_url || 'https://via.placeholder.com/24'}
+                  alt={c.profiles?.nome}
+                  style={{width: '24px', height: '24px', borderRadius: '50%'}}
+                />
+                <div style={{flex: 1}}>
+                  <p style={{color: '#FACC15', fontSize: '12px', fontWeight: 'bold'}}>
+                    {c.profiles?.nome || 'Anônimo'}
+                  </p>
+                  <p style={{color: '#64748B', fontSize: '11px'}}>
+                    {tempoAtras(c.created_at)}
+                  </p>
+                </div>
+                <button
+                  onClick={() => user && onToggleCurtida(c.id)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: user? 'pointer' : 'not-allowed',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '4px 8px'
+                  }}
+                >
+                  <span style={{
+                    fontSize: '16px',
+                    color: c.curtiu? '#EF4444' : '#64748B'
+                  }}>
+                    {c.curtiu? '❤️' : '🤍'}
+                  </span>
+                  <span style={{
+                    fontSize: '12px',
+                    color: c.curtiu? '#EF4444' : '#64748B',
+                    fontWeight: 'bold'
+                  }}>
+                    {c.curtidas_count || 0}
+                  </span>
+                </button>
+              </div>
+              <p style={{color: '#94A3B8', fontSize: '13px', lineHeight: '1.5'}}>
+                {c.comentario}
+              </p>
+            </div>
+          ))}
+
+          {coments.length === 0 && (
+            <p style={{color: '#64748B', fontSize: '12px', textAlign: 'center', padding: '8px'}}>
+              Seja o primeiro a comentar!
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Serie() {
   const params = useParams()
   const [user, setUser] = useState(null)
@@ -28,7 +232,7 @@ export default function Serie() {
   }, [])
 
   useEffect(() => {
-    if (user) buscarDados()
+    if (user!== undefined) buscarDados()
   }, [params.id, user])
 
   async function checkUser() {
@@ -54,7 +258,7 @@ export default function Serie() {
 
       if (temps) {
         setTemporadas(temps)
-        if (temps.length > 0) setTemporadaAberta(temps[0].numero)
+        if (temps.length > 0 && temporadaAberta === null) setTemporadaAberta(temps[0].numero)
       }
 
       if (user) {
@@ -83,30 +287,44 @@ export default function Serie() {
         setAvaliacoes(avalsObj)
       }
 
-      // CORRIGIDO: Busca comentários SEM join
+      // Busca comentários + curtidas
       const { data: coments } = await supabase
 .from('comentarios_episodios')
 .select('*')
 .eq('serie_id', params.id)
 .order('created_at', { ascending: false })
 
-      // Busca perfis separado
       const userIds = [...new Set(coments?.map(c => c.user_id) || [])]
       const { data: perfis } = await supabase
 .from('profiles')
 .select('id, nome, avatar_url')
 .in('id', userIds)
 
+      const comentarioIds = coments?.map(c => c.id) || []
+      const { data: curtidas } = await supabase
+.from('curtidas_comentarios')
+.select('comentario_id, user_id')
+.in('comentario_id', comentarioIds)
+
       const perfisMap = {}
       perfis?.forEach(p => { perfisMap[p.id] = p })
+
+      const curtidasMap = {}
+      curtidas?.forEach(c => {
+        if (!curtidasMap[c.comentario_id]) curtidasMap[c.comentario_id] = { count: 0, users: [] }
+        curtidasMap[c.comentario_id].count++
+        curtidasMap[c.comentario_id].users.push(c.user_id)
+      })
 
       const comentsObj = {}
       coments?.forEach(c => {
         const key = `${c.temporada_numero}-${c.episodio_numero}`
         if (!comentsObj[key]) comentsObj[key] = []
         comentsObj[key].push({
-        ...c,
-          profiles: perfisMap[c.user_id]
+      ...c,
+          profiles: perfisMap[c.user_id],
+          curtidas_count: curtidasMap[c.id]?.count || 0,
+          curtiu: user? curtidasMap[c.id]?.users.includes(user.id) : false
         })
       })
       setComentarios(comentsObj)
@@ -196,175 +414,40 @@ export default function Serie() {
     buscarDados()
   }
 
-  function tempoAtras(data) {
-    const agora = new Date()
-    const diff = agora - new Date(data)
-    const minutos = Math.floor(diff / 60000)
-    const horas = Math.floor(minutos / 60)
-    const dias = Math.floor(horas / 24)
+  async function toggleCurtida(comentarioId) {
+    if (!user) return
 
-    if (dias > 0) return `${dias}d`
-    if (horas > 0) return `${horas}h`
-    if (minutos > 0) return `${minutos}min`
-    return 'agora'
+    const { data: existe } = await supabase
+.from('curtidas_comentarios')
+.select('id')
+.eq('user_id', user.id)
+.eq('comentario_id', comentarioId)
+.single()
+
+    if (existe) {
+      await supabase
+  .from('curtidas_comentarios')
+  .delete()
+  .eq('user_id', user.id)
+  .eq('comentario_id', comentarioId)
+    } else {
+      await supabase
+  .from('curtidas_comentarios')
+  .insert({
+          user_id: user.id,
+          comentario_id: comentarioId
+        })
+    }
+
+    buscarDados()
+  }
+
+  function handleTextoChange(key, texto) {
+    setTextosComentario(prev => ({...prev, [key]: texto }))
   }
 
   if (loading) return <main className="main"><div className="card">Carregando...</div></main>
   if (!serie) return <main className="main"><div className="card">Série não encontrada</div></main>
-
-  const EpisodioItem = ({ tempNum, epNum }) => {
-    const key = `${tempNum}-${epNum}`
-    const assistido = episodiosAssistidos[key]
-    const avaliacao = avaliacoes[key]
-    const coments = comentarios[key] || []
-    const mostrandoComents = comentarioAtivo === key
-
-    return (
-      <div style={{
-        background: assistido? '#1E293B' : 'transparent',
-        border: '1px solid #334155',
-        borderRadius: '8px',
-        marginBottom: '12px'
-      }}>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px',
-          padding: '12px'
-        }}>
-          <div
-            onClick={() => user && toggleEpisodio(tempNum, epNum)}
-            style={{
-              width: '20px',
-              height: '20px',
-              borderRadius: '50%',
-              border: '2px solid #FACC15',
-              background: assistido? '#FACC15' : 'transparent',
-              cursor: user? 'pointer' : 'not-allowed',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '12px',
-              flexShrink: 0
-            }}
-          >
-            {assistido && '✓'}
-          </div>
-
-          <div style={{flex: 1}}>
-            <p style={{color: '#fff', fontSize: '14px'}}>Episódio {epNum}</p>
-          </div>
-
-          {assistido && user && (
-            <div style={{display: 'flex', gap: '4px'}}>
-              {Array.from({ length: 5 }, (_, i) => (
-                <span
-                  key={i}
-                  onClick={() => salvarAvaliacao(tempNum, epNum, i + 1, avaliacao?.comentario || '')}
-                  style={{
-                    cursor: 'pointer',
-                    fontSize: '16px',
-                    color: i < (avaliacao?.nota || 0)? '#FACC15' : '#334155'
-                  }}
-                >
-                  ⭐
-                </span>
-              ))}
-            </div>
-          )}
-
-          <button
-            onClick={() => setComentarioAtivo(mostrandoComents? null : key)}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: '#FACC15',
-              fontSize: '14px',
-              cursor: 'pointer',
-              flexShrink: 0
-            }}
-          >
-            💬 {coments.length}
-          </button>
-        </div>
-
-        {mostrandoComents && (
-          <div style={{padding: '0 12px 12px'}}>
-            {user && (
-              <div style={{marginBottom: '12px', display: 'flex', gap: '8px'}}>
-                <input
-                  type="text"
-                  value={textosComentario[key] || ''}
-                  onChange={(e) => setTextosComentario(prev => ({...prev, [key]: e.target.value }))}
-                  placeholder="Comente sobre esse episódio..."
-                  style={{
-                    flex: 1,
-                    background: '#0F172A',
-                    border: '1px solid #334155',
-                    color: '#fff',
-                    padding: '8px 12px',
-                    borderRadius: '6px',
-                    fontSize: '13px',
-                    outline: 'none'
-                  }}
-                  onKeyPress={(e) => e.key === 'Enter' && enviarComentario(tempNum, epNum)}
-                />
-                <button
-                  onClick={() => enviarComentario(tempNum, epNum)}
-                  style={{
-                    background: '#FACC15',
-                    color: '#000',
-                    border: 'none',
-                    padding: '8px 16px',
-                    borderRadius: '6px',
-                    fontSize: '13px',
-                    fontWeight: 'bold',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Enviar
-                </button>
-              </div>
-            )}
-
-            {coments.map((c, i) => (
-              <div key={i} style={{
-                background: '#0F172A',
-                padding: '10px',
-                borderRadius: '6px',
-                marginBottom: '8px'
-              }}>
-                <div style={{display: 'flex', gap: '8px', marginBottom: '6px'}}>
-                  <img
-                    src={c.profiles?.avatar_url || 'https://via.placeholder.com/24'}
-                    alt={c.profiles?.nome}
-                    style={{width: '24px', height: '24px', borderRadius: '50%'}}
-                  />
-                  <div style={{flex: 1}}>
-                    <p style={{color: '#FACC15', fontSize: '12px', fontWeight: 'bold'}}>
-                      {c.profiles?.nome || 'Anônimo'}
-                    </p>
-                    <p style={{color: '#64748B', fontSize: '11px'}}>
-                      {tempoAtras(c.created_at)}
-                    </p>
-                  </div>
-                </div>
-                <p style={{color: '#94A3B8', fontSize: '13px', lineHeight: '1.5'}}>
-                  {c.comentario}
-                </p>
-              </div>
-            ))}
-
-            {coments.length === 0 && (
-              <p style={{color: '#64748B', fontSize: '12px', textAlign: 'center', padding: '8px'}}>
-                Seja o primeiro a comentar!
-              </p>
-            )}
-          </div>
-        )}
-      </div>
-    )
-  }
 
   return (
     <main className="main">
@@ -424,6 +507,18 @@ export default function Serie() {
                   key={i}
                   tempNum={temp.numero}
                   epNum={i + 1}
+                  assistido={episodiosAssistidos[`${temp.numero}-${i + 1}`]}
+                  avaliacao={avaliacoes[`${temp.numero}-${i + 1}`]}
+                  coments={comentarios[`${temp.numero}-${i + 1}`] || []}
+                  mostrandoComents={comentarioAtivo === `${temp.numero}-${i + 1}`}
+                  textoComentario={textosComentario[`${temp.numero}-${i + 1}`] || ''}
+                  user={user}
+                  onToggle={toggleEpisodio}
+                  onAvaliar={salvarAvaliacao}
+                  onToggleComents={setComentarioAtivo}
+                  onTextoChange={handleTextoChange}
+                  onEnviarComentario={enviarComentario}
+                  onToggleCurtida={toggleCurtida}
                 />
               ))}
             </div>
