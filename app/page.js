@@ -15,6 +15,7 @@ export default function Home() {
   const [series, setSeries] = useState([])
   const [seriesFiltradas, setSeriesFiltradas] = useState([])
   const [continuarAssistindo, setContinuarAssistindo] = useState([])
+  const [watchlistSeries, setWatchlistSeries] = useState([])
   const [notificacoesNaoLidas, setNotificacoesNaoLidas] = useState(0)
   const [loading, setLoading] = useState(true)
   const [busca, setBusca] = useState('')
@@ -29,6 +30,7 @@ export default function Home() {
     if (user) {
       buscarDados()
       buscarNotificacoes()
+      buscarWatchlist()
     }
   }, [user])
 
@@ -60,6 +62,28 @@ export default function Home() {
     setNotificacoesNaoLidas(count || 0)
   }
 
+  async function buscarWatchlist() {
+    const { data: watchlistData } = await supabase
+.from('watchlist')
+.select('serie_id')
+.eq('user_id', user.id)
+
+    const serieIds = watchlistData?.map(w => w.serie_id) || []
+
+    if (serieIds.length === 0) {
+      setWatchlistSeries([])
+      return
+    }
+
+    // Busca detalhes das séries na watchlist
+    const { data: seriesData } = await supabase
+.from('series')
+.select('*')
+.in('id', serieIds)
+
+    setWatchlistSeries(seriesData || [])
+  }
+
   async function buscarDados() {
     const { data: seriesData } = await supabase.from('series').select('*')
     if (seriesData) {
@@ -67,24 +91,24 @@ export default function Home() {
 
       for (const serie of seriesData) {
         const { data: temps } = await supabase
-  .from('temporadas')
-  .select('episodios')
-  .eq('serie_id', serie.id)
+ .from('temporadas')
+ .select('episodios')
+ .eq('serie_id', serie.id)
 
         const totalEps = temps?.reduce((acc, t) => acc + t.episodios, 0) || 0
 
         const { data: assistidos } = await supabase
-  .from('user_episodios')
-  .select('id, created_at')
-  .eq('serie_id', serie.id)
-  .order('created_at', { ascending: false })
+ .from('user_episodios')
+ .select('id, created_at')
+ .eq('serie_id', serie.id)
+ .order('created_at', { ascending: false })
 
         const assistidosCount = assistidos?.length || 0
         const percentual = totalEps > 0? Math.round((assistidosCount / totalEps) * 100) : 0
         const ultimoAssistido = assistidos?.[0]?.created_at || null
 
         progressoArray.push({
-  ...serie,
+ ...serie,
           totalEps,
           assistidosCount,
           percentual,
@@ -118,6 +142,13 @@ export default function Home() {
       resultado = resultado.filter(s => s.percentual === 100)
     } else if (filtro === 'nao_iniciadas') {
       resultado = resultado.filter(s => s.percentual === 0)
+    } else if (filtro === 'watchlist') {
+      resultado = watchlistSeries.map(w => ({
+       ...w,
+        totalEps: 0,
+        assistidosCount: 0,
+        percentual: 0
+      }))
     }
 
     setSeriesFiltradas(resultado)
@@ -161,6 +192,21 @@ export default function Home() {
                 transition: 'width 0.3s'
               }} />
             </div>
+          </div>
+        )}
+
+        {filtro === 'watchlist' && (
+          <div style={{marginTop: '8px'}}>
+            <span style={{
+              background: '#FACC15',
+              color: '#000',
+              padding: '4px 12px',
+              borderRadius: '12px',
+              fontSize: '12px',
+              fontWeight: 'bold'
+            }}>
+              📌 Quero Assistir
+            </span>
           </div>
         )}
       </div>
@@ -327,6 +373,7 @@ export default function Home() {
         <BotaoFiltro valor="andamento" texto="Em andamento" />
         <BotaoFiltro valor="concluidas" texto="Concluídas" />
         <BotaoFiltro valor="nao_iniciadas" texto="Não iniciadas" />
+        <BotaoFiltro valor="watchlist" texto={`📌 Quero Assistir (${watchlistSeries.length})`} />
       </div>
 
       {!busca && filtro === 'todas' && continuarAssistindo.length > 0 && (
@@ -342,7 +389,7 @@ export default function Home() {
 
       {seriesFiltradas.length === 0? (
         <div className="card" style={{textAlign: 'center', color: '#64748B'}}>
-          Nenhuma série encontrada
+          {filtro === 'watchlist'? 'Sua lista de desejos está vazia' : 'Nenhuma série encontrada'}
         </div>
       ) : (
         seriesFiltradas.map(serie => <CardSerie key={serie.id} serie={serie} />)
