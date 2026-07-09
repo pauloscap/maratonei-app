@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -14,15 +14,18 @@ export default function Adicionar() {
   const [user, setUser] = useState(null)
   const [busca, setBusca] = useState('')
   const [resultados, setResultados] = useState([])
-  const [loading, setLoading] = useState(false)
+  const [buscando, setBuscando] = useState(false)
   const [adicionando, setAdicionando] = useState(null)
+  const [watchlist, setWatchlist] = useState({})
   const router = useRouter()
-
-  const TMDB_KEY = process.env.NEXT_PUBLIC_TMDB_API_KEY || 'a1e42d1491eedff27ee9e352a1f70735'
 
   useEffect(() => {
     checkUser()
   }, [])
+
+  useEffect(() => {
+    if (user) buscarWatchlist()
+  }, [user])
 
   async function checkUser() {
     const { data: { session } } = await supabase.auth.getSession()
@@ -33,86 +36,67 @@ export default function Adicionar() {
     }
   }
 
-  async function buscarSeries() {
-    if (!busca.trim()) return
-    setLoading(true)
-    
-    try {
-      const res = await fetch(
-        `https://api.themoviedb.org/3/search/tv?api_key=${TMDB_KEY}&language=pt-BR&query=${encodeURIComponent(busca)}`
-      )
-      const data = await res.json()
-      setResultados(data.results?.slice(0, 10) || [])
-    } catch (err) {
-      console.error(err)
-      alert('Erro ao buscar séries')
-    }
-    setLoading(false)
+  async function buscarWatchlist() {
+    const { data } = await supabase
+.from('watchlist')
+.select('serie_id')
+.eq('user_id', user.id)
+
+    const watchlistObj = {}
+    data?.forEach(w => { watchlistObj[w.serie_id] = true })
+    setWatchlist(watchlistObj)
   }
 
-  async function adicionarSerie(serieTmdb) {
-    setAdicionando(serieTmdb.id)
-    
-    try {
-      // 1. Verifica se já existe no banco
-      const { data: existe } = await supabase
-        .from('series')
-        .select('id')
-        .eq('tmdb_id', serieTmdb.id)
-        .single()
+  async function buscarSeries() {
+    if (!busca.trim()) return
+    setBuscando(true)
 
-      if (existe) {
-        alert('Essa série já foi adicionada!')
-        setAdicionando(null)
-        return
-      }
+    const response = await fetch(
+      `/api/buscar-series?q=${encodeURIComponent(busca)}`
+    )
+    const data = await response.json()
+    setResultados(data.results || [])
+    setBuscando(false)
+  }
 
-      // 2. Busca detalhes completos da série
-      const resSerie = await fetch(
-        `https://api.themoviedb.org/3/tv/${serieTmdb.id}?api_key=${TMDB_KEY}&language=pt-BR`
-      )
-      const detalhes = await resSerie.json()
+  async function adicionarSerie(serieId) {
+    setAdicionando(serieId)
 
-      // 3. Insere a série
-      const { data: novaSerie, error: erroSerie } = await supabase
-        .from('series')
-        .insert({
-          tmdb_id: serieTmdb.id,
-          titulo: detalhes.name,
-          poster: detalhes.poster_path,
-          sinopse: detalhes.overview || '',
-          nota: detalhes.vote_average || 0,
-          ano: detalhes.first_air_date? new Date(detalhes.first_air_date).getFullYear() : null,
-          generos: detalhes.genres?.map(g => g.name).join(', ') || ''
-        })
-        .select()
-        .single()
+    const response = await fetch('/api/adicionar-serie', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ serieId })
+    })
 
-      if (erroSerie) throw erroSerie
-
-      // 4. Busca e insere as temporadas
-      const temporadas = detalhes.seasons
-        ?.filter(s => s.season_number > 0 && s.episode_count > 0)
-        ?.map(s => ({
-          serie_id: novaSerie.id,
-          numero: s.season_number,
-          episodios: s.episode_count
-        })) || []
-
-      if (temporadas.length > 0) {
-        const { error: erroTemps } = await supabase.from('temporadas').insert(temporadas)
-        if (erroTemps) throw erroTemps
-      }
-
-      alert(`✅ ${detalhes.name} adicionada com sucesso!`)
-      router.push(`/serie/${novaSerie.id}`)
-      
-    } catch (err) {
-      console.error(err)
-      alert('Erro ao adicionar série: ' + err.message)
+    if (response.ok) {
+      alert('Série adicionada!')
+      router.push(`/serie/${serieId}`)
+    } else {
+      alert('Erro ao adicionar série')
     }
-    
     setAdicionando(null)
+  }
+
+  async function toggleWatchlist(serieId) {
+    if (watchlist[serieId]) {
+      await supabase
+ .from('watchlist')
+ .delete()
+ .eq('user_id', user.id)
+ .eq('serie_id', serieId)
+
+      setWatchlist(prev => {
+        const novo = {...prev }
+        delete novo[serieId]
+        return novo
+      })
+    } else {
+      await supabase
+ .from('watchlist')
+ .insert({ user_id: user.id, serie_id: serieId })
+
+      setWatchlist(prev => ({...prev, [serieId]: true }))
+    }
   }
 
   if (!user) return <main className="main"><div className="card">Redirecionando...</div></main>
@@ -128,10 +112,10 @@ export default function Adicionar() {
       <div style={{display: 'flex', gap: '8px', marginBottom: '24px'}}>
         <input
           type="text"
-          placeholder="Busca: breaking bad, the office..."
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
           onKeyPress={(e) => e.key === 'Enter' && buscarSeries()}
+          placeholder="Digite o nome da série..."
           style={{
             flex: 1,
             background: '#1E293B',
@@ -145,7 +129,7 @@ export default function Adicionar() {
         />
         <button
           onClick={buscarSeries}
-          disabled={loading}
+          disabled={buscando}
           style={{
             background: '#FACC15',
             color: '#000',
@@ -154,27 +138,18 @@ export default function Adicionar() {
             borderRadius: '8px',
             fontSize: '16px',
             fontWeight: 'bold',
-            cursor: loading? 'not-allowed' : 'pointer',
-            opacity: loading? 0.5 : 1
+            cursor: buscando? 'not-allowed' : 'pointer',
+            opacity: buscando? 0.5 : 1
           }}
         >
-          {loading? 'Buscando...' : 'Buscar'}
+          {buscando? '...' : 'Buscar'}
         </button>
       </div>
 
-      {resultados.length === 0 &&!loading && busca && (
-        <div className="card" style={{textAlign: 'center', color: '#64748B'}}>
-          Nenhuma série encontrada pra "{busca}"
-        </div>
-      )}
-
-      {resultados.map(serie => (
+      {resultados.map((serie) => (
         <div key={serie.id} className="card" style={{marginBottom: '16px', display: 'flex', gap: '16px'}}>
           <img
-            src={serie.poster_path 
-              ? `https://image.tmdb.org/t/p/w200${serie.poster_path}`
-              : 'https://via.placeholder.com/100x150?text=Sem+Poster'
-            }
+            src={serie.poster_path? `https://image.tmdb.org/t/p/w200${serie.poster_path}` : 'https://via.placeholder.com/100x150'}
             alt={serie.name}
             style={{
               width: '100px',
@@ -184,33 +159,57 @@ export default function Adicionar() {
               flexShrink: 0
             }}
           />
-          
           <div style={{flex: 1}}>
-            <h3 style={{color: '#FACC15', marginBottom: '4px'}}>{serie.name}</h3>
-            <p style={{color: '#94A3B8', fontSize: '14px', marginBottom: '8px'}}>
-              {serie.first_air_date? new Date(serie.first_air_date).getFullYear() : 'Ano desconhecido'} • ⭐ {serie.vote_average?.toFixed(1)}
+            <h3 style={{color: '#FACC15', marginBottom: '8px'}}>{serie.name}</h3>
+            <p style={{color: '#94A3B8', fontSize: '14px', marginBottom: '12px'}}>
+              {serie.first_air_date?.split('-')[0]} • ⭐ {serie.vote_average?.toFixed(1)}
             </p>
-            <p style={{color: '#64748B', fontSize: '13px', marginBottom: '12px', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden'}}>
-              {serie.overview || 'Sem sinopse disponível'}
+            <p style={{
+              color: '#94A3B8',
+              fontSize: '13px',
+              lineHeight: '1.5',
+              marginBottom: '12px',
+              display: '-webkit-box',
+              WebkitLineClamp: 3,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden'
+            }}>
+              {serie.overview}
             </p>
-            
-            <button
-              onClick={() => adicionarSerie(serie)}
-              disabled={adicionando === serie.id}
-              style={{
-                background: adicionando === serie.id? '#334155' : '#22C55E',
-                color: '#fff',
-                border: 'none',
-                padding: '10px 16px',
-                borderRadius: '6px',
-                fontSize: '14px',
-                fontWeight: 'bold',
-                cursor: adicionando === serie.id? 'not-allowed' : 'pointer',
-                width: '100%'
-              }}
-            >
-              {adicionando === serie.id? 'Adicionando...' : '+ Adicionar Série'}
-            </button>
+            <div style={{display: 'flex', gap: '8px'}}>
+              <button
+                onClick={() => adicionarSerie(serie.id)}
+                disabled={adicionando === serie.id}
+                style={{
+                  background: '#22C55E',
+                  color: '#fff',
+                  border: 'none',
+                  padding: '10px 20px',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: 'bold',
+                  cursor: adicionando === serie.id? 'not-allowed' : 'pointer',
+                  opacity: adicionando === serie.id? 0.5 : 1
+                }}
+              >
+                {adicionando === serie.id? 'Adicionando...' : 'Adicionar'}
+              </button>
+              <button
+                onClick={() => toggleWatchlist(serie.id.toString())}
+                style={{
+                  background: watchlist[serie.id]? '#FACC15' : '#1E293B',
+                  color: watchlist[serie.id]? '#000' : '#FACC15',
+                  border: watchlist[serie.id]? 'none' : '1px solid #FACC15',
+                  padding: '10px 16px',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer'
+                }}
+              >
+                {watchlist[serie.id]? '📌 Na Lista' : '📌 Quero Assistir'}
+              </button>
+            </div>
           </div>
         </div>
       ))}
