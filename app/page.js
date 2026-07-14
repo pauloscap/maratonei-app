@@ -1,135 +1,110 @@
 'use client'
-
 import { useEffect, useState } from 'react'
-import { createClient } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
+import { createClient } from '@supabase/supabase-js'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_KEY
-)
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_KEY)
+const TMDB_KEY = process.env.NEXT_PUBLIC_TMDB_KEY
 
 export default function Home() {
-  const [user, setUser] = useState(null)
-  const [series, setSeries] = useState([])
-  const [searchTerm, setSearchTerm] = useState('')
-  const [searchResults, setSearchResults] = useState([])
-  const [loading, setLoading] = useState(true)
   const router = useRouter()
+  const [series, setSeries] = useState([])
+  const [busca, setBusca] = useState('')
+  const [resultados, setResultados] = useState([])
+  const [progressos, setProgressos] = useState({})
 
-  useEffect(() => { checkUser() }, [])
-  useEffect(() => { if (user) buscarSeries() }, [user])
+  useEffect(() => { carregar() }, [])
 
-  async function checkUser() {
+  async function carregar(){
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session) router.push('/login')
-    else setUser(session.user)
-  }
-
-  async function buscarSeries() {
-    const { data } = await supabase.from('series').select('*').order('id', { ascending: false }).limit(24)
+    if(!session) return router.push('/login')
+    const { data } = await supabase.from('series').select('*').order('created_at', {ascending:false})
     setSeries(data || [])
-    setLoading(false)
+    // lê progressos do localStorage
+    const prog = {}
+    data?.forEach(s => {
+      const salvo = localStorage.getItem(`progress-${s.id}`)
+      if(salvo){ prog[s.id] = JSON.parse(salvo).length }
+    })
+    setProgressos(prog)
   }
 
-  async function handleSearch(e) {
-    e.preventDefault()
-    if (!searchTerm.trim()) { setSearchResults([]); buscarSeries(); return }
-    const res = await fetch(`https://api.themoviedb.org/3/search/tv?api_key=${process.env.NEXT_PUBLIC_TMDB_KEY}&language=pt-BR&query=${encodeURIComponent(searchTerm)}`)
-    const data = await res.json()
-    setSearchResults(data.results?.filter(r => r.poster_path) || [])
+  async function buscarTMDB(){
+    if(!busca) return
+    const res = await fetch(`https://api.themoviedb.org/3/search/tv?api_key=${TMDB_KEY}&language=pt-BR&query=${busca}`)
+    const d = await res.json()
+    setResultados(d.results || [])
   }
 
-  async function handleClick(serie) {
-    // Se já é do nosso banco (tem titulo)
-    if (serie.titulo) {
-      router.push(`/serie/${serie.id}`)
-      return
-    }
-
-    // Se veio do TMDB (tem name)
-    console.log('Adicionando série TMDB:', serie.name)
-
-    // 1. Verifica se já existe
-    const { data: existe } = await supabase.from('series').select('id').eq('tmdb_id', serie.id).single()
-
-    if (existe) {
-      console.log('Já existe, indo pra página:', existe.id)
-      router.push(`/serie/${existe.id}`)
-      return
-    }
-
-    // 2. Cria nova
-    const { data: nova, error } = await supabase.from('series').insert({
-      tmdb_id: serie.id,
-      titulo: serie.name,
-      sinopse: serie.overview || 'Sem sinopse',
-      poster: serie.poster_path,
-      nota: serie.vote_average || 0,
-      ano: serie.first_air_date?.split('-')[0] || '2024'
+  async function adicionar(serieTMDB){
+    const { data: existe } = await supabase.from('series').select('id').eq('tmdb_id', serieTMDB.id).single()
+    if(existe) return router.push(`/serie/${existe.id}`)
+    const { data } = await supabase.from('series').insert({
+      tmdb_id: serieTMDB.id,
+      titulo: serieTMDB.name,
+      ano: serieTMDB.first_air_date?.split('-')[0] || '',
+      sinopse: serieTMDB.overview,
+      poster: serieTMDB.poster_path,
+      nota: serieTMDB.vote_average
     }).select().single()
-
-    if (error) {
-      alert('Erro ao adicionar: ' + error.message)
-      console.error(error)
-      return
-    }
-
-    if (nova) {
-      console.log('Série criada:', nova.id)
-      router.push(`/serie/${nova.id}`)
-    }
+    if(data) router.push(`/serie/${data.id}`)
   }
 
-  if (!user || loading) return <main className="main"><div style={{background:'#1E293B', padding:'20px', borderRadius:'12px'}}>Carregando...</div></main>
+  const assistindo = series.filter(s => (progressos[s.id] || 0) > 0)
+  const queroAssistir = series.filter(s =>!progressos[s.id] || progressos[s.id] === 0)
 
-  const lista = searchResults.length > 0? searchResults : series
-  const tituloSecao = searchResults.length > 0? `Resultados para "${searchTerm}"` : 'Catálogo'
+  function Card({ s }){
+    const vistos = progressos[s.id] || 0
+    return (
+      <div onClick={()=>router.push(`/serie/${s.id}`)} style={{minWidth:'140px', width:'140px', cursor:'pointer'}}>
+        <div style={{height:'210px', borderRadius:'12px', overflow:'hidden', background:'#1E293B', position:'relative'}}>
+          <img src={`https://image.tmdb.org/t/p/w300${s.poster}`} style={{width:'100%',height:'100%',objectFit:'cover'}} />
+          {vistos > 0 && <div style={{position:'absolute', bottom:0, left:0, right:0, height:'4px', background:'#334155'}}><div style={{width:`${Math.min(vistos*5,100)}%`, height:'100%', background:'#FACC15'}}/></div>}
+        </div>
+        <div style={{color:'#fff', fontSize:'13px', fontWeight:'600', marginTop:'6px', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>{s.titulo}</div>
+        <div style={{color:'#94A3B8', fontSize:'11px'}}>{vistos > 0? `${vistos} eps vistos` : 'Quero assistir'}</div>
+      </div>
+    )
+  }
 
   return (
-    <main className="main">
-      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
-        <h1 style={{color:'#FACC15', fontSize:'28px', fontWeight:'900'}}>🍿 Maratonei</h1>
-        <div style={{display:'flex', gap:'16px'}}>
-          <Link href="/stats" style={{color:'#94A3B8', textDecoration:'none'}}>📊 Stats</Link>
-          <Link href="/ranking" style={{color:'#94A3B8', textDecoration:'none'}}>🏆 Ranking</Link>
+    <main style={{background:'#0F172A', minHeight:'100vh', paddingBottom:'80px'}}>
+      {/* HEADER BUSCA */}
+      <div style={{padding:'16px', position:'sticky', top:0, background:'#0F172A', zIndex:10}}>
+        <div style={{display:'flex', gap:'8px'}}>
+          <input value={busca} onChange={e=>setBusca(e.target.value)} onKeyDown={e=>e.key==='Enter'&&buscarTMDB()} placeholder="Buscar série..." style={{flex:1, background:'#1E293B', border:'1px solid #334155', borderRadius:'10px', padding:'12px', color:'#fff', outline:'none'}} />
+          <button onClick={buscarTMDB} style={{background:'#FACC15', border:'none', borderRadius:'10px', padding:'0 16px', fontWeight:'800', cursor:'pointer'}}>Buscar</button>
         </div>
+        {resultados.length > 0 && (
+          <div style={{display:'flex', gap:'10px', overflowX:'auto', marginTop:'12px', paddingBottom:'8px'}}>
+            {resultados.map(r=>(
+              <div key={r.id} onClick={()=>adicionar(r)} style={{minWidth:'100px', cursor:'pointer', textAlign:'center'}}>
+                <img src={r.poster_path?`https://image.tmdb.org/t/p/w200${r.poster_path}`:''} style={{width:'100px', height:'150px', borderRadius:'8px', objectFit:'cover', background:'#1E293B'}}/>
+                <div style={{color:'#fff', fontSize:'11px', marginTop:'4px'}}>{r.name}</div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      <form onSubmit={handleSearch} style={{display:'flex', gap:'8px', marginBottom:'28px'}}>
-        <input value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} placeholder="Buscar série... ex: Breaking Bad" style={{flex:1, padding:'14px 16px', borderRadius:'10px', border:'1px solid #334155', background:'#1E293B', color:'#fff', fontSize:'16px', outline:'none'}} />
-        <button type="submit" style={{background:'#FACC15', color:'#000', border:'none', padding:'0 22px', borderRadius:'10px', fontWeight:'800', cursor:'pointer'}}>Buscar</button>
-      </form>
+      <div style={{padding:'0 16px'}}>
+        {assistindo.length > 0 && (
+          <>
+            <h2 style={{color:'#fff', fontSize:'18px', fontWeight:'800', margin:'16px 0 12px'}}>▶️ Assistindo</h2>
+            <div style={{display:'flex', gap:'12px', overflowX:'auto', paddingBottom:'12px'}}>{assistindo.map(s=><Card key={s.id} s={s}/>)}</div>
+          </>
+        )}
+        <h2 style={{color:'#fff', fontSize:'18px', fontWeight:'800', margin:'16px 0 12px'}}>⭐ Quero Assistir</h2>
+        <div style={{display:'flex', gap:'12px', overflowX:'auto', flexWrap:'wrap'}}>{queroAssistir.map(s=><Card key={s.id} s={s}/>)}</div>
+        {series.length===0 && <div style={{color:'#64748B', textAlign:'center', marginTop:'40px'}}>Busque e adicione sua primeira série acima 👆</div>}
+      </div>
 
-      <h2 style={{color:'#FACC15', fontSize:'18px', marginBottom:'16px'}}>
-        {tituloSecao}
-        {searchResults.length>0 && <span onClick={()=>{setSearchResults([]); setSearchTerm(''); buscarSeries()}} style={{color:'#94A3B8', fontSize:'14px', cursor:'pointer', marginLeft:'12px'}}>✕ limpar</span>}
-      </h2>
-
-      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(160px, 1fr))', gap:'16px'}}>
-        {lista.map((s) => {
-          const poster = s.poster_path || s.poster
-          const nome = s.name || s.titulo
-          const nota = s.vote_average || s.nota || 0
-          return (
-            <button
-              key={s.id}
-              onClick={() => handleClick(s)}
-              style={{
-                background:'none', border:'none', padding:0, textAlign:'left', cursor:'pointer', width:'100%'
-              }}
-            >
-              <div className="card" style={{pointerEvents:'none'}}>
-                <img src={`https://image.tmdb.org/t/p/w342${poster}`} alt={nome} style={{height:'240px', objectFit:'cover', width:'100%', borderRadius:'12px 12px 0 0'}} />
-                <div style={{padding:'10px', background:'#1E293B', borderRadius:'0 0 12px 12px'}}>
-                  <p style={{color:'#fff', fontSize:'14px', fontWeight:'600', lineHeight:'1.2', height:'34px', overflow:'hidden', margin:0}}>{nome}</p>
-                  <p style={{color:'#94A3B8', fontSize:'12px', marginTop:'6px', margin:0}}>⭐ {Number(nota).toFixed(1)}</p>
-                </div>
-              </div>
-            </button>
-          )
-        })}
+      {/* NAVBAR RODAPÉ */}
+      <div style={{position:'fixed', bottom:0, left:0, right:0, background:'#1E293B', borderTop:'1px solid #334155', display:'flex', justifyContent:'space-around', padding:'10px 0'}}>
+        <button onClick={()=>router.push('/')} style={{background:'none',border:'none',color:'#FACC15',display:'flex',flexDirection:'column',alignItems:'center',gap:'2px',fontSize:'11px',fontWeight:'700'}}><span style={{fontSize:'20px'}}>📺</span>Séries</button>
+        <button onClick={()=>router.push('/filmes')} style={{background:'none',border:'none',color:'#64748B',display:'flex',flexDirection:'column',alignItems:'center',gap:'2px',fontSize:'11px'}}><span style={{fontSize:'20px'}}>🎬</span>Filmes</button>
+        <button onClick={()=>document.querySelector('input').focus()} style={{background:'none',border:'none',color:'#64748B',display:'flex',flexDirection:'column',alignItems:'center',gap:'2px',fontSize:'11px'}}><span style={{fontSize:'20px'}}>🔍</span>Busca</button>
+        <button onClick={()=>router.push('/perfil')} style={{background:'none',border:'none',color:'#64748B',display:'flex',flexDirection:'column',alignItems:'center',gap:'2px',fontSize:'11px'}}><span style={{fontSize:'20px'}}>👤</span>Perfil</button>
       </div>
     </main>
   )
