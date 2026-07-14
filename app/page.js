@@ -10,16 +10,14 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_KEY
 )
 
-const TMDB_KEY = process.env.NEXT_PUBLIC_TMDB_KEY
-
 export default function Home() {
   const [user, setUser] = useState(null)
   const [series, setSeries] = useState([])
-  const [busca, setBusca] = useState('')
-  const [resultados, setResultados] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [continuarAssistindo, setContinuarAssistindo] = useState([])
   const [watchlist, setWatchlist] = useState([])
+  const [continuarAssistindo, setContinuarAssistindo] = useState([])
+  const [searchTerm, setSearchTerm] = useState('')
+  const [loading, setLoading] = useState(true)
+  const router = useRouter()
 
   useEffect(() => {
     checkUser()
@@ -28,8 +26,8 @@ export default function Home() {
   useEffect(() => {
     if (user) {
       buscarSeries()
-      buscarContinuarAssistindo()
       buscarWatchlist()
+      buscarContinuarAssistindo()
     }
   }, [user])
 
@@ -40,119 +38,96 @@ export default function Home() {
     } else {
       setUser(session.user)
     }
+    setLoading(false)
   }
 
   async function buscarSeries() {
     const { data } = await supabase
-  .from('series')
-  .select('*')
-  .order('created_at', { ascending: false })
-  .limit(20)
+     .from('series')
+     .select('*')
+     .order('titulo', { ascending: true })
 
     setSeries(data || [])
-    setLoading(false)
-  }
-
-  async function buscarContinuarAssistindo() {
-    const { data } = await supabase
-  .from('user_episodios')
-  .select('serie_id, series(*)')
-  .eq('user_id', user.id)
-  .order('created_at', { ascending: false })
-  .limit(10)
-
-    const seriesUnicas = []
-    const idsJaAdd = []
-    data?.forEach(item => {
-      if (!idsJaAdd.includes(item.serie_id)) {
-        seriesUnicas.push(item.series)
-        idsJaAdd.push(item.serie_id)
-      }
-    })
-    setContinuarAssistindo(seriesUnicas)
   }
 
   async function buscarWatchlist() {
     const { data } = await supabase
-  .from('watchlist')
-  .select('series(*)')
-  .eq('user_id', user.id)
+     .from('watchlist')
+     .select('serie_id, series(*)')
+     .eq('user_id', user.id)
 
     setWatchlist(data?.map(w => w.series) || [])
   }
 
-  async function buscarNoTMDB(query) {
-    if (query.length < 2) {
-      setResultados([])
-      return
-    }
+  async function buscarContinuarAssistindo() {
+    const { data } = await supabase
+     .from('user_episodios')
+     .select('serie_id, series(*)')
+     .eq('user_id', user.id)
+     .order('assistido_em', { ascending: false })
 
-    const res = await fetch(
-      `https://api.themoviedb.org/3/search/tv?api_key=${TMDB_KEY}&language=pt-BR&query=${encodeURIComponent(query)}`
-    )
-    const data = await res.json()
-    setResultados(data.results?.slice(0, 5) || [])
+    const unicas = []
+    const ids = new Set()
+    data?.forEach(item => {
+      if (!ids.has(item.serie_id)) {
+        ids.add(item.serie_id)
+        unicas.push(item.series)
+      }
+    })
+    setContinuarAssistindo(unicas.slice(0, 10))
   }
 
-  async function adicionarSerie(serieTMDB) {
-    // Checa se já existe
+  async function buscarTMDB() {
+    if (!searchTerm) return buscarSeries()
+
+    const res = await fetch(`https://api.themoviedb.org/3/search/tv?api_key=${process.env.NEXT_PUBLIC_TMDB_KEY}&query=${searchTerm}&language=pt-BR`)
+    const data = await res.json()
+    setSeries(data.results || [])
+  }
+
+  async function adicionarSerie(tmdbSerie) {
     const { data: existe } = await supabase
-  .from('series')
-  .select('id')
-  .eq('tmdb_id', serieTMDB.id)
-  .single()
+     .from('series')
+     .select('id')
+     .eq('tmdb_id', tmdbSerie.id)
+     .single()
 
     if (existe) {
       router.push(`/serie/${existe.id}`)
       return
     }
 
-    // Busca detalhes + temporadas
-    const resDetalhes = await fetch(
-      `https://api.themoviedb.org/3/tv/${serieTMDB.id}?api_key=${TMDB_KEY}&language=pt-BR`
-    )
-    const detalhes = await resDetalhes.json()
-
-    // Insere série
     const { data: novaSerie } = await supabase
-  .from('series')
-  .insert({
-      tmdb_id: detalhes.id,
-      titulo: detalhes.name,
-      sinopse: detalhes.overview,
-      poster: detalhes.poster_path,
-      nota: detalhes.vote_average,
-      ano: new Date(detalhes.first_air_date).getFullYear(),
-      status: detalhes.status
-    })
-  .select()
-  .single()
-
-    // Insere temporadas
-    for (const temp of detalhes.seasons) {
-      if (temp.season_number === 0) continue // Pula especiais
-
-      await supabase
-    .from('temporadas')
-    .insert({
-        serie_id: novaSerie.id,
-        numero: temp.season_number,
-        episodios: temp.episode_count
+     .from('series')
+     .insert({
+        tmdb_id: tmdbSerie.id,
+        titulo: tmdbSerie.name,
+        sinopse: tmdbSerie.overview,
+        poster: tmdbSerie.poster_path,
+        nota: tmdbSerie.vote_average,
+        ano: tmdbSerie.first_air_date?.split('-')[0]
       })
-    }
+     .select()
+     .single()
 
-    setBusca('')
-    setResultados([])
-    buscarSeries()
-    router.push(`/serie/${novaSerie.id}`)
+    if (novaSerie) router.push(`/serie/${novaSerie.id}`)
   }
 
-  const router = useRouter()
-
-  if (!user) return <main className="main"><div className="card">Redirecionando...</div></main>
+  if (loading) return <main className="main"><div className="card">Carregando...</div></main>
 
   return (
     <main className="main">
       <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px'}}>
         <h1 style={{color: '#FACC15', fontSize: '24px'}}>🍿 Maratonei</h1>
-        <div
+        <div style={{display: 'flex', gap: '12px'}}>
+          <Link href="/stats" style={{color: '#FACC15', textDecoration: 'none', fontSize: '14px'}}>📊 Stats</Link>
+          <Link href="/feed" style={{color: '#FACC15', textDecoration: 'none', fontSize: '14px'}}>📱 Feed</Link>
+        </div>
+      </div>
+
+      <div style={{display: 'flex', gap: '8px', marginBottom: '24px'}}>
+        <input
+          type="text"
+          placeholder="Buscar série..."
+          value={searchTerm}
+          onChange={(e
