@@ -1,530 +1,279 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@supabase/supabase-js'
+import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
+import { toPng } from 'html-to-image'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.NEXT_PUBLIC_SUPABASE_KEY
 )
 
-function EpisodioItem({
-  tempNum,
-  epNum,
-  assistido,
-  avaliacao,
-  coments,
-  mostrandoComents,
-  textoComentario,
-  user,
-  onToggle,
-  onAvaliar,
-  onToggleComents,
-  onTextoChange,
-  onEnviarComentario,
-  onToggleCurtida
-}) {
-  const key = `${tempNum}-${epNum}`
-
-  function tempoAtras(data) {
-    const agora = new Date()
-    const diff = agora - new Date(data)
-    const minutos = Math.floor(diff / 60000)
-    const horas = Math.floor(minutos / 60)
-    const dias = Math.floor(horas / 24)
-
-    if (dias > 0) return `${dias}d`
-    if (horas > 0) return `${horas}h`
-    if (minutos > 0) return `${minutos}min`
-    return 'agora'
-  }
-
-  return (
-    <div style={{
-      background: assistido? '#1E293B' : 'transparent',
-      border: '1px solid #334155',
-      borderRadius: '8px',
-      marginBottom: '12px'
-    }}>
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px',
-        padding: '12px'
-      }}>
-        <div
-          onClick={() => user && onToggle(tempNum, epNum)}
-          style={{
-            width: '20px',
-            height: '20px',
-            borderRadius: '50%',
-            border: '2px solid #FACC15',
-            background: assistido? '#FACC15' : 'transparent',
-            cursor: user? 'pointer' : 'not-allowed',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '12px',
-            flexShrink: 0
-          }}
-        >
-          {assistido && '✓'}
-        </div>
-
-        <div style={{flex: 1}}>
-          <p style={{color: '#fff', fontSize: '14px'}}>Episódio {epNum}</p>
-        </div>
-
-        {assistido && user && (
-          <div style={{display: 'flex', gap: '4px'}}>
-            {Array.from({ length: 5 }, (_, i) => (
-              <span
-                key={i}
-                onClick={() => onAvaliar(tempNum, epNum, i + 1, avaliacao?.comentario || '')}
-                style={{
-                  cursor: 'pointer',
-                  fontSize: '16px',
-                  color: i < (avaliacao?.nota || 0)? '#FACC15' : '#334155'
-                }}
-              >
-                ⭐
-              </span>
-            ))}
-          </div>
-        )}
-
-        <button
-          onClick={() => onToggleComents(key)}
-          style={{
-            background: 'transparent',
-            border: 'none',
-            color: '#FACC15',
-            fontSize: '14px',
-            cursor: 'pointer',
-            flexShrink: 0
-          }}
-        >
-          💬 {coments.length}
-        </button>
-      </div>
-
-      {mostrandoComents && (
-        <div style={{padding: '0 12px 12px'}}>
-          {user && (
-            <div style={{marginBottom: '12px', display: 'flex', gap: '8px'}}>
-              <input
-                type="text"
-                value={textoComentario}
-                onChange={(e) => onTextoChange(key, e.target.value)}
-                placeholder="Comente sobre esse episódio..."
-                style={{
-                  flex: 1,
-                  background: '#0F172A',
-                  border: '1px solid #334155',
-                  color: '#fff',
-                  padding: '8px 12px',
-                  borderRadius: '6px',
-                  fontSize: '13px',
-                  outline: 'none'
-                }}
-                onKeyPress={(e) => e.key === 'Enter' && onEnviarComentario(tempNum, epNum)}
-              />
-              <button
-                onClick={() => onEnviarComentario(tempNum, epNum)}
-                style={{
-                  background: '#FACC15',
-                  color: '#000',
-                  border: 'none',
-                  padding: '8px 16px',
-                  borderRadius: '6px',
-                  fontSize: '13px',
-                  fontWeight: 'bold',
-                  cursor: 'pointer'
-                }}
-              >
-                Enviar
-              </button>
-            </div>
-          )}
-
-          {coments.sort((a, b) => b.curtidas_count - a.curtidas_count).map((c, i) => (
-            <div key={i} style={{
-              background: '#0F172A',
-              padding: '10px',
-              borderRadius: '6px',
-              marginBottom: '8px'
-            }}>
-              <div style={{display: 'flex', gap: '8px', marginBottom: '6px'}}>
-                <img
-                  src={c.profiles?.avatar_url || 'https://via.placeholder.com/24'}
-                  alt={c.profiles?.nome}
-                  style={{width: '24px', height: '24px', borderRadius: '50%'}}
-                />
-                <div style={{flex: 1}}>
-                  <p style={{color: '#FACC15', fontSize: '12px', fontWeight: 'bold'}}>
-                    {c.profiles?.nome || 'Anônimo'}
-                  </p>
-                  <p style={{color: '#64748B', fontSize: '11px'}}>
-                    {tempoAtras(c.created_at)}
-                  </p>
-                </div>
-                <button
-                  onClick={() => user && onToggleCurtida(c.id)}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    cursor: user? 'pointer' : 'not-allowed',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    padding: '4px 8px'
-                  }}
-                >
-                  <span style={{
-                    fontSize: '16px',
-                    color: c.curtiu? '#EF4444' : '#64748B'
-                  }}>
-                    {c.curtiu? '❤️' : '🤍'}
-                  </span>
-                  <span style={{
-                    fontSize: '12px',
-                    color: c.curtiu? '#EF4444' : '#64748B',
-                    fontWeight: 'bold'
-                  }}>
-                    {c.curtidas_count || 0}
-                  </span>
-                </button>
-              </div>
-              <p style={{color: '#94A3B8', fontSize: '13px', lineHeight: '1.5'}}>
-                {c.comentario}
-              </p>
-            </div>
-          ))}
-
-          {coments.length === 0 && (
-            <p style={{color: '#64748B', fontSize: '12px', textAlign: 'center', padding: '8px'}}>
-              Seja o primeiro a comentar!
-            </p>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
-export default function Serie() {
-  const params = useParams()
+export default function SeriePage() {
   const [user, setUser] = useState(null)
   const [serie, setSerie] = useState(null)
   const [temporadas, setTemporadas] = useState([])
-  const [temporadaAberta, setTemporadaAberta] = useState(null)
-  const [episodiosAssistidos, setEpisodiosAssistidos] = useState({})
-  const [avaliacoes, setAvaliacoes] = useState({})
-  const [comentarios, setComentarios] = useState({})
-  const [comentarioAtivo, setComentarioAtivo] = useState(null)
-  const [textosComentario, setTextosComentario] = useState({})
+  const [episodiosAssistidos, setEpisodiosAssistidos] = useState([])
   const [loading, setLoading] = useState(true)
+  const [estaNaWatchlist, setEstaNaWatchlist] = useState(false)
+  const params = useParams()
+  const router = useRouter()
+  const cardRef = useRef(null)
 
   useEffect(() => {
     checkUser()
   }, [])
 
   useEffect(() => {
-    if (user!== undefined) buscarDados()
-  }, [params.id, user])
+    if (user && params.id) {
+      buscarDados()
+      verificarWatchlist()
+    }
+  }, [user, params.id])
 
   async function checkUser() {
     const { data: { session } } = await supabase.auth.getSession()
-    setUser(session?.user || null)
+    if (!session) {
+      router.push('/login')
+    } else {
+      setUser(session.user)
+    }
+  }
+
+  async function verificarWatchlist() {
+    const { data } = await supabase
+    .from('watchlist')
+    .select('id')
+    .eq('serie_id', params.id)
+    .eq('user_id', user.id)
+    .single()
+    
+    setEstaNaWatchlist(!!data)
+  }
+
+  async function toggleWatchlist() {
+    if (estaNaWatchlist) {
+      await supabase
+      .from('watchlist')
+      .delete()
+      .eq('serie_id', params.id)
+      .eq('user_id', user.id)
+    } else {
+      await supabase
+      .from('watchlist')
+      .insert({ serie_id: params.id, user_id: user.id })
+    }
+    setEstaNaWatchlist(!estaNaWatchlist)
   }
 
   async function buscarDados() {
     const { data: serieData } = await supabase
-.from('series')
-.select('*')
-.eq('id', params.id)
-.single()
+    .from('series')
+    .select('*')
+    .eq('id', params.id)
+    .single()
 
     if (serieData) {
       setSerie(serieData)
 
-      const { data: temps } = await supabase
-.from('temporadas')
-.select('*')
-.eq('serie_id', params.id)
-.order('numero')
+      const { data: tempsData } = await supabase
+      .from('temporadas')
+      .select('*')
+      .eq('serie_id', params.id)
+      .order('numero', { ascending: true })
 
-      if (temps) {
-        setTemporadas(temps)
-        if (temps.length > 0 && temporadaAberta === null) setTemporadaAberta(temps[0].numero)
-      }
+      setTemporadas(tempsData || [])
 
-      if (user) {
-        const { data: assistidos } = await supabase
-  .from('user_episodios')
-  .select('*')
-  .eq('user_id', user.id)
-  .eq('serie_id', params.id)
+      const { data: assistidosData } = await supabase
+      .from('user_episodios')
+      .select('episodio_id')
+      .eq('serie_id', params.id)
+      .eq('user_id', user.id)
 
-        const assistidosObj = {}
-        assistidos?.forEach(a => {
-          assistidosObj[`${a.temporada_numero}-${a.episodio_numero}`] = true
-        })
-        setEpisodiosAssistidos(assistidosObj)
-
-        const { data: avals } = await supabase
-  .from('user_avaliacoes')
-  .select('*')
-  .eq('user_id', user.id)
-  .eq('serie_id', params.id)
-
-        const avalsObj = {}
-        avals?.forEach(a => {
-          avalsObj[`${a.temporada_numero}-${a.episodio_numero}`] = a
-        })
-        setAvaliacoes(avalsObj)
-      }
-
-      // Busca comentários + curtidas
-      const { data: coments } = await supabase
-.from('comentarios_episodios')
-.select('*')
-.eq('serie_id', params.id)
-.order('created_at', { ascending: false })
-
-      const userIds = [...new Set(coments?.map(c => c.user_id) || [])]
-      const { data: perfis } = await supabase
-.from('profiles')
-.select('id, nome, avatar_url')
-.in('id', userIds)
-
-      const comentarioIds = coments?.map(c => c.id) || []
-      const { data: curtidas } = await supabase
-.from('curtidas_comentarios')
-.select('comentario_id, user_id')
-.in('comentario_id', comentarioIds)
-
-      const perfisMap = {}
-      perfis?.forEach(p => { perfisMap[p.id] = p })
-
-      const curtidasMap = {}
-      curtidas?.forEach(c => {
-        if (!curtidasMap[c.comentario_id]) curtidasMap[c.comentario_id] = { count: 0, users: [] }
-        curtidasMap[c.comentario_id].count++
-        curtidasMap[c.comentario_id].users.push(c.user_id)
-      })
-
-      const comentsObj = {}
-      coments?.forEach(c => {
-        const key = `${c.temporada_numero}-${c.episodio_numero}`
-        if (!comentsObj[key]) comentsObj[key] = []
-        comentsObj[key].push({
-      ...c,
-          profiles: perfisMap[c.user_id],
-          curtidas_count: curtidasMap[c.id]?.count || 0,
-          curtiu: user? curtidasMap[c.id]?.users.includes(user.id) : false
-        })
-      })
-      setComentarios(comentsObj)
+      setEpisodiosAssistidos(assistidosData?.map(e => e.episodio_id) || [])
     }
     setLoading(false)
   }
 
-  async function toggleEpisodio(tempNum, epNum) {
-    if (!user) return
-    const key = `${tempNum}-${epNum}`
-    const jaAssistiu = episodiosAssistidos[key]
+  async function toggleEpisodio(episodioId, temporadaId) {
+    const jaAssistido = episodiosAssistidos.includes(episodioId)
 
-    if (jaAssistiu) {
+    if (jaAssistido) {
       await supabase
-.from('user_episodios')
-.delete()
-.eq('user_id', user.id)
-.eq('serie_id', params.id)
-.eq('temporada_numero', tempNum)
-.eq('episodio_numero', epNum)
-
-      setEpisodiosAssistidos(prev => {
-        const novo = {...prev }
-        delete novo[key]
-        return novo
+      .from('user_episodios')
+      .delete()
+      .eq('episodio_id', episodioId)
+      .eq('user_id', user.id)
+      
+      setEpisodiosAssistidos(episodiosAssistidos.filter(id => id !== episodioId))
+    } else {
+      await supabase
+      .from('user_episodios')
+      .insert({
+        episodio_id: episodioId,
+        serie_id: params.id,
+        temporada_id: temporadaId,
+        user_id: user.id
       })
-    } else {
-      await supabase
-.from('user_episodios')
-.insert({
-      user_id: user.id,
-      serie_id: params.id,
-      temporada_numero: tempNum,
-      episodio_numero: epNum
-    })
-
-      setEpisodiosAssistidos(prev => ({...prev, [key]: true }))
+      
+      setEpisodiosAssistidos([...episodiosAssistidos, episodioId])
     }
   }
 
-  async function salvarAvaliacao(tempNum, epNum, nota, comentario) {
-    if (!user) return
-    const key = `${tempNum}-${epNum}`
-
-    await supabase
-.from('user_avaliacoes')
-.upsert({
-    user_id: user.id,
-    serie_id: params.id,
-    temporada_numero: tempNum,
-    episodio_numero: epNum,
-    nota,
-    comentario
-  })
-
-    setAvaliacoes(prev => ({
-  ...prev,
-      [key]: { nota, comentario }
-    }))
-  }
-
-  async function enviarComentario(tempNum, epNum) {
-    if (!user) return
-    const key = `${tempNum}-${epNum}`
-    const texto = textosComentario[key]?.trim()
-
-    if (!texto) return
-
-    const { error } = await supabase
-.from('comentarios_episodios')
-.insert({
-    user_id: user.id,
-    serie_id: params.id,
-    temporada_numero: tempNum,
-    episodio_numero: epNum,
-    comentario: texto
-  })
-
-    if (error) {
-      console.error(error)
-      alert('Erro ao comentar: ' + error.message)
-      return
+  const compartilharStories = async () => {
+    if (!cardRef.current) return
+    
+    try {
+      const dataUrl = await toPng(cardRef.current, { 
+        quality: 1.0,
+        backgroundColor: '#0F172A',
+        width: 1080,
+        height: 1920
+      })
+      
+      const link = document.createElement('a')
+      link.download = `${serie.titulo}-maratonei.png`
+      link.href = dataUrl
+      link.click()
+      
+      alert('Card salvo! Posta no Stories 📱')
+    } catch (err) {
+      alert('Erro ao gerar imagem')
     }
-
-    setTextosComentario(prev => ({...prev, [key]: '' }))
-    setComentarioAtivo(null)
-    buscarDados()
   }
 
-  async function toggleCurtida(comentarioId) {
-    if (!user) return
-
-    const { data: existe } = await supabase
-.from('curtidas_comentarios')
-.select('id')
-.eq('user_id', user.id)
-.eq('comentario_id', comentarioId)
-.single()
-
-    if (existe) {
-      await supabase
-  .from('curtidas_comentarios')
-  .delete()
-  .eq('user_id', user.id)
-  .eq('comentario_id', comentarioId)
-    } else {
-      await supabase
-  .from('curtidas_comentarios')
-  .insert({
-          user_id: user.id,
-          comentario_id: comentarioId
-        })
-    }
-
-    buscarDados()
-  }
-
-  function handleTextoChange(key, texto) {
-    setTextosComentario(prev => ({...prev, [key]: texto }))
-  }
-
+  if (!user) return <main className="main"><div className="card">Redirecionando...</div></main>
   if (loading) return <main className="main"><div className="card">Carregando...</div></main>
   if (!serie) return <main className="main"><div className="card">Série não encontrada</div></main>
 
+  const totalEpisodios = temporadas.reduce((acc, t) => acc + t.episodios, 0)
+  const percentual = totalEpisodios > 0 ? Math.round((episodiosAssistidos.length / totalEpisodios) * 100) : 0
+
   return (
     <main className="main">
-      <Link href="/" style={{color: '#FACC15', textDecoration: 'none', marginBottom: '16px', display: 'block'}}>
-        ← Voltar
-      </Link>
-
-      <div className="card" style={{marginBottom: '24px'}}>
-        <img
-          src={`https://image.tmdb.org/t/p/w500${serie.poster}`}
-          alt={serie.titulo}
-          style={{
-            width: '100%',
-            height: '200px',
-            objectFit: 'cover',
-            borderRadius: '8px',
-            marginBottom: '16px'
-          }}
-        />
-        <h1 style={{color: '#FACC15', marginBottom: '8px'}}>{serie.titulo}</h1>
-        <div style={{color: '#94A3B8', fontSize: '14px', marginBottom: '12px'}}>
-          <span>⭐ {serie.nota?.toFixed(1)}</span>
-          <span style={{margin: '0 8px'}}>•</span>
-          <span>{serie.ano}</span>
-        </div>
-        <p style={{color: '#94A3B8', fontSize: '14px', lineHeight: '1.6'}}>
-          {serie.sinopse}
-        </p>
+      <div style={{marginBottom: '16px'}}>
+        <Link href="/" style={{color: '#FACC15', textDecoration: 'none', fontSize: '14px'}}>
+          ← Voltar
+        </Link>
       </div>
 
-      {temporadas.map(temp => (
-        <div key={temp.id} style={{marginBottom: '16px'}}>
-          <button
-            onClick={() => setTemporadaAberta(temporadaAberta === temp.numero? null : temp.numero)}
+      <div ref={cardRef} style={{ background: '#0F172A', padding: '20px', borderRadius: '12px' }}>
+        <div className="card" style={{marginBottom: '20px', background: '#1E293B'}}>
+          <img
+            src={`https://image.tmdb.org/t/p/w500${serie.poster}`}
+            alt={serie.titulo}
             style={{
               width: '100%',
-              background: '#1E293B',
-              border: '1px solid #334155',
-              color: '#fff',
-              padding: '12px 16px',
+              height: '300px',
+              objectFit: 'cover',
               borderRadius: '8px',
-              textAlign: 'left',
+              marginBottom: '16px'
+            }}
+          />
+          
+          <h1 style={{color: '#FACC15', fontSize: '28px', marginBottom: '8px'}}>{serie.titulo}</h1>
+          
+          <div style={{color: '#94A3B8', fontSize: '16px', marginBottom: '16px'}}>
+            <span>⭐ {serie.nota?.toFixed(1)}</span>
+            <span style={{margin: '0 8px'}}>•</span>
+            <span>{serie.ano}</span>
+            <span style={{margin: '0 8px'}}>•</span>
+            <span>{totalEpisodios} episódios</span>
+          </div>
+
+          <div style={{marginBottom: '20px'}}>
+            <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: '#94A3B8', marginBottom: '8px'}}>
+              <span>{episodiosAssistidos.length}/{totalEpisodios} episódios</span>
+              <span style={{color: '#FACC15', fontWeight: 'bold'}}>{percentual}%</span>
+            </div>
+            <div style={{width: '100%', height: '8px', background: '#0F172A', borderRadius: '4px', overflow: 'hidden'}}>
+              <div style={{
+                width: `${percentual}%`,
+                height: '100%',
+                background: '#FACC15',
+                transition: 'width 0.3s'
+              }} />
+            </div>
+          </div>
+
+          <p style={{color: '#CBD5E1', fontSize: '15px', lineHeight: '1.6', marginBottom: '20px'}}>
+            {serie.sinopse}
+          </p>
+
+          <div style={{display: 'flex', gap: '12px', marginBottom: '12px'}}>
+            <button
+              onClick={toggleWatchlist}
+              style={{
+                flex: 1,
+                background: estaNaWatchlist? '#FACC15' : '#1E293B',
+                color: estaNaWatchlist? '#000' : '#FACC15',
+                border: estaNaWatchlist? 'none' : '1px solid #FACC15',
+                padding: '12px 20px',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: 'bold',
+                cursor: 'pointer'
+              }}
+            >
+              {estaNaWatchlist? '★ Na Lista' : '☆ Quero Assistir'}
+            </button>
+          </div>
+
+          <button
+            onClick={compartilharStories}
+            style={{
+              background: 'linear-gradient(45deg, #F58529, #DD2A7B, #8134AF)',
+              color: '#fff',
+              border: 'none',
+              padding: '12px 20px',
+              borderRadius: '8px',
+              fontSize: '14px',
+              fontWeight: 'bold',
               cursor: 'pointer',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center'
+              width: '100%'
             }}
           >
-            <span>Temporada {temp.numero}</span>
-            <span>{temporadaAberta === temp.numero? '▼' : '▶'}</span>
+            📱 Compartilhar no Stories
           </button>
-
-          {temporadaAberta === temp.numero && (
-            <div style={{padding: '12px 0'}}>
-              {Array.from({ length: temp.episodios }, (_, i) => (
-                <EpisodioItem
-                  key={i}
-                  tempNum={temp.numero}
-                  epNum={i + 1}
-                  assistido={episodiosAssistidos[`${temp.numero}-${i + 1}`]}
-                  avaliacao={avaliacoes[`${temp.numero}-${i + 1}`]}
-                  coments={comentarios[`${temp.numero}-${i + 1}`] || []}
-                  mostrandoComents={comentarioAtivo === `${temp.numero}-${i + 1}`}
-                  textoComentario={textosComentario[`${temp.numero}-${i + 1}`] || ''}
-                  user={user}
-                  onToggle={toggleEpisodio}
-                  onAvaliar={salvarAvaliacao}
-                  onToggleComents={setComentarioAtivo}
-                  onTextoChange={handleTextoChange}
-                  onEnviarComentario={enviarComentario}
-                  onToggleCurtida={toggleCurtida}
-                />
-              ))}
-            </div>
-          )}
         </div>
-      ))}
+
+        {temporadas.map((temp) => (
+          <div key={temp.id} className="card" style={{marginBottom: '16px', background: '#1E293B'}}>
+            <h3 style={{color: '#FACC15', marginBottom: '12px'}}>
+              Temporada {temp.numero}
+            </h3>
+            
+            <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(45px, 1fr))', gap: '8px'}}>
+              {Array.from({ length: temp.episodios }, (_, i) => i + 1).map((ep) => {
+                const episodioId = `${temp.id}-${ep}`
+                const assistido = episodiosAssistidos.includes(episodioId)
+                
+                return (
+                  <button
+                    key={ep}
+                    onClick={() => toggleEpisodio(episodioId, temp.id)}
+                    style={{
+                      background: assistido ? '#FACC15' : '#0F172A',
+                      color: assistido ? '#000' : '#94A3B8',
+                      border: 'none',
+                      padding: '8px',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    {ep}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
     </main>
   )
 }
