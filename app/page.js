@@ -41,28 +41,59 @@ export default function Home() {
     setSearchResults(data.results?.filter(r => r.poster_path) || [])
   }
 
-  async function adicionarSerie(s) {
-    const { data: ex } = await supabase.from('series').select('id').eq('tmdb_id', s.id).single()
-    if (ex) { router.push(`/serie/${ex.id}`); return }
-    const { data: nova } = await supabase.from('series').insert({
-      tmdb_id: s.id, titulo: s.name, sinopse: s.overview, poster: s.poster_path, nota: s.vote_average, ano: s.first_air_date?.split('-')[0] || null
+  async function handleClick(serie) {
+    // Se já é do nosso banco (tem titulo)
+    if (serie.titulo) {
+      router.push(`/serie/${serie.id}`)
+      return
+    }
+
+    // Se veio do TMDB (tem name)
+    console.log('Adicionando série TMDB:', serie.name)
+
+    // 1. Verifica se já existe
+    const { data: existe } = await supabase.from('series').select('id').eq('tmdb_id', serie.id).single()
+
+    if (existe) {
+      console.log('Já existe, indo pra página:', existe.id)
+      router.push(`/serie/${existe.id}`)
+      return
+    }
+
+    // 2. Cria nova
+    const { data: nova, error } = await supabase.from('series').insert({
+      tmdb_id: serie.id,
+      titulo: serie.name,
+      sinopse: serie.overview || 'Sem sinopse',
+      poster: serie.poster_path,
+      nota: serie.vote_average || 0,
+      ano: serie.first_air_date?.split('-')[0] || '2024'
     }).select().single()
-    if (nova) router.push(`/serie/${nova.id}`)
+
+    if (error) {
+      alert('Erro ao adicionar: ' + error.message)
+      console.error(error)
+      return
+    }
+
+    if (nova) {
+      console.log('Série criada:', nova.id)
+      router.push(`/serie/${nova.id}`)
+    }
   }
 
   if (!user || loading) return <main className="main"><div style={{background:'#1E293B', padding:'20px', borderRadius:'12px'}}>Carregando...</div></main>
 
   const lista = searchResults.length > 0? searchResults : series
-  const titulo = searchResults.length > 0? `Resultados para "${searchTerm}"` : 'Catálogo'
+  const tituloSecao = searchResults.length > 0? `Resultados para "${searchTerm}"` : 'Catálogo'
 
   return (
     <main className="main">
-      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px', flexWrap:'wrap', gap:'12px'}}>
+      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
         <h1 style={{color:'#FACC15', fontSize:'28px', fontWeight:'900'}}>🍿 Maratonei</h1>
         <div style={{display:'flex', gap:'16px'}}>
           <Link href="/stats" style={{color:'#94A3B8', textDecoration:'none'}}>📊 Stats</Link>
           <Link href="/ranking" style={{color:'#94A3B8', textDecoration:'none'}}>🏆 Ranking</Link>
-          <button onClick={async()=>{await supabase.auth.signOut(); router.push('/login')}} style={{background:'none', border:'none', color:'#94A3B8', cursor:'pointer'}}>Sair</button>
         </div>
       </div>
 
@@ -71,23 +102,32 @@ export default function Home() {
         <button type="submit" style={{background:'#FACC15', color:'#000', border:'none', padding:'0 22px', borderRadius:'10px', fontWeight:'800', cursor:'pointer'}}>Buscar</button>
       </form>
 
-      <h2 style={{color:'#FACC15', fontSize:'18px', marginBottom:'16px'}}>{titulo} {searchResults.length>0 && <span onClick={()=>{setSearchResults([]); setSearchTerm(''); buscarSeries()}} style={{color:'#94A3B8', fontSize:'14px', cursor:'pointer', marginLeft:'12px'}}>✕ limpar</span>}</h2>
+      <h2 style={{color:'#FACC15', fontSize:'18px', marginBottom:'16px'}}>
+        {tituloSecao}
+        {searchResults.length>0 && <span onClick={()=>{setSearchResults([]); setSearchTerm(''); buscarSeries()}} style={{color:'#94A3B8', fontSize:'14px', cursor:'pointer', marginLeft:'12px'}}>✕ limpar</span>}
+      </h2>
 
       <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(160px, 1fr))', gap:'16px'}}>
         {lista.map((s) => {
-          const isTMDB =!!s.name
           const poster = s.poster_path || s.poster
-          const tituloCard = s.name || s.titulo
+          const nome = s.name || s.titulo
+          const nota = s.vote_average || s.nota || 0
           return (
-            <div key={isTMDB? s.id : `db-${s.id}`} onClick={()=> isTMDB? adicionarSerie(s) : router.push(`/serie/${s.id}`)} style={{cursor:'pointer'}}>
-              <div className="card">
-                <img src={`https://image.tmdb.org/t/p/w342${poster}`} alt={tituloCard} style={{height:'240px', objectFit:'cover'}} />
-                <div style={{padding:'10px'}}>
-                  <p style={{color:'#fff', fontSize:'14px', fontWeight:'600', lineHeight:'1.2', height:'34px', overflow:'hidden'}}>{tituloCard}</p>
-                  <p style={{color:'#94A3B8', fontSize:'12px', marginTop:'4px'}}>⭐ { (s.vote_average || s.nota || 0).toFixed(1) }</p>
+            <button
+              key={s.id}
+              onClick={() => handleClick(s)}
+              style={{
+                background:'none', border:'none', padding:0, textAlign:'left', cursor:'pointer', width:'100%'
+              }}
+            >
+              <div className="card" style={{pointerEvents:'none'}}>
+                <img src={`https://image.tmdb.org/t/p/w342${poster}`} alt={nome} style={{height:'240px', objectFit:'cover', width:'100%', borderRadius:'12px 12px 0 0'}} />
+                <div style={{padding:'10px', background:'#1E293B', borderRadius:'0 0 12px 12px'}}>
+                  <p style={{color:'#fff', fontSize:'14px', fontWeight:'600', lineHeight:'1.2', height:'34px', overflow:'hidden', margin:0}}>{nome}</p>
+                  <p style={{color:'#94A3B8', fontSize:'12px', marginTop:'6px', margin:0}}>⭐ {Number(nota).toFixed(1)}</p>
                 </div>
               </div>
-            </div>
+            </button>
           )
         })}
       </div>
