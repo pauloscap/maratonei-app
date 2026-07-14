@@ -4,7 +4,6 @@ import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
-import { toPng } from 'html-to-image'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
