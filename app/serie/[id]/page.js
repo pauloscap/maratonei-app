@@ -93,13 +93,24 @@ export default function SeriePage() {
         {episodiosTemp.map(ep => {
           const visto = assistidos.some(a=>a.temporada===tempAberta && a.episodio===ep.episode_number)
           return (
-            <label key={ep.id} style={{display:'flex', gap:'12px', alignItems:'flex-start', background: visto?'#1a1a00':'#1E293B', padding:'14px', borderRadius:'12px', cursor:'pointer', border: visto?'1px solid #FACC15':'1px solid transparent'}}>
-              <input type="checkbox" checked={visto} onChange={()=>toggleEp(tempAberta, ep.episode_number)} style={{width:'20px',height:'20px', accentColor:'#FACC15', marginTop:'2px'}} />
+                  return (
+            <div key={ep.id} onClick={()=>toggleEp(tempAberta, ep.episode_number)} style={{
+              display:'flex', gap:'12px', alignItems:'flex-start', background: visto?'#1a1a00':'#1E293B',
+              padding:'14px', borderRadius:'12px', cursor:'pointer', border: visto?'1px solid #FACC15':'1px solid transparent'
+            }}>
+              <div style={{
+                width:'20px', height:'20px', borderRadius:'4px', border: visto?'2px solid #FACC15':'2px solid #475569',
+                background: visto?'#FACC15':'transparent', display:'flex', alignItems:'center', justifyContent:'center',
+                fontSize:'14px', fontWeight:'900', flexShrink:0, marginTop:'1px'
+              }}>
+                {visto ? '✓' : ''}
+              </div>
               <div style={{flex:1}}>
                 <div style={{color: visto?'#FACC15':'#fff', fontSize:'15px', fontWeight: visto?'700':'500'}}>{ep.episode_number}. {ep.name || `Episódio ${ep.episode_number}`}</div>
                 <div style={{color:'#64748B', fontSize:'13px', marginTop:'4px', lineHeight:'1.4'}}>{ep.overview || 'Sem descrição.'}</div>
               </div>
-            </label>
+            </div>
+          )
           )
         })}
       </div>
