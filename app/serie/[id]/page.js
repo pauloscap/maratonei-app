@@ -52,59 +52,26 @@ export default function SeriePage() {
   async function toggleEp(temp, epNum) {
     const existe = assistidos.find(a => a.temporada === temp && a.episodio === epNum)
     if (existe) {
-      await supabase.from('user_episodios').delete().eq('id', existe.id)
-      setAssistidos(assistidos.filter(a => a.id!== existe.id))
+      setAssistidos(prev => prev.filter(a => a.id!== existe.id))
+      const { error } = await supabase.from('user_episodios').delete().eq('id', existe.id)
+      if (error) {
+        console.log('Erro delete', error)
+        alert('Erro ao desmarcar: ' + error.message)
+      }
     } else {
-      const { data } = await supabase.from('user_episodios').insert({ user_id: user.id, serie_id: id, temporada: temp, episodio: epNum }).select().single()
-      if (data) setAssistidos([...assistidos, data])
-    }
-  }
-
-  if (loading ||!serie) return <main className="main"><div style={{background:'#1E293B',padding:'20px',borderRadius:'12px',margin:'20px'}}>Carregando série...</div></main>
-
-  const temporadas = tmdbData?.seasons?.filter(s => s.season_number > 0) || []
-  const totalEps = tmdbData?.number_of_episodes || temporadas.reduce((acc, t) => acc + t.episode_count, 0)
-  const pct = totalEps > 0? Math.round((assistidos.length / totalEps) * 100) : 0
-
-  return (
-    <main className="main" style={{maxWidth:'800px', margin:'0 auto', padding:'0 16px 40px'}}>
-      <button onClick={()=>router.push('/')} style={{background:'none',border:'none',color:'#FACC15',cursor:'pointer',margin:'16px 0', fontSize:'15px'}}>← Voltar</button>
-      <div style={{height:'280px', borderRadius:'16px', overflow:'hidden', marginBottom:'16px', background:'#1E293B'}}>
-        <img src={`https://image.tmdb.org/t/p/w780${serie.poster}`} style={{width:'100%',height:'100%',objectFit:'cover'}} />
-      </div>
-      <h1 style={{color:'#FACC15', fontSize:'28px', margin:'0 0 8px', fontWeight:'900'}}>{serie.titulo}</h1>
-      <p style={{color:'#94A3B8', fontSize:'14px', marginBottom:'12px'}}>⭐ {Number(serie.nota).toFixed(1)} • {serie.ano} • {totalEps} episódios</p>
-      <div style={{background:'#1E293B', height:'10px', borderRadius:'5px', overflow:'hidden', marginBottom:'8px'}}>
-        <div style={{width:`${pct}%`, height:'100%', background:'#FACC15', transition:'width 0.4s'}} />
-      </div>
-      <div style={{display:'flex', justifyContent:'space-between', color:'#94A3B8', fontSize:'13px', marginBottom:'20px'}}>
-        <span>{assistidos.length}/{totalEps} episódios</span><span style={{color:'#FACC15', fontWeight:'800'}}>{pct}%</span>
-      </div>
-      <p style={{color:'#CBD5E1', fontSize:'15px', lineHeight:'1.6', marginBottom:'24px'}}>{serie.sinopse}</p>
-      <h3 style={{color:'#fff', marginBottom:'12px'}}>Temporadas</h3>
-      <div style={{display:'flex', gap:'8px', overflowX:'auto', paddingBottom:'12px', marginBottom:'16px'}}>
-        {temporadas.map(t => (
-          <button key={t.id} onClick={()=>carregarEpisodios(t.season_number)} style={{padding:'8px 14px', borderRadius:'20px', border: tempAberta===t.season_number?'2px solid #FACC15':'1px solid #334155', background: tempAberta===t.season_number?'#FACC15':'#1E293B', color: tempAberta===t.season_number?'#000':'#fff', cursor:'pointer', whiteSpace:'nowrap', fontWeight:'700', fontSize:'13px'}}>
-            T{t.season_number} • {assistidos.filter(a=>a.temporada===t.season_number).length}/{t.episode_count}
-          </button>
-        ))}
-      </div>
-      <div style={{display:'flex', flexDirection:'column', gap:'10px'}}>
-        {episodiosTemp.map(ep => {
-          const visto = assistidos.some(a=>a.temporada===tempAberta && a.episodio===ep.episode_number)
-          return (
-            <div key={ep.id} onClick={()=>toggleEp(tempAberta, ep.episode_number)} style={{display:'flex', gap:'12px', alignItems:'flex-start', background: visto?'#1a1a00':'#1E293B', padding:'14px', borderRadius:'12px', cursor:'pointer', border: visto?'1px solid #FACC15':'1px solid transparent'}}>
-              <div style={{width:'20px', height:'20px', borderRadius:'4px', border: visto?'2px solid #FACC15':'2px solid #475569', background: visto?'#FACC15':'transparent', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'14px', fontWeight:'900', flexShrink:0, marginTop:'1px', color:'#000'}}>
-                {visto? '✓' : ''}
-              </div>
-              <div style={{flex:1}}>
-                <div style={{color: visto?'#FACC15':'#fff', fontSize:'15px', fontWeight: visto?'700':'500'}}>{ep.episode_number}. {ep.name || `Episódio ${ep.episode_number}`}</div>
-                <div style={{color:'#64748B', fontSize:'13px', marginTop:'4px', lineHeight:'1.4'}}>{ep.overview || 'Sem descrição.'}</div>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </main>
-  )
-}
+      const tempId = `temp-${Date.now()}`
+      const novo = { id: tempId, temporada: temp, episodio: epNum }
+      setAssistidos(prev => [...prev, novo])
+      const { data, error } = await supabase.from('user_episodios').insert({
+        user_id: user.id,
+        serie_id: id,
+        temporada: temp,
+        episodio: epNum
+      }).select().single()
+      if (error) {
+        console.log('Erro insert', error)
+        alert('Erro ao salvar: ' + error.message)
+        setAssistidos(prev => prev.filter(a => a.id!== tempId))
+      } else if (data) {
+        setAssistidos(prev => prev.map(a => a.id === tempId? data : a))
+      }
