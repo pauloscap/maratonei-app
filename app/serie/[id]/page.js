@@ -1,272 +1,108 @@
 'use client'
- 
 import { useEffect, useState } from 'react'
+import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
-import { useRouter, useParams } from 'next/navigation'
-import Link from 'next/link'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_KEY
-)
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_KEY)
+const TMDB_KEY = process.env.NEXT_PUBLIC_TMDB_KEY
 
 export default function SeriePage() {
-  const [user, setUser] = useState(null)
-  const [serie, setSerie] = useState(null)
-  const [temporadas, setTemporadas] = useState([])
-  const [episodiosAssistidos, setEpisodiosAssistidos] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [estaNaWatchlist, setEstaNaWatchlist] = useState(false)
-  const params = useParams()
+  const { id } = useParams()
   const router = useRouter()
+  const [serie, setSerie] = useState(null)
+  const [tmdbData, setTmdbData] = useState(null)
+  const [tempAberta, setTempAberta] = useState(1)
+  const [episodiosTemp, setEpisodiosTemp] = useState([])
+  const [assistidos, setAssistidos] = useState([])
+  const [user, setUser] = useState(null)
+  const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    checkUser()
-  }, [])
+  useEffect(() => { init() }, [])
 
-  useEffect(() => {
-    if (user && params.id) {
-      buscarDados()
-      verificarWatchlist()
-    }
-  }, [user, params.id])
-
-  async function checkUser() {
+  async function init() {
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
-      router.push('/login')
-    } else {
-      setUser(session.user)
+    if (!session) return router.push('/login')
+    setUser(session.user)
+    const { data: serieData } = await supabase.from('series').select('*').eq('id', id).single()
+    if (!serieData) return router.push('/')
+    setSerie(serieData)
+    if (serieData.tmdb_id) {
+      const res = await fetch(`https://api.themoviedb.org/3/tv/${serieData.tmdb_id}?api_key=${TMDB_KEY}&language=pt-BR`)
+      const data = await res.json()
+      setTmdbData(data)
+      if (data.seasons?.length > 0) {
+        const primeira = data.seasons.find(s => s.season_number > 0) || data.seasons[0]
+        carregarEpisodios(primeira.season_number, serieData.tmdb_id)
+      }
     }
-  }
-
-  async function verificarWatchlist() {
-    const { data } = await supabase
-   .from('watchlist')
-   .select('id')
-   .eq('serie_id', params.id)
-   .eq('user_id', user.id)
-   .single()
-    
-    setEstaNaWatchlist(!!data)
-  }
-
-  async function toggleWatchlist() {
-    if (estaNaWatchlist) {
-      await supabase
-     .from('watchlist')
-     .delete()
-     .eq('serie_id', params.id)
-     .eq('user_id', user.id)
-    } else {
-      await supabase
-     .from('watchlist')
-     .insert({ serie_id: params.id, user_id: user.id })
-    }
-    setEstaNaWatchlist(!estaNaWatchlist)
-  }
-
-  async function buscarDados() {
-    const { data: serieData } = await supabase
-   .from('series')
-   .select('*')
-   .eq('id', params.id)
-   .single()
-
-    if (serieData) {
-      setSerie(serieData)
-
-      const { data: tempsData } = await supabase
-     .from('temporadas')
-     .select('*')
-     .eq('serie_id', params.id)
-     .order('numero', { ascending: true })
-
-      setTemporadas(tempsData || [])
-
-      const { data: assistidosData } = await supabase
-     .from('user_episodios')
-     .select('episodio_id')
-     .eq('serie_id', params.id)
-     .eq('user_id', user.id)
-
-      setEpisodiosAssistidos(assistidosData?.map(e => e.episodio_id) || [])
-    }
+    const { data: prog } = await supabase.from('user_episodios').select('*').eq('user_id', session.user.id).eq('serie_id', id)
+    setAssistidos(prog || [])
     setLoading(false)
   }
 
-  async function toggleEpisodio(episodioId, temporadaId) {
-    const jaAssistido = episodiosAssistidos.includes(episodioId)
+  async function carregarEpisodios(numTemp, tmdbId) {
+    const tid = tmdbId || serie?.tmdb_id
+    if (!tid) return
+    setTempAberta(numTemp)
+    const res = await fetch(`https://api.themoviedb.org/3/tv/${tid}/season/${numTemp}?api_key=${TMDB_KEY}&language=pt-BR`)
+    const data = await res.json()
+    setEpisodiosTemp(data.episodes || [])
+  }
 
-    if (jaAssistido) {
-      await supabase
-     .from('user_episodios')
-     .delete()
-     .eq('episodio_id', episodioId)
-     .eq('user_id', user.id)
-      
-      setEpisodiosAssistidos(episodiosAssistidos.filter(id => id !== episodioId))
+  async function toggleEp(temp, epNum) {
+    const existe = assistidos.find(a => a.temporada === temp && a.episodio === epNum)
+    if (existe) {
+      await supabase.from('user_episodios').delete().eq('id', existe.id)
+      setAssistidos(assistidos.filter(a => a.id!== existe.id))
     } else {
-      await supabase
-     .from('user_episodios')
-     .insert({
-        episodio_id: episodioId,
-        serie_id: params.id,
-        temporada_id: temporadaId,
-        user_id: user.id
-      })
-      
-      setEpisodiosAssistidos([...episodiosAssistidos, episodioId])
+      const { data } = await supabase.from('user_episodios').insert({ user_id: user.id, serie_id: id, temporada: temp, episodio: epNum }).select().single()
+      if (data) setAssistidos([...assistidos, data])
     }
   }
 
-  const compartilharStories = async () => {
-    const texto = `Tô assistindo ${serie.titulo} no Maratonei! 🍿\n${percentual}% concluído\n\nAcompanha lá: https://maratonei.vercel.app`
-    
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: serie.titulo,
-          text: texto,
-          url: 'https://maratonei.vercel.app'
-        })
-      } catch (err) {
-        console.log('Cancelou o share')
-      }
-    } else {
-      navigator.clipboard.writeText(texto)
-      alert('Texto copiado! Cola no Stories do Instagram 📱')
-    }
-  }
+  if (loading ||!serie) return <main className="main"><div style={{background:'#1E293B',padding:'20px',borderRadius:'12px', margin:'20px'}}>Carregando série...</div></main>
 
-  if (!user) return <main className="main"><div className="card">Redirecionando...</div></main>
-  if (loading) return <main className="main"><div className="card">Carregando...</div></main>
-  if (!serie) return <main className="main"><div className="card">Série não encontrada</div></main>
-
-  const totalEpisodios = temporadas.reduce((acc, t) => acc + t.episodios, 0)
-  const percentual = totalEpisodios > 0 ? Math.round((episodiosAssistidos.length / totalEpisodios) * 100) : 0
+  const temporadas = tmdbData?.seasons?.filter(s => s.season_number > 0) || []
+  const totalEps = tmdbData?.number_of_episodes || temporadas.reduce((acc, t) => acc + t.episode_count, 0)
+  const pct = totalEps > 0? Math.round((assistidos.length / totalEps) * 100) : 0
 
   return (
-    <main className="main">
-      <div style={{marginBottom: '16px'}}>
-        <Link href="/" style={{color: '#FACC15', textDecoration: 'none', fontSize: '14px'}}>
-          ← Voltar
-        </Link>
+    <main className="main" style={{maxWidth:'800px', margin:'0 auto', padding:'0 16px 40px'}}>
+      <button onClick={()=>router.push('/')} style={{background:'none',border:'none',color:'#FACC15',cursor:'pointer',margin:'16px 0', fontSize:'15px'}}>← Voltar</button>
+      <div style={{height:'280px', borderRadius:'16px', overflow:'hidden', marginBottom:'16px', background:'#1E293B'}}>
+        <img src={`https://image.tmdb.org/t/p/w780${serie.poster}`} style={{width:'100%',height:'100%',objectFit:'cover'}} />
       </div>
-
-      <div className="card" style={{marginBottom: '20px', background: '#1E293B'}}>
-        <img
-          src={`https://image.tmdb.org/t/p/w500${serie.poster}`}
-          alt={serie.titulo}
-          style={{
-            width: '100%',
-            height: '300px',
-            objectFit: 'cover',
-            borderRadius: '8px',
-            marginBottom: '16px'
-          }}
-        />
-        
-        <h1 style={{color: '#FACC15', fontSize: '28px', marginBottom: '8px'}}>{serie.titulo}</h1>
-        
-        <div style={{color: '#94A3B8', fontSize: '16px', marginBottom: '16px'}}>
-          <span>⭐ {serie.nota?.toFixed(1)}</span>
-          <span style={{margin: '0 8px'}}>•</span>
-          <span>{serie.ano}</span>
-          <span style={{margin: '0 8px'}}>•</span>
-          <span>{totalEpisodios} episódios</span>
-        </div>
-
-        <div style={{marginBottom: '20px'}}>
-          <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: '#94A3B8', marginBottom: '8px'}}>
-            <span>{episodiosAssistidos.length}/{totalEpisodios} episódios</span>
-            <span style={{color: '#FACC15', fontWeight: 'bold'}}>{percentual}%</span>
-          </div>
-          <div style={{width: '100%', height: '8px', background: '#0F172A', borderRadius: '4px', overflow: 'hidden'}}>
-            <div style={{
-              width: `${percentual}%`,
-              height: '100%',
-              background: '#FACC15',
-              transition: 'width 0.3s'
-            }} />
-          </div>
-        </div>
-
-        <p style={{color: '#CBD5E1', fontSize: '15px', lineHeight: '1.6', marginBottom: '20px'}}>
-          {serie.sinopse}
-        </p>
-
-        <div style={{display: 'flex', gap: '12px', marginBottom: '12px'}}>
-          <button
-            onClick={toggleWatchlist}
-            style={{
-              flex: 1,
-              background: estaNaWatchlist? '#FACC15' : '#1E293B',
-              color: estaNaWatchlist? '#000' : '#FACC15',
-              border: estaNaWatchlist? 'none' : '1px solid #FACC15',
-              padding: '12px 20px',
-              borderRadius: '8px',
-              fontSize: '14px',
-              fontWeight: 'bold',
-              cursor: 'pointer'
-            }}
-          >
-            {estaNaWatchlist? '★ Na Lista' : '☆ Quero Assistir'}
+      <h1 style={{color:'#FACC15', fontSize:'28px', margin:'0 0 8px', fontWeight:'900'}}>{serie.titulo}</h1>
+      <p style={{color:'#94A3B8', fontSize:'14px', marginBottom:'12px'}}>⭐ {Number(serie.nota).toFixed(1)} • {serie.ano} • {totalEps} episódios</p>
+      <div style={{background:'#1E293B', height:'10px', borderRadius:'5px', overflow:'hidden', marginBottom:'8px'}}>
+        <div style={{width:`${pct}%`, height:'100%', background:'#FACC15', transition:'width 0.4s'}} />
+      </div>
+      <div style={{display:'flex', justifyContent:'space-between', color:'#94A3B8', fontSize:'13px', marginBottom:'20px'}}>
+        <span>{assistidos.length}/{totalEps} episódios</span><span style={{color:'#FACC15', fontWeight:'800'}}>{pct}%</span>
+      </div>
+      <p style={{color:'#CBD5E1', fontSize:'15px', lineHeight:'1.6', marginBottom:'24px'}}>{serie.sinopse}</p>
+      <h3 style={{color:'#fff', marginBottom:'12px'}}>Temporadas</h3>
+      <div style={{display:'flex', gap:'8px', overflowX:'auto', paddingBottom:'12px', marginBottom:'16px'}}>
+        {temporadas.map(t => (
+          <button key={t.id} onClick={()=>carregarEpisodios(t.season_number)} style={{padding:'8px 14px', borderRadius:'20px', border: tempAberta===t.season_number?'2px solid #FACC15':'1px solid #334155', background: tempAberta===t.season_number?'#FACC15':'#1E293B', color: tempAberta===t.season_number?'#000':'#fff', cursor:'pointer', whiteSpace:'nowrap', fontWeight:'700', fontSize:'13px'}}>
+            T{t.season_number} • {assistidos.filter(a=>a.temporada===t.season_number).length}/{t.episode_count}
           </button>
-        </div>
-
-        <button
-          onClick={compartilharStories}
-          style={{
-            background: 'linear-gradient(45deg, #F58529, #DD2A7B, #8134AF)',
-            color: '#fff',
-            border: 'none',
-            padding: '12px 20px',
-            borderRadius: '8px',
-            fontSize: '14px',
-            fontWeight: 'bold',
-            cursor: 'pointer',
-            width: '100%'
-          }}
-        >
-          📱 Compartilhar
-        </button>
+        ))}
       </div>
-
-      {temporadas.map((temp) => (
-        <div key={temp.id} className="card" style={{marginBottom: '16px', background: '#1E293B'}}>
-          <h3 style={{color: '#FACC15', marginBottom: '12px'}}>
-            Temporada {temp.numero}
-          </h3>
-          
-          <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(45px, 1fr))', gap: '8px'}}>
-            {Array.from({ length: temp.episodios }, (_, i) => i + 1).map((ep) => {
-              const episodioId = `${temp.id}-${ep}`
-              const assistido = episodiosAssistidos.includes(episodioId)
-              
-              return (
-                <button
-                  key={ep}
-                  onClick={() => toggleEpisodio(episodioId, temp.id)}
-                  style={{
-                    background: assistido ? '#FACC15' : '#0F172A',
-                    color: assistido ? '#000' : '#94A3B8',
-                    border: 'none',
-                    padding: '8px',
-                    borderRadius: '6px',
-                    fontSize: '12px',
-                    fontWeight: 'bold',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s'
-                  }}
-                >
-                  {ep}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      ))}
+      <div style={{display:'flex', flexDirection:'column', gap:'10px'}}>
+        {episodiosTemp.map(ep => {
+          const visto = assistidos.some(a=>a.temporada===tempAberta && a.episodio===ep.episode_number)
+          return (
+            <label key={ep.id} style={{display:'flex', gap:'12px', alignItems:'flex-start', background: visto?'#1a1a00':'#1E293B', padding:'14px', borderRadius:'12px', cursor:'pointer', border: visto?'1px solid #FACC15':'1px solid transparent'}}>
+              <input type="checkbox" checked={visto} onChange={()=>toggleEp(tempAberta, ep.episode_number)} style={{width:'20px',height:'20px', accentColor:'#FACC15', marginTop:'2px'}} />
+              <div style={{flex:1}}>
+                <div style={{color: visto?'#FACC15':'#fff', fontSize:'15px', fontWeight: visto?'700':'500'}}>{ep.episode_number}. {ep.name || `Episódio ${ep.episode_number}`}</div>
+                <div style={{color:'#64748B', fontSize:'13px', marginTop:'4px', lineHeight:'1.4'}}>{ep.overview || 'Sem descrição.'}</div>
+              </div>
+            </label>
+          )
+        })}
+      </div>
     </main>
   )
 }
