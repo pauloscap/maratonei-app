@@ -54,19 +54,19 @@ export default function Home() {
 
   async function buscarNotificacoes() {
     const { count } = await supabase
-    .from('notificacoes')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', user.id)
-    .eq('lida', false)
+   .from('notificacoes')
+   .select('*', { count: 'exact', head: true })
+   .eq('user_id', user.id)
+   .eq('lida', false)
 
     setNotificacoesNaoLidas(count || 0)
   }
 
   async function buscarWatchlist() {
     const { data: watchlistData } = await supabase
-    .from('watchlist')
-    .select('serie_id')
-    .eq('user_id', user.id)
+   .from('watchlist')
+   .select('serie_id')
+   .eq('user_id', user.id)
 
     const serieIds = watchlistData?.map(w => w.serie_id) || []
 
@@ -76,9 +76,9 @@ export default function Home() {
     }
 
     const { data: seriesData } = await supabase
-    .from('series')
-    .select('*')
-    .in('id', serieIds)
+   .from('series')
+   .select('*')
+   .in('id', serieIds)
 
     setWatchlistSeries(seriesData || [])
   }
@@ -88,14 +88,14 @@ export default function Home() {
 
     if (jaEstaNaLista) {
       await supabase
-      .from('watchlist')
-      .delete()
-      .eq('serie_id', serieId)
-      .eq('user_id', user.id)
+     .from('watchlist')
+     .delete()
+     .eq('serie_id', serieId)
+     .eq('user_id', user.id)
     } else {
       await supabase
-      .from('watchlist')
-      .insert({ serie_id: serieId, user_id: user.id })
+     .from('watchlist')
+     .insert({ serie_id: serieId, user_id: user.id })
     }
 
     buscarWatchlist()
@@ -108,25 +108,25 @@ export default function Home() {
 
       for (const serie of seriesData) {
         const { data: temps } = await supabase
-        .from('temporadas')
-        .select('episodios')
-        .eq('serie_id', serie.id)
+       .from('temporadas')
+       .select('episodios')
+       .eq('serie_id', serie.id)
 
         const totalEps = temps?.reduce((acc, t) => acc + t.episodios, 0) || 0
 
         const { data: assistidos } = await supabase
-        .from('user_episodios')
-        .select('id, created_at')
-        .eq('serie_id', serie.id)
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
+       .from('user_episodios')
+       .select('id, created_at')
+       .eq('serie_id', serie.id)
+       .eq('user_id', user.id)
+       .order('created_at', { ascending: false })
 
         const assistidosCount = assistidos?.length || 0
         const percentual = totalEps > 0? Math.round((assistidosCount / totalEps) * 100) : 0
         const ultimoAssistido = assistidos?.[0]?.created_at || null
 
         progressoArray.push({
-        ...serie,
+       ...serie,
           totalEps,
           assistidosCount,
           percentual,
@@ -135,8 +135,8 @@ export default function Home() {
       }
 
       const emAndamento = progressoArray
-      .filter(s => s.percentual > 0 && s.percentual < 100)
-      .sort((a, b) => new Date(b.ultimoAssistido) - new Date(a.ultimoAssistido))
+     .filter(s => s.percentual > 0 && s.percentual < 100)
+     .sort((a, b) => new Date(b.ultimoAssistido) - new Date(a.ultimoAssistido))
 
       setContinuarAssistindo(emAndamento)
       setSeries(progressoArray)
@@ -162,7 +162,7 @@ export default function Home() {
       resultado = resultado.filter(s => s.percentual === 0)
     } else if (filtro === 'watchlist') {
       resultado = watchlistSeries.map(w => ({
-      ...w,
+     ...w,
         totalEps: 0,
         assistidosCount: 0,
         percentual: 0
@@ -265,7 +265,164 @@ export default function Home() {
       <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px'}}>
         <h1 style={{color: '#FACC15', fontSize: '28px', margin: 0}}>Maratonei</h1>
         <div style={{display: 'flex', gap: '8px', alignItems: 'center'}}>
-          <img
-            src={user.user_metadata?.avatar_url}
-            alt="Avatar"
-            style={{width: '32px', height: '32px', borderRadius
+          {user.user_metadata?.avatar_url && (
+            <img
+              src={user.user_metadata.avatar_url}
+              alt="Avatar"
+              style={{width: '32px', height: '32px', borderRadius: '50%'}}
+            />
+          )}
+          <Link href="/adicionar" style={{textDecoration: 'none'}}>
+            <div style={{
+              background: '#22C55E',
+              padding: '8px 14px',
+              borderRadius: '8px',
+              color: '#fff',
+              fontSize: '18px',
+              fontWeight: 'bold'
+            }}>
+              +
+            </div>
+          </Link>
+          <Link href="/ranking" style={{textDecoration: 'none'}}>
+            <div style={{
+              background: '#1E293B',
+              padding: '8px 14px',
+              borderRadius: '8px',
+              color: '#FACC15',
+              fontSize: '14px',
+              fontWeight: 'bold'
+            }}>
+              🏆
+            </div>
+          </Link>
+          <Link href="/feed" style={{textDecoration: 'none'}}>
+            <div style={{
+              background: '#1E293B',
+              padding: '8px 14px',
+              borderRadius: '8px',
+              color: '#FACC15',
+              fontSize: '14px',
+              fontWeight: 'bold'
+            }}>
+              📱
+            </div>
+          </Link>
+          <Link href="/notificacoes" style={{textDecoration: 'none', position: 'relative'}}>
+            <div style={{
+              background: '#1E293B',
+              padding: '8px 14px',
+              borderRadius: '8px',
+              color: '#FACC15',
+              fontSize: '14px',
+              fontWeight: 'bold'
+            }}>
+              🔔
+              {notificacoesNaoLidas > 0 && (
+                <div style={{
+                  position: 'absolute',
+                  top: '-4px',
+                  right: '-4px',
+                  background: '#EF4444',
+                  color: '#fff',
+                  fontSize: '10px',
+                  fontWeight: 'bold',
+                  padding: '2px 6px',
+                  borderRadius: '10px',
+                  minWidth: '16px',
+                  textAlign: 'center'
+                }}>
+                  {notificacoesNaoLidas}
+                </div>
+              )}
+            </div>
+          </Link>
+          <Link href="/stats" style={{textDecoration: 'none'}}>
+            <div style={{
+              background: '#1E293B',
+              padding: '8px 14px',
+              borderRadius: '8px',
+              color: '#FACC15',
+              fontSize: '14px',
+              fontWeight: 'bold'
+            }}>
+              📊
+            </div>
+          </Link>
+          <Link href="/exportar" style={{textDecoration: 'none'}}>
+            <div style={{
+              background: '#1E293B',
+              padding: '8px 14px',
+              borderRadius: '8px',
+              color: '#FACC15',
+              fontSize: '14px',
+              fontWeight: 'bold'
+            }}>
+              📥
+            </div>
+          </Link>
+          <button
+            onClick={signOut}
+            style={{
+              background: '#1E293B',
+              padding: '8px 14px',
+              borderRadius: '8px',
+              color: '#EF4444',
+              fontSize: '14px',
+              fontWeight: 'bold',
+              border: 'none',
+              cursor: 'pointer'
+            }}
+          >
+            Sair
+          </button>
+        </div>
+      </div>
+
+      <input
+        type="text"
+        placeholder="Buscar série..."
+        value={busca}
+        onChange={(e) => setBusca(e.target.value)}
+        style={{
+          width: '100%',
+          background: '#1E293B',
+          border: '1px solid #334155',
+          color: '#fff',
+          padding: '12px 16px',
+          borderRadius: '8px',
+          fontSize: '16px',
+          marginBottom: '16px',
+          outline: 'none'
+        }}
+      />
+
+      <div style={{marginBottom: '24px'}}>
+        <BotaoFiltro valor="todas" texto="Todas" />
+        <BotaoFiltro valor="andamento" texto="Em andamento" />
+        <BotaoFiltro valor="concluidas" texto="Concluídas" />
+        <BotaoFiltro valor="nao_iniciadas" texto="Não iniciadas" />
+        <BotaoFiltro valor="watchlist" texto={`📌 Quero Assistir (${watchlistSeries.length})`} />
+      </div>
+
+      {!busca && filtro === 'todas' && continuarAssistindo.length > 0 && (
+        <div style={{marginBottom: '32px'}}>
+          <h2 style={{color: '#FACC15', fontSize: '20px', marginBottom: '16px'}}>Continuar Assistindo</h2>
+          {continuarAssistindo.map(serie => <CardSerie key={serie.id} serie={serie} />)}
+        </div>
+      )}
+
+      <h2 style={{color: '#94A3B8', fontSize: '18px', marginBottom: '16px'}}>
+        {busca || filtro!== 'todas'? `Resultados (${seriesFiltradas.length})` : 'Todas as Séries'}
+      </h2>
+
+      {seriesFiltradas.length === 0? (
+        <div className="card" style={{textAlign: 'center', color: '#64748B'}}>
+          {filtro === 'watchlist'? 'Sua lista de desejos está vazia' : 'Nenhuma série encontrada'}
+        </div>
+      ) : (
+        seriesFiltradas.map(serie => <CardSerie key={serie.id} serie={serie} />)
+      )}
+    </main>
+  )
+}
