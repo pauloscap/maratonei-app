@@ -10,68 +10,66 @@ export default function FilmePage() {
   const router = useRouter()
   const [f, setF] = useState(null)
   const [st, setSt] = useState("quero_assistir")
+  const [savedId, setSavedId] = useState(null)
 
   useEffect(() => {
     if (!id) return
     const key = process.env.NEXT_PUBLIC_TMDB_KEY
     fetch(`https://api.themoviedb.org/3/movie/${id}?api_key=${key}&language=pt-BR`)
-    .then(r => r.json())
-    .then(async j => {
+     .then(r => r.json())
+     .then(async j => {
         setF(j)
-        // Carrega status
+        // verifica se já está salvo no Supabase
         try {
-          const { data: ex } = await supa.from("filmes").select("id").eq("tmdb_id", j.id).maybeSingle()
-          if (ex) {
-            const s = localStorage.getItem("filme-status-" + ex.id)
+          const { data } = await supa.from("filmes").select("*").eq("tmdb_id", j.id).maybeSingle()
+          if (data) {
+            setSavedId(data.id)
+            const s = localStorage.getItem("filme-status-" + data.id)
             if (s) setSt(s)
           }
         } catch {}
       })
   }, [id])
 
-  const fixar = async (v) => {
-    setSt(v)
+  const fixar = async (status) => {
+    if (!f) return
+    setSt(status)
     try {
-      if (!f) return
-      // 1. Verifica se já existe no Supabase
-      let { data: ex } = await supa.from("filmes").select("*").eq("tmdb_id", f.id).maybeSingle()
-
-      // 2. Se não existe, cria
-      if (!ex) {
-        const { data: novo } = await supa.from("filmes").insert([{
+      let rowId = savedId
+      // 1. Se ainda não existe no Supabase, cria
+      if (!rowId) {
+        const novo = {
           tmdb_id: f.id,
           titulo: f.title,
           poster: f.poster_path,
           ano: f.release_date? new Date(f.release_date).getFullYear() : null
-        }]).select().single()
-        ex = novo
+        }
+        const { data, error } = await supa.from("filmes").insert([novo]).select().single()
+        if (error) throw error
+        rowId = data.id
+        setSavedId(rowId)
       }
-
-      // 3. Salva status no localStorage com o ID do Supabase
-      if (ex) {
-        localStorage.setItem("filme-status-" + ex.id, v)
-        localStorage.setItem("_upd", Date.now())
-      }
+      // 2. Salva status no localStorage usando o ID do Supabase
+      localStorage.setItem("filme-status-" + rowId, status)
+      localStorage.setItem("_upd", Date.now())
     } catch (e) {
-      console.log("Erro ao fixar:", e.message)
-      // Fallback local se Supabase falhar
-      try { localStorage.setItem("filme-" + id, v) } catch {}
+      alert("Erro ao fixar: " + e.message)
     }
   }
 
   const abandonar = async () => {
     if (!confirm(`Abandonar "${f?.title}"?`)) return
     try {
-      const { data: ex } = await supa.from("filmes").select("id").eq("tmdb_id", f.id).maybeSingle()
-      if (ex) {
-        await supa.from("filmes").delete().eq("id", ex.id)
-        localStorage.removeItem("filme-status-" + ex.id)
+      if (savedId) {
+        await supa.from("filmes").delete().eq("id", savedId)
+        localStorage.removeItem("filme-status-" + savedId)
       }
-    } catch {}
-    router.push("/filmes")
+      router.push("/filmes")
+    } catch (e) { alert(e.message) }
   }
 
   if (!f) return <div style={{ background:"#080F25", minHeight:"100vh", display:"grid", placeItems:"center", color:"#fff" }}>Carregando...</div>
+  if (!f.title) return <div style={{ background:"#080F25", minHeight:"100vh", padding:20, color:"#fff" }}><button onClick={()=>router.back()}>‹ Voltar</button></div>
 
   const poster = f.poster_path? `https://image.tmdb.org/t/p/w500${f.poster_path}` : ""
   const bg = f.backdrop_path? `https://image.tmdb.org/t/p/w780${f.backdrop_path}` : poster
@@ -99,9 +97,10 @@ export default function FilmePage() {
               <button onClick={()=>fixar("quero_assistir")} style={{ height:36, padding:"0 14px", borderRadius:999, border:0, cursor:"pointer", background: st==="quero_assistir"? "#fff":"#ffffff14", color: st==="quero_assistir"? "#000":"#fff", fontWeight:700, fontSize:13 }}>Quero Assistir</button>
               <button onClick={()=>fixar("ja_assisti")} style={{ height:36, padding:"0 14px", borderRadius:999, border:0, cursor:"pointer", background: st==="ja_assisti"? "#22c55e":"#ffffff14", color: st==="ja_assisti"? "#000":"#fff", fontWeight:800, fontSize:13 }}>Já Assisti</button>
             </div>
-            <div style={{ fontSize:11, opacity:.35, marginTop:8 }}>Salvo automaticamente em Filmes</div>
+            {savedId && <div style={{ fontSize:11, opacity:.5, marginTop:8 }}>✓ Fixado na sua lista</div>}
           </div>
         </div>
+
         <div style={{ marginTop:20, background:"#121B3A", border:"1px solid #ffffff10", borderRadius:14, padding:14 }}>
           <div style={{ fontSize:11, fontWeight:800, opacity:.5, marginBottom:8, letterSpacing:.5 }}>SINOPSE</div>
           <div style={{ fontSize:13, lineHeight:1.6, opacity:.85 }}>{f.overview || "Sem sinopse."}</div>
