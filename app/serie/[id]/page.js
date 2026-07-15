@@ -4,22 +4,20 @@ import { createClient } from "@supabase/supabase-js"
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_KEY)
 
-// Mapeamento dos IDs antigos fake -> ID real do TVmaze
 const MAPA_IDS_FAKE = {
-  "101": 45582, // Abbott Elementary
-  "102": 71268, // X-Men 97
-  "103": 0, // Off Campus - vai buscar por nome
-  "104": 73, // The Walking Dead
-  "201": 0, // Elle
-  "301": 2993, // Stranger Things
-  "302": 61167, // The Last of Us
+  "101": 45582,
+  "102": 71268,
+  "103": 0,
+  "104": 73,
+  "201": 0,
+  "301": 2993,
+  "302": 61167,
 }
 
 export default function DetalheSerie({ params }) {
   const id = String(params.id)
   const [userId, setUserId] = useState("anon")
   const [serie, setSerie] = useState(null)
-  const [realId, setRealId] = useState(id)
   const [status, setStatus] = useState("assistindo")
   const [epsVistos, setEpsVistos] = useState([])
   const [temporadas, setTemporadas] = useState([])
@@ -32,26 +30,16 @@ export default function DetalheSerie({ params }) {
       if (!data.session) { window.location.href = "/login"; return }
       const uid = data.session.user.id
       setUserId(uid)
-
       let s = null
-      try {
-        const raw = localStorage.getItem(uid + ":serie-atual")
-        if (raw) s = JSON.parse(raw)
-      } catch {}
-      // Se entrou direto pela URL sem ter no localStorage
-      if (!s || String(s.id)!== id) {
-        s = { id, titulo: id, img: "" }
-      }
+      try { const raw = localStorage.getItem(uid + ":serie-atual"); if (raw) s = JSON.parse(raw) } catch {}
+      if (!s || String(s.id)!== id) s = { id, titulo: id, img: "" }
       setSerie(s)
-
       const st = localStorage.getItem(uid + ":status-" + id)
-      if (st) setStatus(st)
-      else if (s.status) setStatus(s.status)
+      if (st) setStatus(st); else if (s.status) setStatus(s.status)
       setEpsVistos(JSON.parse(localStorage.getItem(uid + ":eps-" + id) || "[]"))
 
-      // 1. Descobre o ID REAL
       let rid = MAPA_IDS_FAKE[id] || id
-      if (!rid || rid === 0) {
+      if (!rid || rid === 0 || Number(rid) < 1000) {
         try {
           const q = s.q || s.titulo
           const sr = await fetch(`https://api.tvmaze.com/search/shows?q=${encodeURIComponent(q)}`)
@@ -59,16 +47,6 @@ export default function DetalheSerie({ params }) {
           if (sj?.[0]?.show?.id) rid = sj[0].show.id
         } catch {}
       }
-      // Se ainda for fake pequeno, força busca por nome
-      if (Number(rid) < 1000) {
-        try {
-          const q = s.q || s.titulo
-          const sr = await fetch(`https://api.tvmaze.com/search/shows?q=${encodeURIComponent(q)}`)
-          const sj = await sr.json()
-          if (sj?.[0]?.show?.id) rid = sj[0].show.id
-        } catch {}
-      }
-      setRealId(rid)
 
       try {
         const [showRes, seasonsRes, epsRes] = await Promise.all([
@@ -79,45 +57,19 @@ export default function DetalheSerie({ params }) {
         const show = await showRes.json()
         const seasons = await seasonsRes.json()
         const episodes = await epsRes.json()
-
         if (show?.name) {
-          const atualizado = {
-           ...s,
-            id: id, // mantém o ID original pra não quebrar seu localStorage
-            realId: rid,
-            titulo: show.name,
-            ano: show.premiered?.slice(0,4) || s.ano || "",
-            img: show.image?.original || show.image?.medium || s.img,
-            banner: show.image?.original || s.img,
-          }
-          setSerie(atualizado)
+          s = {...s, id, realId: rid, titulo: show.name, ano: show.premiered?.slice(0,4) || "", img: show.image?.original || show.image?.medium || s.img, banner: show.image?.original || s.img }
+          setSerie(s)
         }
-
         const mapa = {}
-        if (Array.isArray(seasons)) {
-          seasons.forEach(se => { mapa[se.number] = { numero: se.number, eps: [] } })
-        }
-        if (Array.isArray(episodes)) {
-          episodes.forEach(ep => {
-            if (!mapa[ep.season]) mapa[ep.season] = { numero: ep.season, eps: [] }
-            mapa[ep.season].eps.push({ id: ep.id, numero: ep.number, nome: ep.name })
-          })
-        }
-
+        if (Array.isArray(seasons)) seasons.forEach(se => { mapa[se.number] = { numero: se.number, eps: [] } })
+        if (Array.isArray(episodes)) episodes.forEach(ep => { if (!mapa[ep.season]) mapa[ep.season] = { numero: ep.season, eps: [] }; mapa[ep.season].eps.push({ id: ep.id, numero: ep.number, nome: ep.name }) })
         const lista = Object.values(mapa).sort((a,b)=>a.numero-b.numero)
-        if (lista.length) {
-          setTemporadas(lista)
-          setAberta(lista[0].numero)
-        } else {
-          // fallback se não achar
-          setTemporadas([{ numero:1, eps: Array.from({length:10},(_,i)=>({id:`${rid}-${i+1}`, numero:i+1, nome:`Episódio ${i+1}`})) }])
-          setAberta(1)
-        }
-      } catch (e) {
-        console.log("erro tvmaze", e)
+        setTemporadas(lista.length? lista : [{ numero:1, eps: Array.from({length:10},(_,i)=>({id:`${rid}-${i+1}`, numero:i+1, nome:`Episódio ${i+1}`})) }])
+        setAberta(lista[0]?.numero || 1)
+      } catch {
         const fake = [1,2,3].map(n => ({ numero: n, eps: Array.from({length:10}, (_,i)=>({ id: `${rid}-${n}-${i+1}`, numero: i+1, nome: `Episódio ${i+1}` })) }))
-        setTemporadas(fake)
-        setAberta(1)
+        setTemporadas(fake); setAberta(1)
       }
       setLoading(false)
     }
@@ -126,21 +78,28 @@ export default function DetalheSerie({ params }) {
 
   const toggleEp = (eid) => {
     let novo = epsVistos.includes(eid)? epsVistos.filter(x=>x!==eid) : [...epsVistos, eid]
-    setEpsVistos(novo)
-    localStorage.setItem(userId + ":eps-" + id, JSON.stringify(novo))
+    setEpsVistos(novo); localStorage.setItem(userId + ":eps-" + id, JSON.stringify(novo))
   }
-
   const maratonarTemp = (temp) => {
     const ids = temp.eps.map(e=>e.id)
     const todos = ids.every(i=>epsVistos.includes(i))
     let novo = todos? epsVistos.filter(i=>!ids.includes(i)) : [...new Set([...epsVistos,...ids])]
-    setEpsVistos(novo)
-    localStorage.setItem(userId + ":eps-" + id, JSON.stringify(novo))
+    setEpsVistos(novo); localStorage.setItem(userId + ":eps-" + id, JSON.stringify(novo))
+  }
+
+  const abandonar = () => {
+    if (!confirm(`Abandonar "${serie?.titulo}"? Seu progresso será apagado.`)) return
+    const lista = JSON.parse(localStorage.getItem(userId+":minhas-series")||"[]")
+    const nova = lista.filter(s=> String(s.id)!== String(id))
+    localStorage.setItem(userId+":minhas-series", JSON.stringify(nova))
+    localStorage.removeItem(userId+":status-"+id)
+    localStorage.removeItem(userId+":eps-"+id)
+    localStorage.removeItem(userId+":serie-atual")
+    window.location.href = "/"
   }
 
   const totalEps = useMemo(()=> temporadas.reduce((a,t)=>a+t.eps.length,0), [temporadas])
   const progresso = totalEps? Math.round((epsVistos.length/totalEps)*100) : 0
-
   if (!serie) return null
 
   return (
@@ -148,7 +107,11 @@ export default function DetalheSerie({ params }) {
       <div style={{ height: 300, position: "relative" }}>
         <img src={serie.banner || serie.img} style={{ width:"100%", height:"100%", objectFit:"cover", background:"#12182F" }} />
         <div style={{ position:"absolute", inset:0, background:"linear-gradient(180deg, #00000030, #080B1F 95%)" }} />
-        <button onClick={()=>history.back()} style={{ position:"absolute", top:14, left:14, width:34, height:34, borderRadius:999, background:"#0009", border:"1px solid #ffffff22", color:"#fff" }}>‹</button>
+        {/* Botão voltar */}
+        <button onClick={()=>history.back()} style={{ position:"absolute", top:14, left:14, width:34, height:34, borderRadius:999, background:"#0009", border:"1px solid #ffffff22", color:"#fff", cursor:"pointer" }}>‹</button>
+        {/* BOTÃO ABANDONAR VERMELHO NO CANTO SUPERIOR DIREITO */}
+        <button onClick={abandonar} style={{ position:"absolute", top:14, right:14, padding:"7px 12px", borderRadius:999, background:"#ef4444", border:"1px solid #ef444499", color:"#fff", fontSize:11, fontWeight:900, cursor:"pointer", letterSpacing:.3, boxShadow:"0 4px 12px #0008" }}>Abandonar</button>
+
         <div style={{ position:"absolute", bottom:-22, left:16, display:"flex", gap:12, alignItems:"flex-end", right:16 }}>
           <img src={serie.img} style={{ width:90, height:135, borderRadius:12, objectFit:"cover", border:"2px solid #ffffff18", background:"#12182F" }} />
           <div style={{ flex:1, paddingBottom:6 }}>
@@ -163,7 +126,7 @@ export default function DetalheSerie({ params }) {
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginBottom:16 }}>
           {[{id:"assistindo",l:"Assistindo"},{id:"quero_assistir",l:"Quero Assistir"},{id:"maratonei",l:"Maratonei"}].map(b=>{
             const ativo = status===b.id
-            return <button key={b.id} onClick={()=>{setStatus(b.id); localStorage.setItem(userId+":status-"+id,b.id); const lista = JSON.parse(localStorage.getItem(userId+":minhas-series")||"[]"); const nova = lista.map(s=> String(s.id)===id? {...s,status:b.id}:s); localStorage.setItem(userId+":minhas-series", JSON.stringify(nova)) }} style={{ padding:11, borderRadius:12, fontWeight:800, fontSize:12, border: ativo?"1px solid #FFD400":"1px solid #ffffff12", background: ativo? "#FFD400":"#12182F", color: ativo? "#000":"#fff" }}>{b.l}</button>
+            return <button key={b.id} onClick={()=>{setStatus(b.id); localStorage.setItem(userId+":status-"+id,b.id); const lista = JSON.parse(localStorage.getItem(userId+":minhas-series")||"[]"); const nova = lista.map(s=> String(s.id)===id? {...s,status:b.id}:s); localStorage.setItem(userId+":minhas-series", JSON.stringify(nova)) }} style={{ padding:11, borderRadius:12, fontWeight:800, fontSize:12, border: ativo?"1px solid #FFD400":"1px solid #ffffff12", background: ativo? "#FFD400":"#12182F", color: ativo? "#000":"#fff", cursor:"pointer" }}>{b.l}</button>
           })}
         </div>
 
@@ -176,7 +139,7 @@ export default function DetalheSerie({ params }) {
               <div key={t.numero} style={{ borderTop:"1px solid #ffffff08", marginTop:10, paddingTop:10 }}>
                 <div onClick={()=>setAberta(aberto? null : t.numero)} style={{ display:"flex", justifyContent:"space-between", cursor:"pointer", alignItems:"center" }}>
                   <span style={{ fontSize:13, fontWeight:700 }}>Temporada {t.numero} <span style={{ fontSize:11, background:"#ffffff12", padding:"2px 6px", borderRadius:99 }}>{vistos}/{t.eps.length}</span></span>
-                  <button onClick={(e)=>{e.stopPropagation(); maratonarTemp(t)}} style={{ fontSize:10, padding:"4px 8px", borderRadius:99, border:"1px solid #FFD40040", background: vistos===t.eps.length?"#22c55e":"#FFD40018", color: vistos===t.eps.length?"#fff":"#FFD400" }}>{vistos===t.eps.length?"Desmarcar":"Maratonar tudo"}</button>
+                  <button onClick={(e)=>{e.stopPropagation(); maratonarTemp(t)}} style={{ fontSize:10, padding:"4px 8px", borderRadius:99, border:"1px solid #FFD40040", background: vistos===t.eps.length?"#22c55e":"#FFD40018", color: vistos===t.eps.length?"#fff":"#FFD400", cursor:"pointer" }}>{vistos===t.eps.length?"Desmarcar":"Maratonar tudo"}</button>
                 </div>
                 {aberto && <div style={{ marginTop:8, display:"grid", gap:6 }}>
                   {t.eps.map(ep=>{
