@@ -1,8 +1,7 @@
 "use client"
-import { useRouter } from "next/navigation"
+import Link from "next/link"
 
 export function SearchDropdown({ results, onAdd }) {
-  const router = useRouter()
   if (!results.length) return null
 
   return (
@@ -14,58 +13,44 @@ export function SearchDropdown({ results, onAdd }) {
     }}>
       {results.map(r => {
         const isFilme = r.media_type === "movie"
-        const img = r.poster_path
-          ? `https://image.tmdb.org/t/p/w92${r.poster_path}` : ""
-        const title = isFilme ? r.title : r.name
-        const year = isFilme ? r.release_date?.slice(0,4) : r.first_air_date?.slice(0,4)
-
-        const handleOpen = () => {
-          if (isFilme) {
-            router.push(`/filme/${r.id}`)
-          } else {
-            onAdd(r, true)
-          }
-        }
+        const title = isFilme? r.title : r.name
+        const img = r.poster_path? `https://image.tmdb.org/t/p/w92${r.poster_path}` : ""
+        const year = (isFilme? r.release_date : r.first_air_date)?.slice(0,4)
+        const href = isFilme? `/filme/${r.id}` : `/serie/tmdb-${r.id}`
 
         return (
           <div key={`${r.media_type}-${r.id}`} style={{
             display:"flex", alignItems:"center", gap:10,
             padding:"8px 10px", borderBottom:"1px solid #ffffff0d"
           }}>
-            {/* Banner + Nome clicável */}
-            <button
-              onClick={handleOpen}
-              style={{
-                display:"flex", alignItems:"center", gap:10,
-                flex:1, background:"none", border:0,
-                color:"#fff", cursor:"pointer", textAlign:"left"
-              }}
-            >
+            {/* TUDO CLICÁVEL AGORA: Link envolve poster + nome */}
+            <Link href={href} style={{
+              display:"flex", alignItems:"center", gap:10,
+              flex:1, textDecoration:"none", color:"#fff",
+              minWidth:0
+            }}>
               <img src={img} style={{
                 width:40, height:60, borderRadius:8,
-                objectFit:"cover", background:"#0A0F25"
+                objectFit:"cover", background:"#0A0F25", flexShrink:0
               }} alt="" />
               <div style={{ minWidth:0 }}>
                 <div style={{
-                  fontSize:13, fontWeight:700,
-                  whiteSpace:"nowrap", overflow:"hidden",
-                  textOverflow:"ellipsis", maxWidth:180,
-                  fontFamily:"Inter,sans-serif"
-                }}>
-                  {title}
-                </div>
+                  fontSize:13, fontWeight:700, whiteSpace:"nowrap",
+                  overflow:"hidden", textOverflow:"ellipsis",
+                  maxWidth:180, fontFamily:"Inter,sans-serif"
+                }}>{title}</div>
                 <div style={{ fontSize:11, opacity:.45 }}>
-                  {year} • {r.vote_average?.toFixed(1)}★ {isFilme? "• Filme":"• Série"}
+                  {year} • {r.vote_average?.toFixed(1)}★ {isFilme? "Filme" : "Série"}
                 </div>
               </div>
-            </button>
+            </Link>
 
             <button
               onClick={() => onAdd(r, false)}
               style={{
                 height:30, padding:"0 12px", borderRadius:999,
                 border:0, background:"#FFD400", color:"#000",
-                fontWeight:800, fontSize:12, cursor:"pointer"
+                fontWeight:800, fontSize:12, cursor:"pointer", flexShrink:0
               }}
             >
               + Adicionar
