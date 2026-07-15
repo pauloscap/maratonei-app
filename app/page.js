@@ -47,6 +47,9 @@ export default function Home() {
         <SectionRow title="Já Assisti" color="#ffffff30" list={que} pct={pct} isM={isM} />
         <SectionRow title="Já Maratonei" color="#22c55e" list={mar} pct={pct} isM={isM} />
       </main>
+    import { BottomNav } from "../components/BottomNav"
+// ... dentro do return, antes do último </div>:
+<BottomNav />
     </div>
   )
 }
