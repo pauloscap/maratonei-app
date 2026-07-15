@@ -1,64 +1,19 @@
 "use client"
 import { useEffect, useState } from "react"
-import { getSupa } from "../../lib/supabase"
+import { getSupa, } from "../../lib/supabase"
 import { BottomNav } from "../../components/BottomNav"
-
-const supa = getSupa()
-const hojeISO = () => new Date().toISOString().slice(0,10)
-
-export default function PerfilPage() {
-  const [nome, setNome] = useState("Você")
-  const [letra, setLetra] = useState("P")
-  const [stats, setStats] = useState({ total:0, mar:0, horas:0, nivel:1, xp:0 })
-  const [checkins, setCheckins] = useState([])
-  const [streak, setStreak] = useState(0)
-  const [missoes, setMissoes] = useState([])
-  const [showEdit, setShowEdit] = useState(false)
-
-  useEffect(()=>{
-    const n = localStorage.getItem("perfil-nome") || "Você"
-    setNome(n); setLetra(n[0]?.toUpperCase()||"P")
-    load()
-  }, [])
-
-  async function load(){
-    let sTotal=0, fTotal=0, mar=0, horas=0
-    try{
-      const {data:s}=await supa.from("series").select("id"); sTotal=s?.length||0
-      const {data:f}=await supa.from("filmes").select("id"); fTotal=f?.length||0
-      for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k?.includes("status-")&&localStorage.getItem(k)==="ja_assisti") mar++; if(k?.startsWith("progress-")){ try{horas+=JSON.parse(localStorage.getItem(k)||"[]").length*0.7}catch{}} }
-    }catch{}
-    const total=sTotal+fTotal; const xp=mar*100+Math.floor(horas*5)+fTotal*30+ (JSON.parse(localStorage.getItem("checkins")||"[]").length*15)
-    const nivel=Math.max(1, Math.floor(xp/150)+1)
-    setStats({total, mar, horas:Math.round(horas), nivel, xp})
-
-    const c=JSON.parse(localStorage.getItem("checkins")||"[]"); setCheckins(c)
-    let seq=0; const hoje=new Date(); for(let i=0;i<30;i++){ const d=new Date(); d.setDate(hoje.getDate()-i); if(c.includes(d.toISOString().slice(0,10))) seq++; else if(i>0) break } setStreak(seq)
-
-    setMissoes([
-      { id:"diaria", t:"Check-in diário", d:`${c.includes(hojeISO())?1:0}/1`, p:c.includes(hojeISO())?100:0, xp:15, ok:c.includes(hojeISO()) },
-      { id:"semana3", t:"Assista 3 dias na semana", d:`${Math.min(seq,3)}/3`, p:Math.min(seq/3*100,100), xp:50, ok:seq>=3 },
-      { id:"maratona", t:"Maratone 1 título", d:`${mar>=1?1:0}/1`, p:mar>=1?100:0, xp:100, ok:mar>=1 },
-      { id:"explorador", t:"Tenha 10 títulos salvos", d:`${Math.min(total,10)}/10`, p:Math.min(total/10*100,100), xp:80, ok:total>=10 },
-    ])
-  }
-
-  const doCheckin = () => {
-    const h=hojeISO(); if(checkins.includes(h)) return
-    const novo=[...checkins,h]; localStorage.setItem("checkins", JSON.stringify(novo)); setCheckins(novo); load()
-  }
-
-  const salvarNome = () => { localStorage.setItem("perfil-nome", nome); setLetra(nome[0]?.toUpperCase()||"P"); setShowEdit(false) }
-
-  const dias=Array.from({length:30},(_,i)=>{ const d=new Date(); d.setDate(new Date().getDate()-(29-i)); return d.toISOString().slice(0,10) })
-
-  return (
-    <div style={{ minHeight:"100vh", background:"#080B1F", color:"#fff", paddingBottom:90 }}>
-      <header style={{ height:56, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 16px", borderBottom:"1px solid #ffffff0f", position:"sticky", top:0, background:"#080B1F", zIndex:5 }}><b>Perfil</b><button onClick={()=>setShowEdit(!showEdit)} style={{ background:"#ffffff10", border:0, color:"#fff", borderRadius:999, padding:"6px 12px", fontSize:12 }}>✏️ Editar</button></header>
-
-      <main style={{ maxWidth:560, margin:"0 auto", padding:"16px 14px", display:"flex", flexDirection:"column", gap:12 }}>
-        {showEdit && <div style={{ background:"#12182F", border:"1px solid #FFD40033", borderRadius:16, padding:12, display:"flex", gap:8 }}><input value={nome} onChange={e=>setNome(e.target.value)} style={{ flex:1, background:"#ffffff10", border:"1px solid #ffffff15", borderRadius:10, padding:"10px 12px", color:"#fff", outline:"none" }} placeholder="Seu nome"/><button onClick={salvarNome} style={{ background:"#FFD400", border:0, borderRadius:10, padding:"0 14px", fontWeight:800, color:"#000" }}>Salvar</button></div>}
-
-        <div style={{ background:"#12182F", border:"1px solid #ffffff12", borderRadius:18, padding:16, display:"flex", alignItems:"center", gap:14 }}>
-          <div style={{ width:52, height:52, borderRadius:999, background:"linear-gradient(135deg,#FFD400,#FFA600)", display:"grid", placeItems:"center", color:"#000", fontWeight:900, fontSize:20 }}>{letra}</div>
-          <div style={{ flex:1 }}
+import { hojeISO, calcXP, getDias } from "../../lib/perfilLogic"
+const supa=getSupa()
+export default function PerfilPage(){
+const [nome,setNome]=useState("Você");const [letra,setLetra]=useState("P");const [st,setSt]=useState({t:0,m:0,h:0,n:1,xp:0});const [cks,setCks]=useState([]);const [seq,setSeq]=useState(0);const [mis,setMis]=useState([]);const [edit,setEdit]=useState(false)
+useEffect(()=>{const n=localStorage.getItem("perfil-nome")||"Você";setNome(n);setLetra(n[0].toUpperCase());(async()=>{let sT=0,fT=0,m=0,hr=0;try{const {data:s}=await supa.from("series").select("id");const {data:f}=await supa.from("filmes").select("id");sT=s?.length||0;fT=f?.length||0;for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k?.includes("status-")&&localStorage.getItem(k)==="ja_assisti")m++;if(k?.startsWith("progress-")){try{hr+=JSON.parse(localStorage.getItem(k)||"[]").length*0.7}catch{}}}}catch{}const c=JSON.parse(localStorage.getItem("checkins")||"[]");setCks(c);let sq=0;const hj=new Date();for(let i=0;i<30;i++){const d=new Date();d.setDate(hj.getDate()-i);if(c.includes(d.toISOString().slice(0,10)))sq++;else if(i>0)break}setSeq(sq);const xp=calcXP(m,hr,fT,c.length);setSt({t:sT+fT,m,h:Math.round(hr),n:Math.max(1,Math.floor(xp/150)+1),xp});setMis([{t:"Check-in diário",d:`${c.includes(hojeISO())?1:0}/1`,p:c.includes(hojeISO())?100:0,ok:c.includes(hojeISO())},{t:"Sequência 3 dias",d:`${Math.min(sq,3)}/3`,p:Math.min(sq/3*100,100),ok:sq>=3},{t:"Maratone 1 título",d:`${m>=1?1:0}/1`,p:m>=1?100:0,ok:m>=1},{t:"10 títulos",d:`${Math.min(sT+fT,10)}/10`,p:Math.min((sT+fT)/10*100,100),ok:(sT+fT)>=10}])})()},[])
+const check=()=>{const h=hojeISO();if(cks.includes(h))return;const n=[...cks,h];localStorage.setItem("checkins",JSON.stringify(n));location.reload()}
+const save=()=>{localStorage.setItem("perfil-nome",nome);setLetra(nome[0].toUpperCase());setEdit(false)}
+const dias=getDias()
+return(<div style={{minHeight:"100vh",background:"#080B1F",color:"#fff",paddingBottom:90}}><header style={{height:56,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 16px",borderBottom:"1px solid #ffffff0f",position:"sticky",top:0,background:"#080B1F",zIndex:5}}><b>Perfil</b><button onClick={()=>setEdit(!edit)} style={{background:"#ffffff10",border:0,color:"#fff",borderRadius:999,padding:"6px 12px",fontSize:12}}>✏️ Editar</button></header><main style={{maxWidth:560,margin:"0 auto",padding:"16px 14px",display:"flex",flexDirection:"column",gap:12}}>
+{edit&&<div style={{background:"#12182F",border:"1px solid #FFD40033",borderRadius:16,padding:12,display:"flex",gap:8}}><input value={nome} onChange={e=>setNome(e.target.value)} style={{flex:1,background:"#ffffff10",border:"1px solid #ffffff15",borderRadius:10,padding:"10px 12px",color:"#fff",outline:"none"}}/><button onClick={save} style={{background:"#FFD400",border:0,borderRadius:10,padding:"0 14px",fontWeight:800,color:"#000"}}>Salvar</button></div>}
+<div style={{background:"#12182F",border:"1px solid #ffffff12",borderRadius:18,padding:16,display:"flex",alignItems:"center",gap:14}}><div style={{width:52,height:52,borderRadius:999,background:"#FFD400",display:"grid",placeItems:"center",color:"#000",fontWeight:900,fontSize:20}}>{letra}</div><div style={{flex:1}}><div style={{fontWeight:900}}>{nome}</div><div style={{fontSize:12,opacity:.5}}>Nível {st.n} • {st.xp} XP • 🔥 {seq} dias</div><div style={{height:6,background:"#ffffff14",borderRadius:99,marginTop:8,overflow:"hidden"}}><div style={{width:`${(st.xp%150)/1.5}%`,height:"100%",background:"#FFD400"}}/></div></div><button onClick={check} style={{height:38,padding:"0 16px",borderRadius:999,border:0,background:cks.includes(hojeISO())?"#22c55e":"#FFD400",color:cks.includes(hojeISO())?"#fff":"#000",fontWeight:900}}>{cks.includes(hojeISO())?"✓":"Check-in"}</button></div>
+<div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}><div style={{background:"#12182F",border:"1px solid #ffffff10",borderRadius:16,padding:14,textAlign:"center"}}><div style={{fontSize:20,fontWeight:900}}>{st.t}</div><div style={{fontSize:11,opacity:.45}}>Títulos</div></div><div style={{background:"#12182F",border:"1px solid #ffffff10",borderRadius:16,padding:14,textAlign:"center"}}><div style={{fontSize:20,fontWeight:900,color:"#FFD400"}}>{st.m}</div><div style={{fontSize:11,opacity:.45}}>Maratonadas</div></div><div style={{background:"#12182F",border:"1px solid #ffffff10",borderRadius:16,padding:14,textAlign:"center"}}><div style={{fontSize:20,fontWeight:900}}>{st.h}h</div><div style={{fontSize:11,opacity:.45}}>Tempo</div></div></div>
+<div style={{background:"#12182F",border:"1px solid #FFD40018",borderRadius:18,padding:14}}><div style={{fontWeight:900,fontSize:13}}>🎯 Missões da Semana</div><div style={{display:"flex",flexDirection:"column",gap:10,marginTop:12}}>{mis.map((m,i)=><div key={i} style={{background:"#ffffff06",borderRadius:12,padding:"10px 12px"}}><div style={{display:"flex",justifyContent:"space-between",fontSize:13,fontWeight:700}}><span>{m.t}</span><span style={{fontSize:11,opacity:.6}}>{m.d}</span></div><div style={{height:6,background:"#ffffff14",borderRadius:99,marginTop:8,overflow:"hidden"}}><div style={{width:`${m.p}%`,height:"100%",background:m.ok?"#22c55e":"#FFD400"}}/></div></div>)}</div></div>
+<div style={{background:"#12182F",border:"1px solid #ffffff10",borderRadius:18,padding:14}}><div style={{fontWeight:800,fontSize:13,marginBottom:10}}>Calendário • Últimos 30 dias</div><div style={{display:"grid",gridTemplateColumns:"repeat(10,1fr)",gap:6}}>{dias.map(d=>{const ok=cks.includes(d);return<div key={d} style={{aspectRatio:"1",borderRadius:8,background:ok?"#22c55e":"#ffffff0f",display:"grid",placeItems:"center",fontSize:10,fontWeight:700,opacity:ok?1:.35}}>{new Date(d).getDate()}</div>})}</div></div>
+</main><BottomNav/></div>)}
