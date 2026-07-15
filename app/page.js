@@ -5,91 +5,106 @@ import { BottomNav } from "../components/BottomNav"
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_KEY)
 
-const SERIES_MOCK = [
-  { id: 1, titulo: "Breaking Bad", ano: "2008", img: "https://image.tmdb.org/t/p/w500/ggFHVNu6YYI5L9pCfOacjizRGt.jpg", status: "assistindo", progresso: 60 },
-  { id: 2, titulo: "The Witcher", ano: "2019", img: "https://image.tmdb.org/t/p/w500/7vjaCdMw15FEbXyLQTVa04URsPm.jpg", status: "quero", progresso: 0 },
-  { id: 3, titulo: "Stranger Things", ano: "2016", img: "https://image.tmdb.org/t/p/w500/49WJfeN0moxb9IPfGn8AIqMGskD.jpg", status: "maratonei", progresso: 100 },
-  { id: 4, titulo: "The Last of Us", ano: "2023", img: "https://image.tmdb.org/t/p/w500/uKvVjHNqB5VmOrdxqAt2FyJ78ED.jpg", status: "assistindo", progresso: 30 },
-]
-
-export default function HomeSeries(){
-  const [busca,setBusca]=useState("")
-  const [aba,setAba]=useState("todos") // todos | assistindo | quero | maratonei
+export default function Home(){
   const [userId,setUserId]=useState("anon")
-  const [lista,setLista]=useState(SERIES_MOCK)
+  const [busca,setBusca]=useState("")
+  const [series,setSeries]=useState([])
+
+  // MOCK igual ao seu print original
+  const baseSeries = [
+    { id:101, titulo:"Abbott Elementary", img:"https://image.tmdb.org/t/p/w500/kE3W7Xg6oE4FyQhJ6lQ9A1.jpg", status:"assistindo" },
+    { id:102, titulo:"X-Men '97", img:"https://image.tmdb.org/t/p/w500/8A7K8E.jpg", status:"assistindo" },
+    { id:103, titulo:"Off Campus: Amore...", img:"https://image.tmdb.org/t/p/w500/sample3.jpg", status:"assistindo" },
+    { id:104, titulo:"The Walking Dead", img:"https://image.tmdb.org/t/p/w500/sf4aFGS8gr1o9pM8vR4V.jpg", status:"assistindo" },
+    { id:201, titulo:"Elle: Legalmente Loira", img:"https://image.tmdb.org/t/p/w500/q3dT9c.jpg", status:"ja_assisti" },
+    { id:301, titulo:"Stranger Things", img:"https://image.tmdb.org/t/p/w500/49WJfeN0moxb9IPfGn8AIqMGskD.jpg", status:"maratonei" },
+    { id:302, titulo:"The Last of Us", img:"https://image.tmdb.org/t/p/w500/uKvVjHNqB5VmOrdxqAt2F7J78ED.jpg", status:"maratonei" },
+  ]
 
   useEffect(()=>{
-    supabase.auth.getSession().then(({data})=>{
-      if(!data.session){ location.href="/login"; return }
-      const uid = data.session.user.id
+    (async()=>{
+      const { data:{session} } = await supabase.auth.getSession()
+      if(!session){ location.href="/login"; return }
+      const uid = session.user.id
       setUserId(uid)
-      // carrega status salvos DESSE usuário
-      const nova = SERIES_MOCK.map(s=>{
-        const st = localStorage.getItem(`${uid}:status-${s.id}`)
-        return st ? {...s, status: st} : s
+      
+      // Carrega o que VOCÊ salvou, isolado por UID
+      // Se outra pessoa logar, o UID dela é diferente e não acha suas chaves
+      const carregadas = baseSeries.map(s=>{
+        const salvo = localStorage.getItem(`${uid}:status-${s.id}`)
+        return salvo ? {...s, status:salvo} : s
       })
-      setLista(nova)
-    })
+
+      // Se já tem coisas salvas no formato antigo (sem UID), migra pro novo
+      const migradas = carregadas.map(s=>{
+        if(!localStorage.getItem(`${uid}:status-${s.id}`)){
+          const antigo = localStorage.getItem(`status-${s.id}`)
+          if(antigo) localStorage.setItem(`${uid}:status-${s.id}`, antigo)
+        }
+        return s
+      })
+
+      setSeries(migradas)
+    })()
   },[])
 
-  const mudarStatus = (id, novoStatus)=>{
-    const key = `${userId}:status-${id}`
-    localStorage.setItem(key, novoStatus)
-    setLista(prev=>prev.map(s=>s.id===id?{...s,status:novoStatus}:s))
-  }
-
   const filtradas = useMemo(()=>{
-    return lista.filter(s=>{
-      const matchBusca = s.titulo.toLowerCase().includes(busca.toLowerCase())
-      const matchAba = aba==="todos" ? true : s.status===aba
-      return matchBusca && matchAba
-    })
-  },[lista,busca,aba])
+    if(!busca) return series
+    return series.filter(s=> s.titulo.toLowerCase().includes(busca.toLowerCase()))
+  },[series,busca])
+
+  const assistindo = filtradas.filter(s=>s.status==="assistindo")
+  const jaAssisti = filtradas.filter(s=>s.status==="ja_assisti")
+  const maratonei = filtradas.filter(s=>s.status==="maratonei")
+
+  const Card = ({s})=>(
+    <div style={{width:124}}>
+      <div style={{width:124, height:184, borderRadius:12, overflow:"hidden", background:"#12182F", border:"1px solid #FFD400", position:"relative"}}>
+        <img src={s.img} alt={s.titulo} style={{width:"100%", height:"100%", objectFit:"cover"}} onError={e=>e.target.style.display="none"}/>
+        <div style={{position:"absolute", top:6, left:6, background:"#FFD400", color:"#000", fontSize:8, fontWeight:900, padding:"2px 6px", borderRadius:6, textTransform:"uppercase"}}>{s.status}</div>
+        {s.status!=="assistindo" && <div style={{position:"absolute", bottom:0, left:0, right:0, height:4, background:s.status==="maratonei"?"#22c55e":"#3b82f6"}}/>}
+        {s.status==="assistindo" && <div style={{position:"absolute", bottom:0, left:0, right:0, height:4, background:"#FFD400"}}/>}
+      </div>
+      <div style={{fontSize:12, fontWeight:700, marginTop:6, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", color:"#fff"}}>{s.titulo}</div>
+    </div>
+  )
+
+  const Secao = ({titulo, cor, qtd, children})=>(
+    <div style={{marginTop:22}}>
+      <div style={{display:"flex", alignItems:"center", gap:8, marginBottom:10}}>
+        <div style={{width:3, height:14, background:cor, borderRadius:99}}/>
+        <b style={{fontSize:14}}>{titulo}</b>
+        <span style={{fontSize:11, opacity:.4}}>• {qtd}</span>
+      </div>
+      <div style={{display:"flex", gap:12, overflowX:"auto", paddingBottom:6}}>{children}</div>
+    </div>
+  )
 
   return(
-    <div style={{minHeight:"100vh", background:"#080B1F", color:"#fff", paddingBottom:90}}>
-      <header style={{padding:"16px 14px 8px", position:"sticky", top:0, background:"#080B1F", zIndex:10, borderBottom:"1px solid #ffffff0f"}}>
-        <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14}}>
-          <h1 style={{fontSize:22, fontWeight:900, color:"#FFD400", margin:0}}>Maratonei</h1>
-          <div style={{width:32,height:32,borderRadius:999,background:"#ffffff12",display:"grid",placeItems:"center"}}>🔍</div>
-        </div>
-        {/* BARRA DE PESQUISA */}
-        <div style={{position:"relative"}}>
-          <span style={{position:"absolute", left:12, top:11, opacity:.4}}>🔍</span>
-          <input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar série..." style={{width:"100%", background:"#12182F", border:"1px solid #ffffff12", borderRadius:12, padding:"11px 12px 11px 36px", color:"#fff", outline:"none", fontSize:14}}/>
-        </div>
-        {/* ABAS: ASSISTINDO | QUERO ASSISTIR | MARATONEI */}
-        <div style={{display:"flex", gap:8, marginTop:12, overflowX:"auto"}}>
-          {[
-            {id:"todos", label:"Todos"},
-            {id:"assistindo", label:"Assistindo"},
-            {id:"quero", label:"Quero Assistir"},
-            {id:"maratonei", label:"Maratonei"},
-          ].map(t=>{
-            const ativo = aba===t.id
-            return <button key={t.id} onClick={()=>setAba(t.id)} style={{whiteSpace:"nowrap", padding:"8px 14px", borderRadius:999, fontSize:12, fontWeight:800, border: ativo?"1px solid #FFD400":"1px solid #ffffff15", background: ativo?"#FFD400":"#ffffff0a", color: ativo?"#000":"#fff", cursor:"pointer"}}>{t.label}</button>
-          })}
-        </div>
+    <div style={{minHeight:"100vh", background:"#0A0F2A", color:"#fff", paddingBottom:90}}>
+      <header style={{height:56, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 14px", borderBottom:"1px solid #ffffff0f", position:"sticky", top:0, background:"#0A0F2A", zIndex:10}}>
+        <div style={{display:"flex", alignItems:"center", gap:8}}><div style={{width:28,height:28,borderRadius:8,background:"#FFD400",color:"#000",display:"grid",placeItems:"center",fontWeight:900}}>M</div><b style={{letterSpacing:.2}}>maratonei</b></div>
+        <div onClick={()=>location.href="/perfil"} style={{width:30,height:30,borderRadius:999,background:"#FFD400",color:"#000",display:"grid",placeItems:"center",fontWeight:900,fontSize:12,cursor:"pointer"}}>P</div>
       </header>
 
-      <main style={{maxWidth:560, margin:"0 auto", padding:"14px", display:"grid", gridTemplateColumns:"1fr 1fr", gap:12}}>
-        {filtradas.map(s=>(
-          <div key={s.id} style={{background:"#12182F", border:"1px solid #ffffff10", borderRadius:16, overflow:"hidden"}}>
-            <div style={{height:180, background:`url(${s.img}) center/cover`, position:"relative"}}>
-              <div style={{position:"absolute", top:8, left:8, background:s.status==="maratonei"?"#22c55e":s.status==="assistindo"?"#FFD400":"#ffffff22", color:s.status==="assistindo"?"#000":"#fff", fontSize:10, fontWeight:800, padding:"3px 7px", borderRadius:99}}>{s.status}</div>
-              {s.progresso>0 && s.progresso<100 && <div style={{position:"absolute", bottom:0, left:0, right:0, height:4, background:"#ffffff22"}}><div style={{width:s.progresso+"%", height:"100%", background:"#FFD400"}}/></div>}
-            </div>
-            <div style={{padding:10}}>
-              <div style={{fontWeight:800, fontSize:13, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis"}}>{s.titulo}</div>
-              <div style={{fontSize:11, opacity:.45}}>{s.ano}</div>
-              <div style={{display:"flex", gap:6, marginTop:8}}>
-                <button onClick={()=>mudarStatus(s.id,"assistindo")} style={{flex:1, fontSize:10, padding:"6px", borderRadius:8, border:"1px solid #ffffff15", background:s.status==="assistindo"?"#FFD40022":"#ffffff08", color:s.status==="assistindo"?"#FFD400":"#fff"}}>Assistindo</button>
-                <button onClick={()=>mudarStatus(s.id,"maratonei")} style={{flex:1, fontSize:10, padding:"6px", borderRadius:8, border:0, background:s.status==="maratonei"?"#22c55e":"#fff", color:s.status==="maratonei"?"#fff":"#000", fontWeight:800}}>Maratonei</button>
-              </div>
-            </div>
-          </div>
-        ))}
-      </main>
+      <div style={{maxWidth:900, margin:"0 auto", padding:"14px"}}>
+        <div style={{background:"#121A3A", border:"1px solid #ffffff12", borderRadius:999, display:"flex", alignItems:"center", padding:"0 14px", height:42, maxWidth:420, margin:"0 auto"}}>
+          <span style={{opacity:.4, marginRight:8}}>🔍</span>
+          <input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar série para adicionar..." style={{flex:1, background:"transparent", border:0, outline:"none", color:"#fff", fontSize:13}}/>
+        </div>
+
+        <Secao titulo="Assistindo" cor="#FFD400" qtd={assistindo.length}>
+          {assistindo.map(s=><Card key={s.id} s={s}/>)}
+        </Secao>
+
+        <Secao titulo="Já Assisti" cor="#3B82F680" qtd={jaAssisti.length}>
+          {jaAssisti.map(s=><Card key={s.id} s={s}/>)}
+        </Secao>
+
+        <Secao titulo="Já Maratonei" cor="#22c55e" qtd={maratonei.length}>
+          {maratonei.map(s=><Card key={s.id} s={{...s, titulo:s.titulo}}/>)}
+        </Secao>
+      </div>
       <BottomNav/>
     </div>
   )
