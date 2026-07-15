@@ -1,6 +1,8 @@
 "use client"
+import { useRouter } from "next/navigation"
 
 export function SearchDropdown({ results, onAdd }) {
+  const router = useRouter()
   if (!results.length) return null
 
   return (
@@ -11,17 +13,28 @@ export function SearchDropdown({ results, onAdd }) {
       boxShadow:"0 16px 40px #0008", overflow:"hidden"
     }}>
       {results.map(r => {
+        const isFilme = r.media_type === "movie"
         const img = r.poster_path
-         ? `https://image.tmdb.org/t/p/w92${r.poster_path}` : ""
+          ? `https://image.tmdb.org/t/p/w92${r.poster_path}` : ""
+        const title = isFilme ? r.title : r.name
+        const year = isFilme ? r.release_date?.slice(0,4) : r.first_air_date?.slice(0,4)
+
+        const handleOpen = () => {
+          if (isFilme) {
+            router.push(`/filme/${r.id}`)
+          } else {
+            onAdd(r, true)
+          }
+        }
 
         return (
-          <div key={r.id} style={{
+          <div key={`${r.media_type}-${r.id}`} style={{
             display:"flex", alignItems:"center", gap:10,
             padding:"8px 10px", borderBottom:"1px solid #ffffff0d"
           }}>
-            {/* Clicável: poster + nome */}
+            {/* Banner + Nome clicável */}
             <button
-              onClick={() => onAdd(r, true)}
+              onClick={handleOpen}
               style={{
                 display:"flex", alignItems:"center", gap:10,
                 flex:1, background:"none", border:0,
@@ -39,10 +52,10 @@ export function SearchDropdown({ results, onAdd }) {
                   textOverflow:"ellipsis", maxWidth:180,
                   fontFamily:"Inter,sans-serif"
                 }}>
-                  {r.name}
+                  {title}
                 </div>
                 <div style={{ fontSize:11, opacity:.45 }}>
-                  {r.first_air_date?.slice(0,4)} • {r.vote_average?.toFixed(1)}★
+                  {year} • {r.vote_average?.toFixed(1)}★ {isFilme? "• Filme":"• Série"}
                 </div>
               </div>
             </button>
