@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { loadSeries, loadLS, buscarTMDB, addSerie } from "../lib/homeLogic"
 import { SearchDropdown } from "../components/SearchDropdown"
 import { SectionRow } from "../components/SectionRow"
+import { BottomNav } from "../components/BottomNav"
 
 export default function Home() {
   const router = useRouter()
@@ -42,14 +43,12 @@ export default function Home() {
           <span style={{ position:"absolute", left:15, top:12, opacity:.5 }}>🔍</span>
           <SearchDropdown results={R} onAdd={(r,go)=> addSerie(r,setS,S,setM,setP,router,go)} />
         </div>
-
         <SectionRow title="Assistindo" color="#FFD400" list={ass} pct={pct} isM={isM} hl />
         <SectionRow title="Já Assisti" color="#ffffff30" list={que} pct={pct} isM={isM} />
         <SectionRow title="Já Maratonei" color="#22c55e" list={mar} pct={pct} isM={isM} />
       </main>
-    import { BottomNav } from "../components/BottomNav"
-// ... dentro do return, antes do último </div>:
-<BottomNav />
+
+      <BottomNav />
     </div>
   )
 }
