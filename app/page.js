@@ -8,9 +8,9 @@ const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.
 const BASE = [
   { id: 101, titulo: "Abbott Elementary", status: "assistindo" },
   { id: 102, titulo: "X-Men 97", q: "X-Men 97", status: "assistindo" },
-  { id: 103, titulo: "Off Campus", status: "assistindo" },
+  { id: 103, titulo: "Off Campus", status: "quero_assistir" },
   { id: 104, titulo: "The Walking Dead", status: "assistindo" },
-  { id: 201, titulo: "Elle", q: "Elle Legally Blonde", status: "ja_assisti" },
+  { id: 201, titulo: "Elle", q: "Elle Legally Blonde", status: "quero_assistir" },
   { id: 301, titulo: "Stranger Things", status: "maratonei" },
   { id: 302, titulo: "The Last of Us", status: "maratonei" },
 ]
@@ -23,7 +23,7 @@ export default function Home() {
   const [buscando, setBuscando] = useState(false)
 
   useEffect(() => {
-    const load = async () => {
+    const init = async () => {
       const { data } = await supabase.auth.getSession()
       if (!data.session) { window.location.href = "/login"; return }
       const uid = data.session.user.id
@@ -49,10 +49,10 @@ export default function Home() {
       })
       setSeries(final)
     }
-    load()
+    init()
   }, [])
 
-  // BUSCA AO VIVO NO TMDB / TVmaze
+  // BUSCA REAL NO BANCO EXTERNO
   useEffect(() => {
     if (!busca.trim()) { setResultados([]); return }
     const t = setTimeout(async () => {
@@ -65,24 +65,27 @@ export default function Home() {
           titulo: item.show.name,
           ano: item.show.premiered?.slice(0,4) || "",
           img: item.show.image?.medium || item.show.image?.original || `https://picsum.photos/seed/${item.show.id}/400/600`,
-          sinopse: item.show.summary?.replace(/<[^>]+>/g,"").slice(0,120) + "..."
+          sinopse: item.show.summary?.replace(/<[^>]+>/g,"").slice(0,110) + "..."
         }))
         setResultados(lista)
       } catch { setResultados([]) }
       setBuscando(false)
-    }, 400)
+    }, 350)
     return () => clearTimeout(t)
   }, [busca])
 
-  const adicionarSerie = (s) => {
-    const nova = { id: s.id, titulo: s.titulo, ano: s.ano || "2024", status: "assistindo", img: s.img, q: s.titulo }
-    const novaLista = [nova,...series.filter(x => x.id!== s.id)]
+  const salvarLista = (novaLista) => {
     setSeries(novaLista)
     localStorage.setItem(userId + ":minhas-series", JSON.stringify(novaLista))
+  }
+
+  const adicionarSerie = (s) => {
+    const nova = { id: s.id, titulo: s.titulo, ano: s.ano || "2024", status: "quero_assistir", img: s.img, q: s.titulo }
+    const novaLista = [nova,...series.filter(x => x.id!== s.id)]
+    salvarLista(novaLista)
     localStorage.setItem(userId + ":serie-atual", JSON.stringify(nova))
     setBusca("")
     setResultados([])
-    // vai pra detalhe
     setTimeout(() => window.location.href = "/serie/" + s.id, 100)
   }
 
@@ -92,14 +95,16 @@ export default function Home() {
   }
 
   const assistindo = series.filter(s => s.status === "assistindo")
-  const jaAssisti = series.filter(s => s.status === "ja_assisti")
+  const queroAssistir = series.filter(s => s.status === "quero_assistir")
   const maratonei = series.filter(s => s.status === "maratonei")
 
   const Card = ({ s }) => (
     <div onClick={() => abrir(s)} style={{ width: 124, cursor: "pointer", flexShrink: 0 }}>
       <div style={{ width: 124, height: 184, borderRadius: 12, overflow: "hidden", background: "#12182F", border: "1px solid #FFD400", position: "relative" }}>
         <img src={s.img} alt={s.titulo} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-        <div style={{ position: "absolute", top: 6, left: 6, background: "#FFD400", color: "#000", fontSize: 8, fontWeight: 900, padding: "3px 6px", borderRadius: 6 }}>{s.status.toUpperCase()}</div>
+        <div style={{ position: "absolute", top: 6, left: 6, background: "#FFD400", color: "#000", fontSize: 8, fontWeight: 900, padding: "3px 6px", borderRadius: 6 }}>
+          {s.status === "quero_assistir"? "QUERO ASSISTIR" : s.status.toUpperCase()}
+        </div>
       </div>
       <div style={{ fontSize: 12, fontWeight: 700, marginTop: 6, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.titulo}</div>
     </div>
@@ -111,7 +116,7 @@ export default function Home() {
         <div style={{ width: 3, height: 14, background: cor, borderRadius: 99 }} />
         <b style={{ fontSize: 14 }}>{titulo}</b><span style={{ fontSize: 11, opacity:.4 }}>• {qtd}</span>
       </div>
-      <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 6 }}>{children}</div>
+      <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 6 }}>{children.length? children : <span style={{ fontSize: 12, opacity:.3 }}>Nenhuma série</span>}</div>
     </div>
   )
 
@@ -129,18 +134,17 @@ export default function Home() {
           {busca && <span onClick={() => setBusca("")} style={{ cursor: "pointer", opacity:.5, fontSize: 12, marginLeft: 8 }}>✕</span>}
         </div>
 
-        {/* RESULTADOS AO VIVO DO TMDB */}
         {busca && (
           <div style={{ position: "absolute", top: 62, left: 14, right: 14, maxWidth: 420, margin: "0 auto", background: "#12182F", border: "1px solid #ffffff18", borderRadius: 16, zIndex: 50, overflow: "hidden", boxShadow: "0 20px 40px #00000080" }}>
-            {buscando && <div style={{ padding: 14, fontSize: 12, opacity:.5 }}>Buscando em todo o catálogo...</div>}
+            {buscando && <div style={{ padding: 14, fontSize: 12, opacity:.5 }}>Buscando no catálogo...</div>}
             {!buscando && resultados.length === 0 && <div style={{ padding: 14, fontSize: 12, opacity:.4 }}>Nenhum resultado para "{busca}"</div>}
             {resultados.map(r => (
               <div key={r.id} onClick={() => adicionarSerie(r)} style={{ display: "flex", gap: 10, padding: 10, borderBottom: "1px solid #ffffff0a", cursor: "pointer" }}>
-                <img src={r.img} style={{ width: 44, height: 66, borderRadius: 8, objectFit: "cover", background: "#1a2142" }} />
+                <img src={r.img} style={{ width: 44, height: 66, borderRadius: 8, objectFit: "cover" }} />
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13, fontWeight: 800 }}>{r.titulo} <span style={{ opacity:.4, fontWeight:400 }}>{r.ano}</span></div>
                   <div style={{ fontSize: 11, opacity:.5, marginTop: 2 }}>{r.sinopse}</div>
-                  <div style={{ fontSize: 10, color: "#FFD400", marginTop: 4, fontWeight: 800 }}>+ ADICIONAR</div>
+                  <div style={{ fontSize: 10, color: "#FFD400", marginTop: 4, fontWeight: 800 }}>+ ADICIONAR EM QUERO ASSISTIR</div>
                 </div>
               </div>
             ))}
@@ -150,8 +154,8 @@ export default function Home() {
         {!busca && (
           <>
             <Secao titulo="Assistindo" cor="#FFD400" qtd={assistindo.length}>{assistindo.map(s => <Card key={s.id} s={s} />)}</Secao>
-            <Secao titulo="Ja Assisti" cor="#3B82F6" qtd={jaAssisti.length}>{jaAssisti.map(s => <Card key={s.id} s={s} />)}</Secao>
-            <Secao titulo="Ja Maratonei" cor="#22c55e" qtd={maratonei.length}>{maratonei.map(s => <Card key={s.id} s={s} />)}</Secao>
+            <Secao titulo="Quero Assistir" cor="#8b5cf6" qtd={queroAssistir.length}>{queroAssistir.map(s => <Card key={s.id} s={s} />)}</Secao>
+            <Secao titulo="Maratonei" cor="#22c55e" qtd={maratonei.length}>{maratonei.map(s => <Card key={s.id} s={s} />)}</Secao>
           </>
         )}
       </div>
