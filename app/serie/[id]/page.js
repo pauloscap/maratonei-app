@@ -1,4 +1,10 @@
 "use client"
+function handleStatus(novoStatus) {
+  localStorage.setItem("status-" + id, novoStatus)
+  // FORÇA A HOME A LER NA VOLTA
+  localStorage.setItem("_ultima_atualizacao", Date.now().toString())
+  ...
+}
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
