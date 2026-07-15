@@ -1,8 +1,8 @@
 "use client"
 import { useState } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { useSerie, saveProg } from "../../../../lib/useSerieLogic"
-import { ListaEps } from "../../../../components/ListaEps"
+import { useSerie, saveProg } from "../../../lib/useSerieLogic"
+import { ListaEps } from "../../../components/ListaEps"
 export default function Detalhe(){
  const {id}=useParams(); const r=useRouter(); const {s,p,setP,st,setSt,tm,se,err,supa}=useSerie(id)
  const [op,setOp]=useState(1); const [rem,setRem]=useState(false)
