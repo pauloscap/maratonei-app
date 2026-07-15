@@ -38,69 +38,52 @@ export default function Home() {
     setResultados(j.results ? j.results.slice(0, 6) : [])
   }
 
-  // FIX DUPLICATE KEY - VERSAO CORRIGIDA
   async function addQuero(item) {
-    // 1. Busca se ja existe no banco global pelo tmdb_id
     const { data: existente } = await supabase.from("series").select("*").eq("tmdb_id", item.id).maybeSingle()
     let serieFinal = existente
-
     if (!existente) {
-      const nova = {
-        tmdb_id: item.id,
-        titulo: item.name,
-        ano: item.first_air_date ? new Date(item.first_air_date).getFullYear() : null,
-        sinopse: item.overview,
-        poster: item.poster_path,
-        nota: item.vote_average
-      }
+      const nova = { tmdb_id: item.id, titulo: item.name, ano: item.first_air_date ? new Date(item.first_air_date).getFullYear() : null, sinopse: item.overview, poster: item.poster_path, nota: item.vote_average }
       const { data, error } = await supabase.from("series").insert([nova]).select().single()
       if (error) {
         if (error.message.includes("duplicate") || error.message.includes("unique")) {
           const { data: retry } = await supabase.from("series").select("*").eq("tmdb_id", item.id).single()
           serieFinal = retry
-        } else {
-          alert("Erro ao salvar: " + error.message)
-          return
-        }
-      } else {
-        serieFinal = data
-      }
+        } else { alert(error.message); return }
+      } else serieFinal = data
     }
-
     if (!serieFinal) return
-
     localStorage.setItem("status-" + serieFinal.id, "quero_assistir")
-    if (!localStorage.getItem("progress-" + serieFinal.id)) {
-      localStorage.setItem("progress-" + serieFinal.id, JSON.stringify([]))
-    }
-
+    if (!localStorage.getItem("progress-" + serieFinal.id)) localStorage.setItem("progress-" + serieFinal.id, JSON.stringify([]))
     const jaNaLista = series.find((s) => s.id === serieFinal.id)
-    if (!jaNaLista) {
-      const lista = [serieFinal].concat(series)
-      setSeries(lista)
-      carregarLS(lista)
-    } else {
-      carregarLS(series)
-    }
-    setResultados([])
-    setBusca("")
+    if (!jaNaLista) { const lista = [serieFinal].concat(series); setSeries(lista); carregarLS(lista) }
+    else carregarLS(series)
+    setResultados([]); setBusca("")
   }
 
   if (!mounted) return null
-  const assistindo = series.filter((s) => { const st = statusMap[s.id]; const pg = progressMap[s.id]; return st === "assistindo" || (pg && pg.length > 0) })
-  const quero = series.filter((s) => !assistindo.find((a) => a.id === s.id))
+
+  // LOGICA DAS 3 ABAS
+  const assistindo = series.filter((s) => {
+    const st = statusMap[s.id]
+    const pg = progressMap[s.id] || []
+    if (st === "ja_maratonei" || st === "maratonei" || st === "concluida" || st === "finalizada") return false
+    return st === "assistindo" || (pg && pg.length > 0)
+  })
+  const quero = series.filter((s) => {
+    const st = statusMap[s.id]
+    const pg = progressMap[s.id] || []
+    return !assistindo.find((a) => a.id === s.id) && st !== "ja_maratonei" && st !== "maratonei" && st !== "concluida" && st !== "finalizada" && (!pg || pg.length === 0)
+  })
+  const maratonei = series.filter((s) => {
+    const st = statusMap[s.id]
+    return st === "ja_maratonei" || st === "maratonei" || st === "concluida" || st === "finalizada"
+  })
 
   return (
     <div style={{ minHeight: "100vh", background: "#08162e", color: "white", paddingBottom: 90, fontFamily: "Inter, system-ui" }}>
       <div style={{ height: 64, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 16px", borderBottom: "1px solid rgba(255,255,255,0.06)", position: "sticky", top: 0, background: "#08162e", zIndex: 10 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, fontWeight: 900, fontSize: 18, letterSpacing: -0.5 }}>
-          <div style={{ width: 32, height: 32, borderRadius: 999, background: "#FFD400", display: "grid", placeItems: "center", color: "#08162e" }}>M</div> maratonei
-        </div>
-        <div style={{ display: "flex", gap: 10 }}>
-          <Link href="/estatisticas" style={iconBtn}>📊</Link>
-          <Link href="/ranking" style={iconBtn}>🏆</Link>
-          <Link href="/perfil" style={{ ...iconBtn, background: "#FFD400", color: "#08162e", fontWeight: 800 }}>P</Link>
-        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, fontWeight: 900, fontSize: 18 }}><div style={{ width: 32, height: 32, borderRadius: 999, background: "#FFD400", display: "grid", placeItems: "center", color: "#08162e" }}>M</div> maratonei</div>
+        <div style={{ display: "flex", gap: 10 }}><Link href="/estatisticas" style={iconBtn}>📊</Link><Link href="/ranking" style={iconBtn}>🏆</Link><Link href="/perfil" style={{ ...iconBtn, background: "#FFD400", color: "#08162e", fontWeight: 800 }}>P</Link></div>
       </div>
 
       <div style={{ maxWidth: 960, margin: "0 auto", padding: "16px" }}>
@@ -113,10 +96,7 @@ export default function Home() {
           <div style={{ marginTop: 12, background: "#122042", borderRadius: 16, border: "1px solid rgba(255,255,255,0.08)", overflow: "hidden" }}>
             {resultados.map((r) => (
               <div key={r.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-                  <img src={r.poster_path ? "https://image.tmdb.org/t/p/w92" + r.poster_path : ""} style={{ width: 36, height: 52, borderRadius: 8, objectFit: "cover", background: "#1e2f5a" }} alt="" />
-                  <span style={{ fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 180 }}>{r.name}</span>
-                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}><img src={r.poster_path ? "https://image.tmdb.org/t/p/w92" + r.poster_path : ""} style={{ width: 36, height: 52, borderRadius: 8, objectFit: "cover", background: "#1e2f5a" }} alt="" /><span style={{ fontSize: 14, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</span></div>
                 <button onClick={() => addQuero(r)} style={{ height: 32, padding: "0 14px", borderRadius: 999, background: "#FFD400", color: "#08162e", fontWeight: 800, fontSize: 12, border: 0, cursor: "pointer" }}>+ Quero assistir</button>
               </div>
             ))}
@@ -124,36 +104,16 @@ export default function Home() {
         )}
 
         <h2 style={{ marginTop: 28, marginBottom: 12, fontWeight: 800, fontSize: 15 }}>Estou assistindo</h2>
-        {assistindo.length ? (
-          <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 6 }}>
-            {assistindo.map((s) => {
-              const prog = progressMap[s.id] || []; const pct = prog.length ? Math.min(100, prog.length * 6) : 8
-              return (
-                <Link key={s.id} href={"/serie/" + s.id} style={{ textDecoration: "none", color: "white", minWidth: 112 }}>
-                  <div style={{ width: 112, height: 164, borderRadius: 16, overflow: "hidden", background: "#122042", position: "relative", border: "2px solid #FFD400" }}>
-                    <img src={s.poster ? "https://image.tmdb.org/t/p/w300" + s.poster : ""} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="" />
-                    <div style={{ position: "absolute", bottom: 0, left: 0, height: 4, width: pct + "%", background: "#FFD400" }} />
-                  </div>
-                  <div style={{ fontSize: 12, marginTop: 6, opacity: 0.9, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 112 }}>{s.titulo}</div>
-                </Link>
-              )
-            })}
-          </div>
-        ) : <div style={{ height: 88, borderRadius: 16, border: "1px dashed rgba(255,255,255,0.15)", display: "grid", placeItems: "center", color: "rgba(255,255,255,0.35)", fontSize: 13 }}>Nenhuma série em andamento</div>}
+        {assistindo.length ? <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 6 }}>{assistindo.map((s) => {
+          const pg = progressMap[s.id] || []; const pct = pg.length ? Math.min(100, pg.length * 8) : 12
+          return <Card key={s.id} s={s} borda pct={pct} />
+        })}</div> : <Empty text="Nenhuma série em andamento" />}
 
         <h2 style={{ marginTop: 28, marginBottom: 12, fontWeight: 800, fontSize: 15 }}>Quero Assistir</h2>
-        {quero.length ? (
-          <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 6 }}>
-            {quero.map((s) => (
-              <Link key={s.id} href={"/serie/" + s.id} style={{ textDecoration: "none", color: "white", minWidth: 112 }}>
-                <div style={{ width: 112, height: 164, borderRadius: 16, overflow: "hidden", background: "#122042" }}>
-                  <img src={s.poster ? "https://image.tmdb.org/t/p/w300" + s.poster : ""} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="" />
-                </div>
-                <div style={{ fontSize: 12, marginTop: 6, opacity: 0.9, maxWidth: 112, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.titulo}</div>
-              </Link>
-            ))}
-          </div>
-        ) : <div style={{ color: "rgba(255,255,255,0.45)", fontSize: 13 }}>Nenhuma série ainda. Busque acima e clique em <b style={{ color: "white" }}>+ Quero assistir</b></div>}
+        {quero.length ? <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 6 }}>{quero.map((s) => <Card key={s.id} s={s} />)}</div> : <div style={{ color: "rgba(255,255,255,0.45)", fontSize: 13 }}>Nenhuma série ainda. Busque acima.</div>}
+
+        <h2 style={{ marginTop: 28, marginBottom: 12, fontWeight: 800, fontSize: 15, display: "flex", alignItems: "center", gap: 8 }}><span style={{ width: 22, height: 22, borderRadius: 999, background: "#FFD400", display: "grid", placeItems: "center", color: "#08162e", fontSize: 12 }}>✓</span> Já maratonei</h2>
+        {maratonei.length ? <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 6 }}>{maratonei.map((s) => <Card key={s.id} s={s} pct={100} selo />)}</div> : <Empty text="Nenhuma série finalizada ainda" />}
       </div>
 
       <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, height: 72, background: "#08162e", borderTop: "1px solid rgba(255,255,255,0.08)", display: "flex", justifyContent: "space-around", alignItems: "center", zIndex: 20 }}>
@@ -164,6 +124,22 @@ export default function Home() {
       </div>
     </div>
   )
+}
+
+function Card({ s, borda, pct, selo }) {
+  return (
+    <Link href={"/serie/" + s.id} style={{ textDecoration: "none", color: "white", minWidth: 112 }}>
+      <div style={{ width: 112, height: 164, borderRadius: 16, overflow: "hidden", background: "#122042", position: "relative", border: borda ? "2px solid #FFD400" : "1px solid rgba(255,255,255,0.06)" }}>
+        <img src={s.poster ? "https://image.tmdb.org/t/p/w300" + s.poster : ""} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="" />
+        {pct !== undefined && <div style={{ position: "absolute", bottom: 0, left: 0, height: 4, width: pct + "%", background: "#FFD400" }} />}
+        {selo && <div style={{ position: "absolute", top: 6, right: 6, width: 22, height: 22, borderRadius: 999, background: "#FFD400", display: "grid", placeItems: "center", color: "#08162e", fontSize: 12, fontWeight: 900 }}>✓</div>}
+      </div>
+      <div style={{ fontSize: 12, marginTop: 6, opacity: 0.9, maxWidth: 112, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.titulo}</div>
+    </Link>
+  )
+}
+function Empty({ text }) {
+  return <div style={{ height: 88, borderRadius: 16, border: "1px dashed rgba(255,255,255,0.15)", display: "grid", placeItems: "center", color: "rgba(255,255,255,0.35)", fontSize: 13 }}>{text}</div>
 }
 const iconBtn = { width: 36, height: 36, borderRadius: 999, background: "rgba(255,255,255,0.1)", display: "grid", placeItems: "center", textDecoration: "none", color: "white" }
 const foot = { display: "flex", flexDirection: "column", alignItems: "center", gap: 2, color: "rgba(255,255,255,0.45)", textDecoration: "none" }
