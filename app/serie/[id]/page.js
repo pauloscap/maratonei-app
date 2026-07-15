@@ -1,17 +1,101 @@
 "use client"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { useSerie, saveProg } from "../../../lib/useSerieLogic"
-import { ListaEps } from "../../../components/ListaEps"
-export default function Detalhe(){
- const {id}=useParams(); const r=useRouter(); const {s,p,setP,st,setSt,tm,se,err,supa}=useSerie(id)
- const [op,setOp]=useState(1); const [rem,setRem]=useState(false)
- const tog=(a,b)=>{ let k=a+"-"+b,n=p.includes(k)?p.filter(x=>x!==k):[...p,k]; setP(n); saveProg(id,n); if(n.length&&st==="quero_assistir"){ setSt("assistindo"); try{localStorage.setItem("status-"+id,"assistindo")}catch{}} }
- const setStt=v=>{ setSt(v); try{localStorage.setItem("status-"+id,v);localStorage.setItem("_upd",Date.now())}catch{}; if(v==="ja_maratonei"){let a=["100%"];setP(a);saveProg(id,a)} else if(v==="quero_assistir"){setP([]);saveProg(id,[])} }
- const mark=(sn,tot)=>{ let e=Array.from({length:tot},(_,i)=>sn+"-"+(i+1)),all=e.every(k=>p.includes(k)),n=all?p.filter(x=>!x.startsWith(sn+"-")):Array.from(new Set([...p.filter(x=>x!=="100%"),...e])); setP(n); saveProg(id,n) }
- const del=async()=>{ if(!confirm(`Abandonar "${s?.titulo}"?`))return; setRem(true); try{localStorage.removeItem("status-"+id);localStorage.removeItem("progress-"+id);await supa.from("series").delete().eq("id",id);r.push("/")}catch(e){alert(e.message);setRem(false)} }
- if(err)return <div style={{background:"#08162e",minHeight:"100vh",color:"#ff8a8a",padding:20}}><button onClick={()=>r.back()}>‹ Voltar</button><div style={{marginTop:20}}>Erro: {err}</div></div>
- if(!s)return <div style={{background:"#08162e",minHeight:"100vh",display:"grid",placeItems:"center",color:"#fff"}}>Carregando...</div>
- let tot=tm?.number_of_episodes||se.reduce((a,b)=>a+(b.episode_count||0),0)||10,wd=p.filter(x=>x!=="100%").length,pct=p.includes("100%")?100:tot?Math.round(wd/tot*100):0
- return (<div style={{minHeight:"100vh",background:"#0A1836",color:"#fff",paddingBottom:90}}><div style={{height:56,display:"flex",justifyContent:"space-between",padding:"0 16px",alignItems:"center",position:"sticky",top:0,background:"#0A1836",zIndex:10,borderBottom:"1px solid #ffffff10"}}><div style={{display:"flex",gap:10,alignItems:"center"}}><button onClick={()=>r.back()} style={{width:32,height:32,borderRadius:999,border:0}}>‹</button><b style={{fontSize:14,maxWidth:160,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{s.titulo}</b></div><button onClick={del} style={{height:30,padding:"0 10px",borderRadius:999,border:"1px solid #ff5a5a33",background:"#ff5a5a14",color:"#ff8a8a",fontSize:11,fontWeight:700}}>{rem?"...":"🗑 Abandonar"}</button></div><div style={{maxWidth:860,margin:"0 auto"}}><div style={{display:"flex",gap:14,padding:16}}><img src={s.poster?`https://image.tmdb.org/t/p/w300${s.poster}`:""} style={{width:110,height:165,borderRadius:14,objectFit:"cover",background:"#122042"}} alt=""/><div style={{flex:1}}><div style={{fontWeight:900,fontSize:15}}>{s.titulo}</div><div style={{fontSize:11,opacity:.5,marginTop:4}}>{se.length} temp • {tot} eps</div><div style={{marginTop:12,height:6,background:"#ffffff18",borderRadius:999,overflow:"hidden"}}><div style={{width:pct+"%",height:"100%",background:"#FFD400"}}/></div><div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginTop:6}}><span style={{opacity:.5}}>{wd}/{tot}</span><span style={{color:"#FFD400",fontWeight:800}}>{pct}%</span></div></div></div><div style={{display:"flex",gap:6,padding:"0 16px",flexWrap:"wrap"}}><button onClick={()=>setStt("assistindo")} style={{height:36,padding:"0 14px",borderRadius:999,border:0,background:st==="assistindo"?"#fff":"#ffffff14",color:st==="assistindo"?"#000":"#fff",fontWeight:700}}>Assistindo</button><button onClick={()=>setStt("quero_assistir")} style={{height:36,padding:"0 14px",borderRadius:999,border:0,background:st==="quero_assistir"?"#fff":"#ffffff14",color:st==="quero_assistir"?"#000":"#fff"}}>Quero assistir</button><button onClick={()=>setStt("ja_maratonei")} style={{height:36,padding:"0 14px",borderRadius:999,border:"1px solid #FFD400",background:st==="ja_maratonei"?"#FFD400":"transparent",color:st==="ja_maratonei"?"#000":"#FFD400",fontWeight:900}}>✓ Já maratonei</button></div><div style={{padding:16}}>{se.map(x=><ListaEps key={x.season_number} sn={x.season_number} total={x.episode_count||8} prog={p} tog={tog} poster={s.poster} sinopse={s.sinopse} tmdbId={s.tmdb_id} open={op===x.season_number} setOpen={setOp} mark={mark} />)}</div></div></div>)
+import { getSupa } from "../../../lib/supabase"
+import { useSerieLogic } from "../../../lib/useSerieLogic"
+import ListaEps from "../../../components/ListaEps"
+
+const supa = getSupa()
+
+export default function SeriePage() {
+  const { id } = useParams()
+  const router = useRouter()
+  const [serie, setSerie] = useState(null)
+  const [tmdb, setTmdb] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  const cleanId = String(id).replace("tmdb-","")
+  const isTmdb = /^\d+$/.test(cleanId)
+
+  const {
+    status, setStatus, progresso, toggleEp,
+    marcarTodos, totalEps, pct, abandonar
+  } = useSerieLogic(isTmdb? `tmdb-${cleanId}` : id, serie)
+
+  useEffect(() => {
+    async function load() {
+      try {
+        if (isTmdb) {
+          const r = await fetch(`https://api.themoviedb.org/3/tv/${cleanId}?api_key=${process.env.NEXT_PUBLIC_TMDB_KEY}&language=pt-BR`)
+          const j = await r.json()
+          setSerie({ id: `tmdb-${cleanId}`, titulo: j.name, poster: j.poster_path, tmdb_id: j.id, ano: j.first_air_date?.slice(0,4) })
+          setTmdb(j)
+        } else {
+          const { data } = await supa.from("series").select("*").eq("id", id).maybeSingle()
+          if (data) {
+            setSerie(data)
+            if (data.tmdb_id) {
+              const r = await fetch(`https://api.themoviedb.org/3/tv/${data.tmdb_id}?api_key=${process.env.NEXT_PUBLIC_TMDB_KEY}&language=pt-BR`)
+              const j = await r.json()
+              setTmdb(j)
+            }
+          }
+        }
+      } catch {}
+      setLoading(false)
+    }
+    if (id) load()
+  }, [id, cleanId, isTmdb])
+
+  const handleAdd = async () => {
+    if (!isTmdb || !tmdb) return
+    const n = { tmdb_id: tmdb.id, titulo: tmdb.name, poster: tmdb.poster_path, ano: tmdb.first_air_date?.slice(0,4) }
+    const { data } = await supa.from("series").insert([n]).select().single()
+    if (data) { localStorage.setItem("status-" + data.id, "quero_assistir"); router.replace("/serie/" + data.id) }
+  }
+
+  if (loading) return <div style={{ background:"#080F25", minHeight:"100vh", display:"grid", placeItems:"center", color:"#fff" }}>Carregando...</div>
+  if (!serie) return <div style={{ background:"#080F25", minHeight:"100vh", color:"#fff", padding:20 }}><button onClick={()=>router.back()}>‹ Voltar</button><p>Não encontrado</p></div>
+
+  const img = serie.poster?.startsWith("/")? `https://image.tmdb.org/t/p/w500${serie.poster}` : serie.poster || (tmdb?.poster_path && `https://image.tmdb.org/t/p/w500${tmdb.poster_path}`)
+  const bg = tmdb?.backdrop_path? `https://image.tmdb.org/t/p/w780${tmdb.backdrop_path}` : img
+  const sinopse = serie.sinopse || tmdb?.overview || "Sem sinopse."
+
+  return (
+    <div style={{ minHeight:"100vh", background:"#080F25", color:"#fff", paddingBottom:90, fontFamily:"Inter,Sora,sans-serif" }}>
+      <header style={{ height:56, display:"flex", justifyContent:"space-between", padding:"0 16px", alignItems:"center", position:"sticky", top:0, background:"#080F25", zIndex:10, borderBottom:"1px solid #ffffff10" }}>
+        <button onClick={()=>router.back()} style={{ width:32, height:32, borderRadius:999, border:0, background:"#ffffff12", color:"#fff", cursor:"pointer" }}>‹</button>
+        <b style={{ fontSize:13, maxWidth:160, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{serie.titulo}</b>
+        <button onClick={()=>abandonar(router)} style={{ height:30, padding:"0 10px", borderRadius:999, border:"1px solid #ff5a5a33", background:"#ff5a5a14", color:"#ff8a8a", fontSize:11, fontWeight:700 }}>🗑 Abandonar</button>
+      </header>
+
+      <div style={{ position:"relative", height:220, overflow:"hidden" }}><img src={bg} style={{ width:"100%", height:"100%", objectFit:"cover", opacity:.45 }} alt="" /><div style={{ position:"absolute", inset:0, background:"linear-gradient(to top, #080F25 10%, transparent 90%)" }} /></div>
+
+      <main style={{ maxWidth:860, margin:"0 auto", padding:"0 16px", marginTop:-60, position:"relative", zIndex:2 }}>
+        <div style={{ display:"flex", gap:14 }}>
+          <img src={img} style={{ width:110, height:165, borderRadius:14, objectFit:"cover", border:"1px solid #ffffff18" }} alt="" />
+          <div style={{ flex:1, paddingTop:22 }}>
+            <div style={{ fontWeight:900, fontSize:18, fontFamily:"Sora,sans-serif", lineHeight:1.2 }}>{serie.titulo}</div>
+            <div style={{ fontSize:12, opacity:.5, marginTop:6 }}>{serie.ano} • {pct}% • {totalEps} eps</div>
+            {isTmdb ? (
+              <button onClick={handleAdd} style={{ marginTop:12, height:38, padding:"0 16px", borderRadius:999, border:0, background:"#FFD400", color:"#000", fontWeight:900, fontSize:13, cursor:"pointer" }}>+ Adicionar à minha lista</button>
+            ) : (
+              <div style={{ display:"flex", gap:8, marginTop:12, flexWrap:"wrap" }}>
+                <button onClick={()=>setStatus("quero_assistir")} style={{ height:34, padding:"0 12px", borderRadius:999, border:0, background: status==="quero_assistir"? "#fff":"#ffffff14", color: status==="quero_assistir"? "#000":"#fff", fontWeight:700, fontSize:12 }}>Quero Assistir</button>
+                <button onClick={()=>setStatus("assistindo")} style={{ height:34, padding:"0 12px", borderRadius:999, border:0, background: status==="assistindo"? "#FFD400":"#ffffff14", color: status==="assistindo"? "#000":"#fff", fontWeight:800, fontSize:12 }}>Assistindo {pct>0? `${pct}%`:""}</button>
+                <button onClick={()=>setStatus("ja_maratonei")} style={{ height:34, padding:"0 12px", borderRadius:999, border: status==="ja_maratonei"? "0":"1px solid #FFD400", background: status==="ja_maratonei"? "#FFD400":"transparent", color: status==="ja_maratonei"? "#000":"#FFD400", fontWeight:900, fontSize:12 }}>✓ Maratonei</button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div style={{ marginTop:18, background:"#121B3A", border:"1px solid #ffffff10", borderRadius:14, padding:14 }}>
+          <div style={{ fontSize:11, fontWeight:800, opacity:.5, marginBottom:8 }}>SINOPSE</div>
+          <div style={{ fontSize:13, lineHeight:1.6, opacity:.85 }}>{sinopse}</div>
+        </div>
+
+        {!isTmdb && <div style={{ marginTop:16 }}><ListaEps tmdb={tmdb} progresso={progresso} toggleEp={toggleEp} marcarTodos={marcarTodos} totalEps={totalEps} /></div>}
+      </main>
+    </div>
+  )
 }
