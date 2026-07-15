@@ -30,6 +30,14 @@ export default function Home() {
   useEffect(() => { setMounted(true); carregarSeries() }, [])
   useEffect(() => { if (mounted && series.length) carregarLS(series) }, [mounted, series])
 
+  // RECARREGA AO VOLTAR DA PAGINA DE DETALHE - ESSENCIAL PARA O JA MARATONEI APARECER
+  useEffect(() => {
+    function onFocus() { if (series.length) carregarLS(series) }
+    window.addEventListener("focus", onFocus)
+    window.addEventListener("storage", onFocus)
+    return () => { window.removeEventListener("focus", onFocus); window.removeEventListener("storage", onFocus) }
+  }, [series])
+
   async function buscar(q) {
     setBusca(q)
     if (q.length < 2) { setResultados([]); return }
@@ -62,22 +70,21 @@ export default function Home() {
 
   if (!mounted) return null
 
-  // LOGICA DAS 3 ABAS
-  const assistindo = series.filter((s) => {
-    const st = statusMap[s.id]
-    const pg = progressMap[s.id] || []
-    if (st === "ja_maratonei" || st === "maratonei" || st === "concluida" || st === "finalizada") return false
+  const isMaratonei = (id) => {
+    const st = statusMap[id]
+    const pg = progressMap[id] || []
+    return st === "ja_maratonei" || st === "maratonei" || st === "concluida" || st === "finalizada" || pg.includes("100%")
+  }
+  const isAssistindo = (id) => {
+    if (isMaratonei(id)) return false
+    const st = statusMap[id]
+    const pg = progressMap[id] || []
     return st === "assistindo" || (pg && pg.length > 0)
-  })
-  const quero = series.filter((s) => {
-    const st = statusMap[s.id]
-    const pg = progressMap[s.id] || []
-    return !assistindo.find((a) => a.id === s.id) && st !== "ja_maratonei" && st !== "maratonei" && st !== "concluida" && st !== "finalizada" && (!pg || pg.length === 0)
-  })
-  const maratonei = series.filter((s) => {
-    const st = statusMap[s.id]
-    return st === "ja_maratonei" || st === "maratonei" || st === "concluida" || st === "finalizada"
-  })
+  }
+
+  const maratonei = series.filter((s) => isMaratonei(s.id))
+  const assistindo = series.filter((s) => isAssistindo(s.id))
+  const quero = series.filter((s) => !isMaratonei(s.id) && !isAssistindo(s.id))
 
   return (
     <div style={{ minHeight: "100vh", background: "#08162e", color: "white", paddingBottom: 90, fontFamily: "Inter, system-ui" }}>
@@ -104,13 +111,10 @@ export default function Home() {
         )}
 
         <h2 style={{ marginTop: 28, marginBottom: 12, fontWeight: 800, fontSize: 15 }}>Estou assistindo</h2>
-        {assistindo.length ? <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 6 }}>{assistindo.map((s) => {
-          const pg = progressMap[s.id] || []; const pct = pg.length ? Math.min(100, pg.length * 8) : 12
-          return <Card key={s.id} s={s} borda pct={pct} />
-        })}</div> : <Empty text="Nenhuma série em andamento" />}
+        {assistindo.length ? <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 6 }}>{assistindo.map((s) => { const pg = progressMap[s.id] || []; const pct = pg.length ? Math.min(100, pg.length * 8) : 12; return <Card key={s.id} s={s} borda pct={pct} /> })}</div> : <Empty text="Nenhuma série em andamento" />}
 
         <h2 style={{ marginTop: 28, marginBottom: 12, fontWeight: 800, fontSize: 15 }}>Quero Assistir</h2>
-        {quero.length ? <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 6 }}>{quero.map((s) => <Card key={s.id} s={s} />)}</div> : <div style={{ color: "rgba(255,255,255,0.45)", fontSize: 13 }}>Nenhuma série ainda. Busque acima.</div>}
+        {quero.length ? <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 6 }}>{quero.map((s) => <Card key={s.id} s={s} />)}</div> : <Empty text="Nenhuma série ainda. Busque acima." small />}
 
         <h2 style={{ marginTop: 28, marginBottom: 12, fontWeight: 800, fontSize: 15, display: "flex", alignItems: "center", gap: 8 }}><span style={{ width: 22, height: 22, borderRadius: 999, background: "#FFD400", display: "grid", placeItems: "center", color: "#08162e", fontSize: 12 }}>✓</span> Já maratonei</h2>
         {maratonei.length ? <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 6 }}>{maratonei.map((s) => <Card key={s.id} s={s} pct={100} selo />)}</div> : <Empty text="Nenhuma série finalizada ainda" />}
@@ -138,8 +142,8 @@ function Card({ s, borda, pct, selo }) {
     </Link>
   )
 }
-function Empty({ text }) {
-  return <div style={{ height: 88, borderRadius: 16, border: "1px dashed rgba(255,255,255,0.15)", display: "grid", placeItems: "center", color: "rgba(255,255,255,0.35)", fontSize: 13 }}>{text}</div>
+function Empty({ text, small }) {
+  return <div style={{ height: small ? 56 : 88, borderRadius: 16, border: "1px dashed rgba(255,255,255,0.15)", display: "grid", placeItems: "center", color: "rgba(255,255,255,0.35)", fontSize: 13 }}>{text}</div>
 }
 const iconBtn = { width: 36, height: 36, borderRadius: 999, background: "rgba(255,255,255,0.1)", display: "grid", placeItems: "center", textDecoration: "none", color: "white" }
 const foot = { display: "flex", flexDirection: "column", alignItems: "center", gap: 2, color: "rgba(255,255,255,0.45)", textDecoration: "none" }
