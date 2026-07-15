@@ -4,10 +4,22 @@ import { createClient } from "@supabase/supabase-js"
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_KEY)
 
+// Mapeamento dos IDs antigos fake -> ID real do TVmaze
+const MAPA_IDS_FAKE = {
+  "101": 45582, // Abbott Elementary
+  "102": 71268, // X-Men 97
+  "103": 0, // Off Campus - vai buscar por nome
+  "104": 73, // The Walking Dead
+  "201": 0, // Elle
+  "301": 2993, // Stranger Things
+  "302": 61167, // The Last of Us
+}
+
 export default function DetalheSerie({ params }) {
   const id = String(params.id)
   const [userId, setUserId] = useState("anon")
   const [serie, setSerie] = useState(null)
+  const [realId, setRealId] = useState(id)
   const [status, setStatus] = useState("assistindo")
   const [epsVistos, setEpsVistos] = useState([])
   const [temporadas, setTemporadas] = useState([])
@@ -26,56 +38,84 @@ export default function DetalheSerie({ params }) {
         const raw = localStorage.getItem(uid + ":serie-atual")
         if (raw) s = JSON.parse(raw)
       } catch {}
+      // Se entrou direto pela URL sem ter no localStorage
       if (!s || String(s.id)!== id) {
-        // se entrou direto pela URL
-        s = { id, titulo: "Carregando...", img: "" }
+        s = { id, titulo: id, img: "" }
       }
       setSerie(s)
 
       const st = localStorage.getItem(uid + ":status-" + id)
       if (st) setStatus(st)
       else if (s.status) setStatus(s.status)
-
       setEpsVistos(JSON.parse(localStorage.getItem(uid + ":eps-" + id) || "[]"))
 
+      // 1. Descobre o ID REAL
+      let rid = MAPA_IDS_FAKE[id] || id
+      if (!rid || rid === 0) {
+        try {
+          const q = s.q || s.titulo
+          const sr = await fetch(`https://api.tvmaze.com/search/shows?q=${encodeURIComponent(q)}`)
+          const sj = await sr.json()
+          if (sj?.[0]?.show?.id) rid = sj[0].show.id
+        } catch {}
+      }
+      // Se ainda for fake pequeno, força busca por nome
+      if (Number(rid) < 1000) {
+        try {
+          const q = s.q || s.titulo
+          const sr = await fetch(`https://api.tvmaze.com/search/shows?q=${encodeURIComponent(q)}`)
+          const sj = await sr.json()
+          if (sj?.[0]?.show?.id) rid = sj[0].show.id
+        } catch {}
+      }
+      setRealId(rid)
+
       try {
-        // Busca dados reais da série
-        const showRes = await fetch(`https://api.tvmaze.com/shows/${id}`)
+        const [showRes, seasonsRes, epsRes] = await Promise.all([
+          fetch(`https://api.tvmaze.com/shows/${rid}`),
+          fetch(`https://api.tvmaze.com/shows/${rid}/seasons`),
+          fetch(`https://api.tvmaze.com/shows/${rid}/episodes`)
+        ])
         const show = await showRes.json()
+        const seasons = await seasonsRes.json()
+        const episodes = await epsRes.json()
+
         if (show?.name) {
-          s = {
+          const atualizado = {
            ...s,
+            id: id, // mantém o ID original pra não quebrar seu localStorage
+            realId: rid,
             titulo: show.name,
             ano: show.premiered?.slice(0,4) || s.ano || "",
             img: show.image?.original || show.image?.medium || s.img,
             banner: show.image?.original || s.img,
-            sinopse: show.summary?.replace(/<[^>]+>/g,"") || ""
           }
-          setSerie(s)
-          localStorage.setItem(uid + ":serie-atual", JSON.stringify(s))
+          setSerie(atualizado)
         }
 
-        const [seasonsRes, epsRes] = await Promise.all([
-          fetch(`https://api.tvmaze.com/shows/${id}/seasons`),
-          fetch(`https://api.tvmaze.com/shows/${id}/episodes`)
-        ])
-        const seasons = await seasonsRes.json()
-        const episodes = await epsRes.json()
-
-        // Agrupa episódios por temporada real
         const mapa = {}
-        seasons.forEach(se => { mapa[se.number] = { id: se.id, numero: se.number, eps: [] } })
-        episodes.forEach(ep => {
-          if (!mapa[ep.season]) mapa[ep.season] = { numero: ep.season, eps: [] }
-          mapa[ep.season].eps.push({ id: ep.id, numero: ep.number, nome: ep.name })
-        })
+        if (Array.isArray(seasons)) {
+          seasons.forEach(se => { mapa[se.number] = { numero: se.number, eps: [] } })
+        }
+        if (Array.isArray(episodes)) {
+          episodes.forEach(ep => {
+            if (!mapa[ep.season]) mapa[ep.season] = { numero: ep.season, eps: [] }
+            mapa[ep.season].eps.push({ id: ep.id, numero: ep.number, nome: ep.name })
+          })
+        }
 
         const lista = Object.values(mapa).sort((a,b)=>a.numero-b.numero)
-        setTemporadas(lista)
-        if (lista.length) setAberta(lista[0].numero)
+        if (lista.length) {
+          setTemporadas(lista)
+          setAberta(lista[0].numero)
+        } else {
+          // fallback se não achar
+          setTemporadas([{ numero:1, eps: Array.from({length:10},(_,i)=>({id:`${rid}-${i+1}`, numero:i+1, nome:`Episódio ${i+1}`})) }])
+          setAberta(1)
+        }
       } catch (e) {
-        // fallback se a série for do BASE antigo (101, 102...)
-        const fake = [1,2,3].map(n => ({ numero: n, eps: Array.from({length:10}, (_,i)=>({ id: `${n}-${i+1}`, numero: i+1, nome: `Episódio ${i+1}` })) }))
+        console.log("erro tvmaze", e)
+        const fake = [1,2,3].map(n => ({ numero: n, eps: Array.from({length:10}, (_,i)=>({ id: `${rid}-${n}-${i+1}`, numero: i+1, nome: `Episódio ${i+1}` })) }))
         setTemporadas(fake)
         setAberta(1)
       }
@@ -85,9 +125,7 @@ export default function DetalheSerie({ params }) {
   }, [id])
 
   const toggleEp = (eid) => {
-    let novo
-    if (epsVistos.includes(eid)) novo = epsVistos.filter(x=>x!==eid)
-    else novo = [...epsVistos, eid]
+    let novo = epsVistos.includes(eid)? epsVistos.filter(x=>x!==eid) : [...epsVistos, eid]
     setEpsVistos(novo)
     localStorage.setItem(userId + ":eps-" + id, JSON.stringify(novo))
   }
@@ -95,9 +133,7 @@ export default function DetalheSerie({ params }) {
   const maratonarTemp = (temp) => {
     const ids = temp.eps.map(e=>e.id)
     const todos = ids.every(i=>epsVistos.includes(i))
-    let novo
-    if (todos) novo = epsVistos.filter(i=>!ids.includes(i))
-    else novo = [...new Set([...epsVistos,...ids])]
+    let novo = todos? epsVistos.filter(i=>!ids.includes(i)) : [...new Set([...epsVistos,...ids])]
     setEpsVistos(novo)
     localStorage.setItem(userId + ":eps-" + id, JSON.stringify(novo))
   }
@@ -110,34 +146,29 @@ export default function DetalheSerie({ params }) {
   return (
     <div style={{ minHeight: "100vh", background: "#080B1F", color: "#fff" }}>
       <div style={{ height: 300, position: "relative" }}>
-        <img src={serie.banner || serie.img} style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+        <img src={serie.banner || serie.img} style={{ width:"100%", height:"100%", objectFit:"cover", background:"#12182F" }} />
         <div style={{ position:"absolute", inset:0, background:"linear-gradient(180deg, #00000030, #080B1F 95%)" }} />
         <button onClick={()=>history.back()} style={{ position:"absolute", top:14, left:14, width:34, height:34, borderRadius:999, background:"#0009", border:"1px solid #ffffff22", color:"#fff" }}>‹</button>
         <div style={{ position:"absolute", bottom:-22, left:16, display:"flex", gap:12, alignItems:"flex-end", right:16 }}>
           <img src={serie.img} style={{ width:90, height:135, borderRadius:12, objectFit:"cover", border:"2px solid #ffffff18", background:"#12182F" }} />
           <div style={{ flex:1, paddingBottom:6 }}>
             <h1 style={{ margin:0, fontSize:18, fontWeight:900 }}>{serie.titulo}</h1>
-            <div style={{ fontSize:11, opacity:.6, marginTop:4 }}>{serie.ano} • {epsVistos.length}/{totalEps} vistos • {progresso}%</div>
+            <div style={{ fontSize:11, opacity:.6, marginTop:4 }}>{loading? "carregando...": `${temporadas.length} temp • ${epsVistos.length}/${totalEps} vistos • ${progresso}%`}</div>
             <div style={{ height:4, background:"#ffffff1a", borderRadius:99, marginTop:8 }}><div style={{ width:progresso+"%", height:"100%", background:"#FFD400", borderRadius:99 }} /></div>
           </div>
         </div>
       </div>
 
       <div style={{ maxWidth:680, margin:"0 auto", padding:"38px 14px 14px" }}>
-        {/* ABAS CERTAS */}
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginBottom:16 }}>
-          {[
-            {id:"assistindo", l:"Assistindo"},
-            {id:"quero_assistir", l:"Quero Assistir"},
-            {id:"maratonei", l:"Maratonei"},
-          ].map(b=>{
+          {[{id:"assistindo",l:"Assistindo"},{id:"quero_assistir",l:"Quero Assistir"},{id:"maratonei",l:"Maratonei"}].map(b=>{
             const ativo = status===b.id
             return <button key={b.id} onClick={()=>{setStatus(b.id); localStorage.setItem(userId+":status-"+id,b.id); const lista = JSON.parse(localStorage.getItem(userId+":minhas-series")||"[]"); const nova = lista.map(s=> String(s.id)===id? {...s,status:b.id}:s); localStorage.setItem(userId+":minhas-series", JSON.stringify(nova)) }} style={{ padding:11, borderRadius:12, fontWeight:800, fontSize:12, border: ativo?"1px solid #FFD400":"1px solid #ffffff12", background: ativo? "#FFD400":"#12182F", color: ativo? "#000":"#fff" }}>{b.l}</button>
           })}
         </div>
 
         <div style={{ background:"#12182F", border:"1px solid #ffffff0e", borderRadius:16, padding:12 }}>
-          <b style={{ fontSize:13 }}>Temporadas e Episódios {loading?"• carregando...":`• ${temporadas.length} temporadas • ${totalEps} episódios`}</b>
+          <b style={{ fontSize:13 }}>Temporadas e Episódios {loading?"":`• ${temporadas.length} temporadas`}</b>
           {temporadas.map(t=>{
             const vistos = t.eps.filter(e=>epsVistos.includes(e.id)).length
             const aberto = aberta===t.numero
