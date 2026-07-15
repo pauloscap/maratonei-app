@@ -1,23 +1,55 @@
-'use client'
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { createClient } from '@supabase/supabase-js'
-const supabase=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.NEXT_PUBLIC_SUPABASE_KEY)
-export default function Perfil(){
-  const router=useRouter(); const [email,setEmail]=useState('')
-  useEffect(()=>{ supabase.auth.getSession().then(({data})=>{ if(!data.session) router.push('/login'); else setEmail(data.session.user.email) }) },[])
-  async function sair(){ await supabase.auth.signOut(); localStorage.clear(); router.push('/login') }
-  return(
-    <main style={{background:'#0F172A',minHeight:'100vh',padding:'20px',paddingBottom:'90px',color:'#fff'}}>
-      <h1 style={{color:'#FACC15'}}>👤 Perfil</h1>
-      <div style={{background:'#1E293B',padding:'16px',borderRadius:'12px',marginTop:'16px'}}><div style={{color:'#94A3B8',fontSize:'13px'}}>Logado como</div><div style={{fontWeight:700}}>{email}</div></div>
-      <button onClick={sair} style={{marginTop:'20px',width:'100%',background:'#EF4444',border:'none',padding:'12px',borderRadius:'10px',color:'#fff',fontWeight:800,cursor:'pointer'}}>Sair da conta</button>
-      <nav style={{position:'fixed',bottom:0,left:0,right:0,background:'#1E293B',borderTop:'1px solid #334155',display:'flex',justifyContent:'space-around',padding:'10px 0'}}>
-        <button onClick={()=>router.push('/')} style={{background:'none',border:'none',color:'#64748B',fontSize:'11px',display:'flex',flexDirection:'column',alignItems:'center'}}><span style={{fontSize:'20px'}}>📺</span>Séries</button>
-        <button onClick={()=>router.push('/filmes')} style={{background:'none',border:'none',color:'#64748B',fontSize:'11px',display:'flex',flexDirection:'column',alignItems:'center'}}><span style={{fontSize:'20px'}}>🎬</span>Filmes</button>
-        <button onClick={()=>router.push('/')} style={{background:'none',border:'none',color:'#64748B',fontSize:'11px',display:'flex',flexDirection:'column',alignItems:'center'}}><span style={{fontSize:'20px'}}>🔍</span>Busca</button>
-        <button style={{background:'none',border:'none',color:'#FACC15',fontSize:'11px',fontWeight:700,display:'flex',flexDirection:'column',alignItems:'center'}}><span style={{fontSize:'20px'}}>👤</span>Perfil</button>
-      </nav>
-    </main>
+"use client"
+import { useEffect, useState } from "react"
+import { BottomNav } from "../../components/BottomNav"
+
+export default function PerfilPage() {
+  const [stats, setStats] = useState({ total:0, mar:0, horas:0 })
+
+  useEffect(() => {
+    try {
+      let total=0, mar=0, eps=0
+      for (let i=0;i<localStorage.length;i++){
+        const k=localStorage.key(i)
+        if(k?.startsWith("status-")) total++
+        if(k && localStorage.getItem(k)==="ja_maratonei") mar++
+        if(k?.startsWith("progress-")){
+          const v=JSON.parse(localStorage.getItem(k)||"[]")
+          if(Array.isArray(v)) eps+=v.filter(x=>x!=="100%").length
+        }
+      }
+      setStats({ total, mar, horas: Math.round(eps*0.75) })
+    } catch {}
+  }, [])
+
+  return (
+    <div style={{ minHeight:"100vh", background:"#080F25", color:"#fff", paddingBottom:90, fontFamily:"Inter,Sora,sans-serif" }}>
+      <header style={{ height:60, padding:"0 16px", display:"flex", alignItems:"center", borderBottom:"1px solid #ffffff10" }}>
+        <h1 style={{ fontSize:18, fontWeight:800, fontFamily:"Sora,sans-serif" }}>Perfil</h1>
+      </header>
+
+      <main style={{ maxWidth:600, margin:"0 auto", padding:"20px 16px" }}>
+        <div style={{ display:"flex", gap:14, alignItems:"center", background:"#121B3A", border:"1px solid #ffffff10", borderRadius:16, padding:16 }}>
+          <div style={{ width:56, height:56, borderRadius:999, background:"#FFD400", display:"grid", placeItems:"center", color:"#000", fontWeight:900, fontSize:22 }}>P</div>
+          <div><div style={{ fontWeight:800, fontSize:16, fontFamily:"Sora,sans-serif" }}>Você</div><div style={{ fontSize:12, opacity:.5 }}>Nível {stats.mar+1} • {stats.mar*100} XP</div></div>
+        </div>
+
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10, marginTop:16 }}>
+          <div style={{ background:"#121B3A", borderRadius:14, padding:14, textAlign:"center", border:"1px solid #ffffff10" }}><div style={{ fontSize:20, fontWeight:800 }}>{stats.total}</div><div style={{ fontSize:11, opacity:.5 }}>Séries</div></div>
+          <div style={{ background:"#121B3A", borderRadius:14, padding:14, textAlign:"center", border:"1px solid #ffffff10" }}><div style={{ fontSize:20, fontWeight:800, color:"#FFD400" }}>{stats.mar}</div><div style={{ fontSize:11, opacity:.5 }}>Maratonadas</div></div>
+          <div style={{ background:"#121B3A", borderRadius:14, padding:14, textAlign:"center", border:"1px solid #ffffff10" }}><div style={{ fontSize:20, fontWeight:800 }}>{stats.horas}h</div><div style={{ fontSize:11, opacity:.5 }}>Assistidas</div></div>
+        </div>
+
+        <div style={{ marginTop:20, background:"#121B3A", border:"1px solid #ffffff10", borderRadius:16, padding:16 }}>
+          <h3 style={{ fontSize:14, fontWeight:800, marginBottom:10, fontFamily:"Sora,sans-serif" }}>🏆 Ranking & Conquistas</h3>
+          <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", fontSize:13 }}><span>🥇 Primeira Maratona</span><span style={{ color:"#22c55e", fontWeight:700 }}>{stats.mar>0? "Desbloqueada":"Bloqueada"}</span></div>
+            <div style={{ display:"flex", justifyContent:"space-between", fontSize:13 }}><span>🔥 3 Séries Assistindo</span><span style={{ opacity:.5 }}>{stats.total>=3? "Desbloqueada":"Falta "+Math.max(0,3-stats.total)}</span></div>
+            <div style={{ display:"flex", justifyContent:"space-between", fontSize:13 }}><span>⏱️ 50h de maratona</span><span style={{ opacity:.5 }}>{stats.horas>=50? "Desbloqueada": stats.horas+"h / 50h"}</span></div>
+          </div>
+        </div>
+      </main>
+
+      <BottomNav />
+    </div>
   )
 }
