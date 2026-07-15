@@ -1,8 +1,8 @@
 "use client"
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { createClient } from "@supabase/supabase-js"
-const supa = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_KEY)
+import { getSupa } from "../lib/supabase"
+const supa = getSupa()
 
 export default function Home(){
  const [series,setSeries]=useState([])
@@ -13,10 +13,7 @@ export default function Home(){
  const [ready,setReady]=useState(false)
 
  async function load(){
-  try{
-   const {data}=await supa.from("series").select("*").order("created_at",{ascending:false})
-   if(data) setSeries(data)
-  }catch(e){ console.log(e) }
+  try{ const {data}=await supa.from("series").select("*"); if(data) setSeries(data) }catch(e){}
  }
 
  function loadLS(list){
@@ -35,22 +32,20 @@ export default function Home(){
  }
 
  useEffect(()=>{ setReady(true); load() },[])
- useEffect(()=>{ if(ready && series.length) loadLS(series) },[ready, series])
-
- // FIX QUE REALMENTE FUNCIONA: recarrega a cada volta
+ useEffect(()=>{ if(ready && series.length) loadLS(series) },[ready,series])
  useEffect(()=>{
   if(!ready) return
   const t=setInterval(()=>{ try{ if(series.length) loadLS(series) }catch{} },800)
-  const onVis=()=>{ try{ loadLS(series) }catch{} }
-  window.addEventListener("focus",onVis); document.addEventListener("visibilitychange",onVis)
-  return()=>{ clearInterval(t); window.removeEventListener("focus",onVis); document.removeEventListener("visibilitychange",onVis) }
+  const f=()=>{ try{ loadLS(series) }catch{} }
+  window.addEventListener("focus",f); document.addEventListener("visibilitychange",f)
+  return()=>{ clearInterval(t); window.removeEventListener("focus",f); document.removeEventListener("visibilitychange",f) }
  },[series,ready])
 
  async function buscar(v){
   setQ(v); if(v.length<2){ setRes([]); return }
   try{
    let r=await fetch("https://api.themoviedb.org/3/search/tv?api_key="+process.env.NEXT_PUBLIC_TMDB_KEY+"&language=pt-BR&query="+encodeURIComponent(v))
-   let j=await r.json(); setRes(j.results?j.results.slice(0,5):[])
+   let j=await r.json(); setRes(j.results?j.results.slice(0,6):[])
   }catch{ setRes([]) }
  }
 
@@ -66,23 +61,23 @@ export default function Home(){
    localStorage.setItem("status-"+f.id,"quero_assistir")
    localStorage.setItem("progress-"+f.id,"[]")
    let l=[f,...series]; setSeries(l); loadLS(l); setRes([]); setQ("")
-  }catch(e){ alert("Erro: "+e.message) }
+  }catch(e){ alert(e.message) }
  }
 
- if(!ready) return <div style={{background:"#08162e",minHeight:"100vh"}}></div>
+ if(!ready) return <div style={{background:"#08162e",minHeight:"100vh"}}/>
 
- const isM=id=>{ let s=stMap[id]; let p=pgMap[id]||[]; try{return s==="ja_maratonei"||p.indexOf("100%")>=0}catch{return s==="ja_maratonei"} }
- const isA=id=>{ if(isM(id)) return false; let s=stMap[id]; let p=pgMap[id]||[]; try{return s==="assistindo"||p.length>0}catch{return s==="assistindo"} }
+ const isM=id=>{ let s=stMap[id],p=pgMap[id]||[]; try{return s==="ja_maratonei"||p.indexOf("100%")>=0}catch{return s==="ja_maratonei"} }
+ const isA=id=>{ if(isM(id)) return false; let s=stMap[id],p=pgMap[id]||[]; try{return s==="assistindo"||p.length>0}catch{return s==="assistindo"} }
 
  let mar=[],ass=[],que=[]
  series.forEach(s=>{ try{ isM(s.id)?mar.push(s):isA(s.id)?ass.push(s):que.push(s) }catch{} })
 
  const Card=({s,borda,selo})=>{
-  let img = s.poster? "https://image.tmdb.org/t/p/w300"+s.poster : ""
+  let img=s.poster?"https://image.tmdb.org/t/p/w300"+s.poster:""
   return(
    <Link href={"/serie/"+s.id} style={{textDecoration:"none",color:"#fff",minWidth:112}}>
     <div style={{width:112,height:164,borderRadius:16,overflow:"hidden",background:"#122042",position:"relative",border:borda?"2px solid #FFD400":"1px solid #ffffff18"}}>
-     {img? <img src={img} style={{width:"100%",height:"100%",objectFit:"cover"}} alt=""/> : <div style={{width:"100%",height:"100%",background:"#122042"}}/>}
+     {img? <img src={img} style={{width:"100%",height:"100%",objectFit:"cover"}} alt=""/> : <div style={{width:"100%",height:"100%"}}/>}
      {selo && <div style={{position:"absolute",top:6,right:6,width:20,height:20,borderRadius:999,background:"#FFD400",display:"grid",placeItems:"center",color:"#08162e",fontWeight:900,fontSize:12}}>✓</div>}
     </div>
     <div style={{fontSize:12,marginTop:6,maxWidth:112,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{s.titulo||"Sem título"}</div>
@@ -102,7 +97,7 @@ export default function Home(){
     <h3 style={{marginTop:24,fontSize:15,fontWeight:800}}>Estou assistindo</h3>
     <div style={{display:"flex",gap:12,overflowX:"auto",padding:"4px 0"}}>{ass.length?ass.map(s=><Card key={s.id} s={s} borda/>):<div style={{opacity:.4,fontSize:13}}>Nenhuma</div>}</div>
     <h3 style={{marginTop:24,fontSize:15,fontWeight:800}}>Quero Assistir</h3>
-    <div style={{display:"flex",gap:12,overflowX:"auto",padding:"4px 0"}}>{que.length?que.map(s=><Card key={s.id} s={s}/>):<div style={{opacity:.4,fontSize:13}}>Busque uma série acima</div>}</div>
+    <div style={{display:"flex",gap:12,overflowX:"auto",padding:"4px 0"}}>{que.length?que.map(s=><Card key={s.id} s={s}/>):<div style={{opacity:.4,fontSize:13}}>Busque acima</div>}</div>
     <h3 style={{marginTop:24,fontSize:15,fontWeight:800}}>Já maratonei ✓</h3>
     <div style={{display:"flex",gap:12,overflowX:"auto",padding:"4px 0"}}>{mar.length?mar.map(s=><Card key={s.id} s={s} selo/>):<div style={{opacity:.4,fontSize:13}}>Nenhuma finalizada</div>}</div>
    </div>
