@@ -1,10 +1,8 @@
 "use client"
-
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { createClient } from "@supabase/supabase-js"
 
-// CRIA O CLIENT AQUI DENTRO - NÃO PRECISA DE lib/supabase.js
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.NEXT_PUBLIC_SUPABASE_KEY
@@ -23,12 +21,12 @@ export default function Home() {
     if (data) setSeries(data)
   }
 
-  function carregarLocalStorage(listaSeries) {
+  function carregarLocalStorage(lista) {
     const sMap = {}
     const pMap = {}
-    listaSeries.forEach((s) => {
-      const st = localStorage.getItem(`status-${s.id}`)
-      const pg = localStorage.getItem(`progress-${s.id}`)
+    lista.forEach((s) => {
+      const st = localStorage.getItem("status-" + s.id)
+      const pg = localStorage.getItem("progress-" + s.id)
       if (st) sMap[s.id] = st
       if (pg) {
         try { pMap[s.id] = JSON.parse(pg) } catch {}
@@ -52,22 +50,21 @@ export default function Home() {
   async function buscarTMDB(q) {
     setBusca(q)
     if (q.length < 2) { setResultados([]); return }
-    const res = await fetch(`https://api.themoviedb.org/3/search/tv?api_key=${process.env.NEXT_PUBLIC_TMDB_KEY}&language=pt-BR&query=${q}`)
+    const res = await fetch("https://api.themoviedb.org/3/search/tv?api_key=" + process.env.NEXT_PUBLIC_TMDB_KEY + "&language=pt-BR&query=" + q)
     const json = await res.json()
-    setResultados(json.results?.slice(0, 6) || [])
+    setResultados(json.results ? json.results.slice(0, 6) : [])
   }
 
   async function adicionarQueroAssistir(item) {
-    const jaExiste = series.find(s => s.tmdb_id === item.id)
+    const jaExiste = series.find(function(s){ return s.tmdb_id === item.id })
     if (jaExiste) {
-      localStorage.setItem(`status-${jaExiste.id}`, "quero_assistir")
-      if (!localStorage.getItem(`progress-${jaExiste.id}`)) {
-        localStorage.setItem(`progress-${jaExiste.id}`, JSON.stringify([]))
+      localStorage.setItem("status-" + jaExiste.id, "quero_assistir")
+      if (!localStorage.getItem("progress-" + jaExiste.id)) {
+        localStorage.setItem("progress-" + jaExiste.id, JSON.stringify([]))
       }
-      carregarLocalStorage([...series])
+      carregarLocalStorage(series)
       return
     }
-
     const novaSerie = {
       tmdb_id: item.id,
       titulo: item.name,
@@ -76,18 +73,14 @@ export default function Home() {
       poster: item.poster_path,
       nota: item.vote_average
     }
-
     const { data, error } = await supabase.from("series").insert([novaSerie]).select().single()
     if (error) {
-      console.error(error)
-      alert("Erro ao salvar: " + error.message)
+      alert("Erro: " + error.message)
       return
     }
-
-    localStorage.setItem(`status-${data.id}`, "quero_assistir")
-    localStorage.setItem(`progress-${data.id}`, JSON.stringify([]))
-
-    const novaLista = [data, ...series]
+    localStorage.setItem("status-" + data.id, "quero_assistir")
+    localStorage.setItem("progress-" + data.id, JSON.stringify([]))
+    const novaLista = [data].concat(series)
     setSeries(novaLista)
     carregarLocalStorage(novaLista)
     setResultados([])
@@ -96,12 +89,53 @@ export default function Home() {
 
   if (!mounted) return null
 
-  const assistindo = series.filter(s => {
+  const assistindo = series.filter(function(s){
     const st = statusMap[s.id]
     const pg = progressMap[s.id]
     return st === "assistindo" || (pg && pg.length > 0)
   })
-  const quero = series.filter(s => !assistindo.find(a => a.id === s.id))
+  const quero = series.filter(function(s){
+    return !assistindo.find(function(a){ return a.id === s.id })
+  })
 
   return (
-    <main className="p-4 max-w-5
+    <main className="p-4 max-w-5xl mx-auto">
+      <input value={busca} onChange={function(e){ buscarTMDB(e.target.value) }} placeholder="Buscar serie..." className="w-full p-3 rounded-xl bg-zinc-900 border border-zinc-800 mb-4" />
+      {resultados.length > 0 && (
+        <div className="bg-zinc-900 p-4 rounded-xl mb-6 border border-zinc-800">
+          {resultados.map(function(r){
+            return (
+              <div key={r.id} className="flex justify-between items-center py-2 border-b border-zinc-800">
+                <span>{r.name}</span>
+                <button onClick={function(){ adicionarQueroAssistir(r) }} className="bg-white text-black px-3 py-1 rounded-full text-sm font-bold">+ Quero assistir</button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+      <h2 className="text-xl font-bold mt-6 mb-3">Assistindo</h2>
+      <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
+        {assistindo.map(function(s){
+          return (
+            <Link key={s.id} href={"/serie/" + s.id}>
+              <img src={"https://image.tmdb.org/t/p/w300" + s.poster} className="rounded-lg border-2 border-yellow-400" alt="" />
+              <p className="text-sm mt-1 truncate">{s.titulo}</p>
+            </Link>
+          )
+        })}
+      </div>
+      <h2 className="text-xl font-bold mt-8 mb-3">Quero Assistir</h2>
+      <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
+        {quero.map(function(s){
+          return (
+            <Link key={s.id} href={"/serie/" + s.id}>
+              <img src={"https://image.tmdb.org/t/p/w300" + s.poster} className="rounded-lg" alt="" />
+              <p className="text-sm mt-1 truncate">{s.titulo}</p>
+            </Link>
+          )
+        })}
+        {quero.length === 0 && assistindo.length === 0 && <p className="opacity-60 text-sm">Nenhuma serie ainda. Busque acima.</p>}
+      </div>
+    </main>
+  )
+}
