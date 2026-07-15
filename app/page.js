@@ -8,7 +8,7 @@ const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.
 const BASE = [
   { id: 101, titulo: "Abbott Elementary", status: "assistindo" },
   { id: 102, titulo: "X-Men 97", q: "X-Men 97", status: "assistindo" },
-  { id: 103, titulo: "Off Campus", q: "Off Campus", status: "assistindo" },
+  { id: 103, titulo: "Off Campus", status: "assistindo" },
   { id: 104, titulo: "The Walking Dead", status: "assistindo" },
   { id: 201, titulo: "Elle", q: "Elle Legally Blonde", status: "ja_assisti" },
   { id: 301, titulo: "Stranger Things", status: "maratonei" },
@@ -18,7 +18,7 @@ const BASE = [
 export default function Home() {
   const [userId, setUserId] = useState("anon")
   const [busca, setBusca] = useState("")
-  const [series, setSeries] = useState(BASE.map(s => ({...s, img: "" })))
+  const [series, setSeries] = useState([])
 
   useEffect(() => {
     const load = async () => {
@@ -27,20 +27,16 @@ export default function Home() {
       const uid = data.session.user.id
       setUserId(uid)
 
-      // 1. Busca capa REAL na TVmaze (API gratuita, sem chave) - acaba com capa trocada
       const comCapas = await Promise.all(BASE.map(async (s) => {
         try {
           const q = s.q || s.titulo
-          const res = await fetch("https://api.tvmaze.com/search/shows?q=" + encodeURIComponent(q))
-          const json = await res.json()
-          const img = json?.[0]?.show?.image?.original || json?.[0]?.show?.image?.medium || ""
-          return {...s, img: img || "https://picsum.photos/seed/" + s.id + "/400/600" }
-        } catch {
-          return {...s, img: "https://picsum.photos/seed/" + s.id + "/400/600" }
-        }
+          const r = await fetch("https://api.tvmaze.com/search/shows?q=" + encodeURIComponent(q))
+          const j = await r.json()
+          const img = j?.[0]?.show?.image?.original || j?.[0]?.show?.image?.medium || ""
+          return {...s, img: img || `https://picsum.photos/seed/${s.id}/400/600` }
+        } catch { return {...s, img: `https://picsum.photos/seed/${s.id}/400/600` } }
       }))
 
-      // 2. Aplica status salvo desse usuário (isola por UID)
       const final = comCapas.map(s => {
         const st = localStorage.getItem(uid + ":status-" + s.id)
         return st? {...s, status: st } : s
@@ -55,8 +51,10 @@ export default function Home() {
     window.location.href = "/serie/" + s.id
   }
 
-  // 3. BUSCA CONSERTADA - filtra na hora, sem useMemo quebrado
-  const filtradas = series.filter(s => s.titulo.toLowerCase().includes(busca.toLowerCase()))
+  // --- BUSCA CONSERTADA ---
+  const termo = busca.toLowerCase().trim()
+  const filtradas = termo? series.filter(s => s.titulo.toLowerCase().includes(termo)) : series
+
   const assistindo = filtradas.filter(s => s.status === "assistindo")
   const jaAssisti = filtradas.filter(s => s.status === "ja_assisti")
   const maratonei = filtradas.filter(s => s.status === "maratonei")
@@ -64,9 +62,8 @@ export default function Home() {
   const Card = ({ s }) => (
     <div onClick={() => abrir(s)} style={{ width: 124, cursor: "pointer", flexShrink: 0 }}>
       <div style={{ width: 124, height: 184, borderRadius: 12, overflow: "hidden", background: "#12182F", border: "1px solid #FFD400", position: "relative" }}>
-        {s.img? <img src={s.img} alt={s.titulo} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ width: "100%", height: "100%", background: "#1a2142" }} />}
+        <img src={s.img} alt={s.titulo} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
         <div style={{ position: "absolute", top: 6, left: 6, background: "#FFD400", color: "#000", fontSize: 8, fontWeight: 900, padding: "3px 6px", borderRadius: 6 }}>{s.status.toUpperCase()}</div>
-        <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 4, background: s.status === "maratonei"? "#22c55e" : s.status === "ja_assisti"? "#3b82f6" : "#FFD400" }} />
       </div>
       <div style={{ fontSize: 12, fontWeight: 700, marginTop: 6, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.titulo}</div>
     </div>
@@ -76,9 +73,10 @@ export default function Home() {
     <div style={{ marginTop: 22 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
         <div style={{ width: 3, height: 14, background: cor, borderRadius: 99 }} />
-        <b style={{ fontSize: 14 }}>{titulo}</b><span style={{ fontSize: 11, opacity: 0.4 }}>• {qtd}</span>
+        <b style={{ fontSize: 14 }}>{titulo}</b><span style={{ fontSize: 11, opacity:.4 }}>• {qtd}</span>
+        {termo && <span style={{ fontSize: 11, opacity:.3, marginLeft: 6 }}>filtrado por "{termo}"</span>}
       </div>
-      <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 6 }}>{children.length? children : <span style={{ fontSize: 12, opacity: 0.3 }}>{busca? "Nenhum resultado para '" + busca + "'" : "Vazio"}</span>}</div>
+      <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 6 }}>{children.length? children : <span style={{ fontSize: 12, opacity:.3 }}>Nenhum resultado</span>}</div>
     </div>
   )
 
@@ -91,8 +89,9 @@ export default function Home() {
 
       <div style={{ maxWidth: 900, margin: "0 auto", padding: 14 }}>
         <div style={{ background: "#121A3A", border: "1px solid #ffffff12", borderRadius: 999, display: "flex", alignItems: "center", padding: "0 14px", height: 42, maxWidth: 420, margin: "0 auto" }}>
-          <span style={{ opacity: 0.4, marginRight: 8 }}>🔍</span>
-          <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar série para adicionar..." style={{ flex: 1, background: "transparent", border: 0, outline: "none", color: "#fff", fontSize: 13 }} />
+          <span style={{ opacity:.4, marginRight: 8 }}>🔍</span>
+          <input value={busca} onChange={e => setBusca(e.target.value)} autoComplete="off" placeholder="Buscar série para adicionar..." style={{ flex: 1, background: "transparent", border: 0, outline: "none", color: "#fff", fontSize: 13 }} />
+          {busca && <span onClick={() => setBusca("")} style={{ cursor: "pointer", opacity:.5, fontSize: 12, marginLeft: 8 }}>✕</span>}
         </div>
 
         <Secao titulo="Assistindo" cor="#FFD400" qtd={assistindo.length}>{assistindo.map(s => <Card key={s.id} s={s} />)}</Secao>
