@@ -37,14 +37,53 @@ export default function Home() {
     const j = await r.json()
     setResultados(j.results ? j.results.slice(0, 6) : [])
   }
+
+  // FIX DUPLICATE KEY - VERSAO CORRIGIDA
   async function addQuero(item) {
-    const ja = series.find((s) => s.tmdb_id === item.id)
-    if (ja) { localStorage.setItem("status-" + ja.id, "quero_assistir"); carregarLS(series); setResultados([]); setBusca(""); return }
-    const nova = { tmdb_id: item.id, titulo: item.name, ano: item.first_air_date ? new Date(item.first_air_date).getFullYear() : null, sinopse: item.overview, poster: item.poster_path, nota: item.vote_average }
-    const { data, error } = await supabase.from("series").insert([nova]).select().single()
-    if (error) { alert(error.message); return }
-    localStorage.setItem("status-" + data.id, "quero_assistir"); localStorage.setItem("progress-" + data.id, JSON.stringify([]))
-    const lista = [data].concat(series); setSeries(lista); carregarLS(lista); setResultados([]); setBusca("")
+    // 1. Busca se ja existe no banco global pelo tmdb_id
+    const { data: existente } = await supabase.from("series").select("*").eq("tmdb_id", item.id).maybeSingle()
+    let serieFinal = existente
+
+    if (!existente) {
+      const nova = {
+        tmdb_id: item.id,
+        titulo: item.name,
+        ano: item.first_air_date ? new Date(item.first_air_date).getFullYear() : null,
+        sinopse: item.overview,
+        poster: item.poster_path,
+        nota: item.vote_average
+      }
+      const { data, error } = await supabase.from("series").insert([nova]).select().single()
+      if (error) {
+        if (error.message.includes("duplicate") || error.message.includes("unique")) {
+          const { data: retry } = await supabase.from("series").select("*").eq("tmdb_id", item.id).single()
+          serieFinal = retry
+        } else {
+          alert("Erro ao salvar: " + error.message)
+          return
+        }
+      } else {
+        serieFinal = data
+      }
+    }
+
+    if (!serieFinal) return
+
+    localStorage.setItem("status-" + serieFinal.id, "quero_assistir")
+    if (!localStorage.getItem("progress-" + serieFinal.id)) {
+      localStorage.setItem("progress-" + serieFinal.id, JSON.stringify([]))
+    }
+
+    const jaNaLista = series.find((s) => s.id === serieFinal.id)
+    if (!jaNaLista) {
+      const lista = [serieFinal].concat(series)
+      setSeries(lista)
+      carregarLS(lista)
+    } else {
+      carregarLS(series)
+    }
+    setResultados([])
+    setBusca("")
   }
 
   if (!mounted) return null
@@ -53,7 +92,6 @@ export default function Home() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#08162e", color: "white", paddingBottom: 90, fontFamily: "Inter, system-ui" }}>
-      {/* TOPO */}
       <div style={{ height: 64, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 16px", borderBottom: "1px solid rgba(255,255,255,0.06)", position: "sticky", top: 0, background: "#08162e", zIndex: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, fontWeight: 900, fontSize: 18, letterSpacing: -0.5 }}>
           <div style={{ width: 32, height: 32, borderRadius: 999, background: "#FFD400", display: "grid", placeItems: "center", color: "#08162e" }}>M</div> maratonei
@@ -66,7 +104,6 @@ export default function Home() {
       </div>
 
       <div style={{ maxWidth: 960, margin: "0 auto", padding: "16px" }}>
-        {/* BUSCA */}
         <div style={{ position: "relative" }}>
           <input value={busca} onChange={(e) => buscar(e.target.value)} placeholder="Buscar série..." style={{ width: "100%", height: 46, borderRadius: 999, background: "#122042", border: "1px solid rgba(255,255,255,0.1)", paddingLeft: 44, paddingRight: 16, color: "white", outline: "none" }} />
           <span style={{ position: "absolute", left: 16, top: 14, opacity: 0.5 }}>🔍</span>
@@ -119,7 +156,6 @@ export default function Home() {
         ) : <div style={{ color: "rgba(255,255,255,0.45)", fontSize: 13 }}>Nenhuma série ainda. Busque acima e clique em <b style={{ color: "white" }}>+ Quero assistir</b></div>}
       </div>
 
-      {/* RODAPÉ */}
       <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, height: 72, background: "#08162e", borderTop: "1px solid rgba(255,255,255,0.08)", display: "flex", justifyContent: "space-around", alignItems: "center", zIndex: 20 }}>
         <Link href="/" style={footActive}><span style={{ fontSize: 20 }}>📺</span><span style={{ fontSize: 10, fontWeight: 800 }}>Séries</span></Link>
         <Link href="/filmes" style={foot}><span style={{ fontSize: 20 }}>🎬</span><span style={{ fontSize: 10 }}>Filmes</span></Link>
