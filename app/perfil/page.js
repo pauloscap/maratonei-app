@@ -3,23 +3,97 @@ import { useEffect, useState } from "react"
 import { getSupa } from "../../lib/supabase"
 import { BottomNav } from "../../components/BottomNav"
 import { MOLDURAS, getMoldura } from "../../lib/moldurasLogic"
-const supa=getSupa()
-const hoje=()=>new Date().toISOString().slice(0,10)
-export default function Perfil(){
-const [nome,setNome]=useState("Você")
-const [st,setSt]=useState({t:0,m:0,h:0,n:1,xp:0})
-const [cks,setCks]=useState([])
-const [seq,setSeq]=useState(0)
-const [molduraId,setMolduraId]=useState("padrao")
-const [showLoja,setShowLoja]=useState(false)
-useEffect(()=>{const n=localStorage.getItem("perfil-nome")||"Você";const m=localStorage.getItem("perfil-moldura")||"padrao";setNome(n);setMolduraId(m);(async()=>{let sT=0,fT=0,mc=0,hr=0;try{const a=await supa.from("series").select("id");const b=await supa.from("filmes").select("id");sT=a.data?.length||0;fT=b.data?.length||0;for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k?.includes("status-")&&localStorage.getItem(k)=="ja_assisti")mc++;if(k?.startsWith("progress-")){try{hr+=JSON.parse(localStorage.getItem(k)||"[]").length*0.7}catch{}}}}catch{}const c=JSON.parse(localStorage.getItem("checkins")||"[]");setCks(c);let sq=0;const d=new Date();for(let i=0;i<30;i++){const x=new Date();x.setDate(d.getDate()-i);if(c.includes(x.toISOString().slice(0,10)))sq++;else if(i>0)break}setSeq(sq);const xp=mc*100+Math.floor(hr*5)+fT*30+c.length*15;setSt({t:sT+fT,m:mc,h:Math.round(hr),n:Math.max(1,Math.floor(xp/150)+1),xp})})()},[])
-const doCheck=()=>{const h=hoje();if(cks.includes(h))return;const n=[...cks,h];localStorage.setItem("checkins",JSON.stringify(n));location.reload()}
-const escolher=(id,nivel)=>{if(st.n<nivel)return alert("Chegue no nível "+nivel+" para desbloquear!");localStorage.setItem("perfil-moldura",id);setMolduraId(id);setShowLoja(false)}
-const dias=Array.from({length:30},(_,i)=>{const d=new Date();d.setDate(new Date().getDate()-(29-i));return d.toISOString().slice(0,10)})
-const molduraAtual=getMoldura(molduraId)
-return(<div className="min-h-screen bg-[#080B1F] text-white pb-24"><header className="h-14 flex items-center justify-between px-4 border-b border-white/10 sticky top-0 bg-[#080B1F] z-10"><b>Perfil</b><button onClick={()=>setShowLoja(!showLoja)} className="bg-white/10 px-3 py-1.5 rounded-full text-xs font-bold">🎨 Molduras</button></header><main className="max-w- mx-auto p-3.5 flex flex-col gap-3">
-<div className="bg-[#12182F] border border-white/10 rounded-2xl p-4 flex items-center gap-3"><div className={`w-14 h-14 rounded-full grid place-items-center text-black font-black text-xl border-2 ${molduraAtual.borda} bg-[#FFD400]`}>{nome[0]}</div><div className="flex-1"><div className="font-black">{nome}</div><div className="text-xs opacity-50">Nível {st.n} • {st.xp} XP • 🔥 {seq} dias • {molduraAtual.nome}</div><div className="h-1.5 bg-white/10 rounded-full mt-2 overflow-hidden"><div className="h-full bg-[#FFD400]" style={{width:(st.xp%150)/1.5+"%"}}/></div></div><button onClick={doCheck} className={`h-9 px-4 rounded-full font-black text-sm ${cks.includes(hoje())?"bg-green-500 text-white":"bg-[#FFD400] text-black"}`}>{cks.includes(hoje())?"✓":"Check-in"}</button></div>
-{showLoja&&<div className="bg-[#12182F] border border-yellow-400/20 rounded-2xl p-3.5"><div className="font-extrabold text- mb-3">Loja de Molduras • Nível {st.n}</div><div className="grid grid-cols-3 gap-2.5">{MOLDURAS.map(m=>{const ok=st.n>=m.nivel;const ativo=m.id===molduraId;return<div key={m.id} onClick={()=>escolher(m.id,m.nivel)} className={`rounded-xl p-2.5 text-center border cursor-pointer ${ativo?"border-yellow-400 bg-yellow-400/10":"border-white/10 bg-white/[0.04]"} ${!ok?"opacity-40":""}`}><div className={`w-10 h-10 mx-auto rounded-full grid place-items-center font-black border-2 ${m.borda}`} style={{background:m.preview,color:"#000"}}>{nome[0]}</div><div className="text- font-bold mt-1.5">{m.nome}</div><div className="text- opacity-50">Nv {m.nivel}</div><div className="text- mt-1 font-black">{ativo?"Equipado":ok?"Desbloqueada":"Bloqueada"}</div></div>})}</div></div>}
-<div className="grid grid-cols-3 gap-2.5"><div className="bg-[#12182F] border border-white/10 rounded-2xl p-3.5 text-center"><div className="text-xl font-black">{st.t}</div><div className="text- opacity-40">Títulos</div></div><div className="bg-[#12182F] border border-white/10 rounded-2xl p-3.5 text-center"><div className="text-xl font-black text-[#FFD400]">{st.m}</div><div className="text- opacity-40">Maratonadas</div></div><div className="bg-[#12182F] border border-white/10 rounded-2xl p-3.5 text-center"><div className="text-xl font-black">{st.h}h</div><div className="text- opacity-40">Tempo</div></div></div>
-<div className="bg-[#12182F] border border-white/10 rounded-2xl p-3.5"><div className="font-extrabold text-">Calendário • 30 dias</div><div className="grid grid-cols-10 gap-1.5 mt-2.5">{dias.map(d=>{const ok=cks.includes(d);return<div key={d} className={`aspect-square rounded-lg grid place-items-center text- font-bold ${ok?"bg-green-500":"bg-white/10 opacity-35"}`}>{new Date(d).getDate()}</div>})}</div></div>
-</main><BottomNav/></div>)}
+
+const supa = getSupa()
+const hojeISO = () => new Date().toISOString().slice(0,10)
+
+export default function PerfilPage(){
+  const [nome,setNome] = useState("Paulo Garcia")
+  const [stats,setStats] = useState({t:10,m:1,h:194,n:8,xp:1144})
+  const [cks,setCks] = useState([])
+  const [seq,setSeq] = useState(1)
+  const [molduraId,setMolduraId] = useState("padrao")
+  const [show,setShow] = useState(false)
+
+  useEffect(()=>{
+    const n = localStorage.getItem("perfil-nome") || "Paulo Garcia"
+    const mid = localStorage.getItem("perfil-moldura") || "padrao"
+    setNome(n); setMolduraId(mid)
+    const c = JSON.parse(localStorage.getItem("checkins")||"[]")
+    setCks(c)
+  },[])
+
+  const doCheck = ()=>{
+    const h = hojeISO()
+    if(cks.includes(h)) return
+    const novo = [...cks,h]
+    localStorage.setItem("checkins", JSON.stringify(novo))
+    setCks(novo); setSeq(s=>s+1)
+  }
+
+  const escolher = (id,nivel)=>{
+    if(stats.n < nivel) return alert("Chegue no nivel "+nivel)
+    localStorage.setItem("perfil-moldura", id)
+    setMolduraId(id); setShow(false)
+  }
+
+  const mAtual = getMoldura(molduraId)
+  const dias = Array.from({length:30},(_,i)=>{
+    const d=new Date(); d.setDate(new Date().getDate()-(29-i)); return d
+  })
+
+  return(
+    <div style={{minHeight:"100vh", background:"#080B1F", color:"#fff", paddingBottom:90, fontFamily:"Inter"}}>
+      <header style={{height:56, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 16px", borderBottom:"1px solid #ffffff10", position:"sticky", top:0, background:"#080B1F", zIndex:10}}>
+        <b>Perfil</b>
+        <button onClick={()=>setShow(!show)} style={{background:"#fff", color:"#000", border:0, borderRadius:999, padding:"6px 12px", fontWeight:800, fontSize:12, cursor:"pointer"}}>🎨 Molduras</button>
+      </header>
+
+      <main style={{maxWidth:560, margin:"0 auto", padding:"16px 14px", display:"flex", flexDirection:"column", gap:12}}>
+        <div style={{background:"#12182F", border:"1px solid #ffffff12", borderRadius:18, padding:16, display:"flex", alignItems:"center", gap:12}}>
+          <div style={{width:48, height:48, borderRadius:999, background:"#FFD400", display:"grid", placeItems:"center", color:"#000", fontWeight:900, fontSize:20, border:`2px solid ${mAtual.preview}`, boxShadow: stats.n>=12? `0 0 12px ${mAtual.preview}`: "none"}}>{nome[0]}</div>
+          <div style={{flex:1}}>
+            <div style={{fontWeight:800}}>{nome}</div>
+            <div style={{fontSize:12, opacity:.6}}>Nível {stats.n} • {stats.xp} XP • 🔥 {seq} dias • {mAtual.nome}</div>
+            <div style={{height:6, background:"#ffffff14", borderRadius:99, marginTop:6, overflow:"hidden"}}><div style={{width:"40%", height:"100%", background:"#FFD400"}}/></div>
+          </div>
+          <button onClick={doCheck} style={{height:34, padding:"0 12px", borderRadius:999, border:0, background: cks.includes(hojeISO())?"#22c55e":"#fff", color: cks.includes(hojeISO())?"#fff":"#000", fontWeight:900, cursor:"pointer"}}>✓</button>
+        </div>
+
+        {show && <div style={{background:"#12182F", border:"1px solid #FFD40033", borderRadius:16, padding:12}}>
+          <div style={{fontWeight:800, fontSize:13, marginBottom:10}}>Loja de Molduras</div>
+          <div style={{display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8}}>
+            {MOLDURAS.map(m=>{
+              const ok = stats.n >= m.nivel
+              const ativo = m.id === molduraId
+              return <div key={m.id} onClick={()=>escolher(m.id,m.nivel)} style={{border: ativo?"1.5px solid #FFD400":"1px solid #ffffff15", background: ativo?"#FFD40014":"#ffffff06", borderRadius:12, padding:10, textAlign:"center", opacity: ok?1:.4, cursor:"pointer"}}>
+                <div style={{width:36, height:36, borderRadius:999, margin:"0 auto", background:m.preview, display:"grid", placeItems:"center", fontWeight:900, color:"#000", border:`2px solid ${m.preview}`}}>{nome[0]}</div>
+                <div style={{fontSize:11, fontWeight:700, marginTop:6}}>{m.nome}</div>
+                <div style={{fontSize:10, opacity:.5}}>Nv {m.nivel}</div>
+                <div style={{fontSize:10, fontWeight:800, marginTop:4, color: ativo?"#FFD400": ok?"#22c55e":"#fff"}}>{ativo?"Equipado": ok?"Liberada":"Bloqueada"}</div>
+              </div>
+            })}
+          </div>
+        </div>}
+
+        <div style={{display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10}}>
+          <div style={{background:"#12182F", border:"1px solid #ffffff10", borderRadius:16, padding:14, textAlign:"center"}}><div style={{fontSize:18, fontWeight:900}}>{stats.t}</div><div style={{fontSize:11, opacity:.4}}>Títulos</div></div>
+          <div style={{background:"#12182F", border:"1px solid #ffffff10", borderRadius:16, padding:14, textAlign:"center"}}><div style={{fontSize:18, fontWeight:900, color:"#FFD400"}}>{stats.m}</div><div style={{fontSize:11, opacity:.4}}>Maratonadas</div></div>
+          <div style={{background:"#12182F", border:"1px solid #ffffff10", borderRadius:16, padding:14, textAlign:"center"}}><div style={{fontSize:18, fontWeight:900}}>{stats.h}h</div><div style={{fontSize:11, opacity:.4}}>Tempo</div></div>
+        </div>
+
+        <div style={{background:"#12182F", border:"1px solid #ffffff10", borderRadius:18, padding:14}}>
+          <div style={{fontWeight:800, fontSize:13, marginBottom:10}}>Calendário • 30 dias</div>
+          <div style={{display:"grid", gridTemplateColumns:"repeat(10, 1fr)", gap:6}}>
+            {dias.map((d,i)=>{
+              const iso = d.toISOString().slice(0,10)
+              const ok = cks.includes(iso)
+              return <div key={i} style={{aspectRatio:"1", borderRadius:7, background: ok?"#22c55e":"#ffffff14", display:"grid", placeItems:"center", fontSize:10, fontWeight:700, opacity: ok?1:.4}}>{d.getDate()}</div>
+            })}
+          </div>
+        </div>
+      </main>
+      <BottomNav/>
+    </div>
+  )
+}
