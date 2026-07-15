@@ -1,4 +1,15 @@
 "use client"
+import { useEffect } from "react"
+import { createClient } from "@supabase/supabase-js"
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_KEY)
+export default function Home(){
+ useEffect(()=>{
+  supabase.auth.getSession().then(({data})=>{
+    if(!data.session) location.href="/login"
+  })
+ },[])
+ // ... resto do seu código da Home
+}
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
