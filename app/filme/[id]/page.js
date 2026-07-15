@@ -85,4 +85,28 @@ export default function FilmePage() {
       </header>
 
       <div style={{ height:220, position:"relative", overflow:"hidden" }}>
-        <img src={bg} alt="" style={{ width
+        <img src={bg} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", opacity:.5 }} />
+        <div style={{ position:"absolute", inset:0, background:"linear-gradient(to top, #080F25 15%, transparent 85%)" }} />
+      </div>
+
+      <main style={{ maxWidth:860, margin:"0 auto", padding:"0 16px", marginTop:-60, position:"relative" }}>
+        <div style={{ display:"flex", gap:14 }}>
+          <img src={poster} alt="" style={{ width:110, height:165, borderRadius:14, objectFit:"cover", background:"#121B3A", border:"1px solid #ffffff18" }} />
+          <div style={{ flex:1, paddingTop:22 }}>
+            <div style={{ fontWeight:900, fontSize:18, lineHeight:1.2 }}>{f.title}</div>
+            <div style={{ fontSize:12, opacity:.5, marginTop:6 }}>{f.release_date?.slice(0,4)} • {f.runtime} min • {f.vote_average?.toFixed(1)}★</div>
+            <div style={{ display:"flex", gap:8, marginTop:14, flexWrap:"wrap" }}>
+              <button onClick={()=>fixar("quero_assistir")} style={{ height:36, padding:"0 14px", borderRadius:999, border:0, cursor:"pointer", background: st==="quero_assistir"? "#fff":"#ffffff14", color: st==="quero_assistir"? "#000":"#fff", fontWeight:700, fontSize:13 }}>Quero Assistir</button>
+              <button onClick={()=>fixar("ja_assisti")} style={{ height:36, padding:"0 14px", borderRadius:999, border:0, cursor:"pointer", background: st==="ja_assisti"? "#22c55e":"#ffffff14", color: st==="ja_assisti"? "#000":"#fff", fontWeight:800, fontSize:13 }}>Já Assisti</button>
+            </div>
+            <div style={{ fontSize:11, opacity:.35, marginTop:8 }}>Salvo automaticamente em Filmes</div>
+          </div>
+        </div>
+        <div style={{ marginTop:20, background:"#121B3A", border:"1px solid #ffffff10", borderRadius:14, padding:14 }}>
+          <div style={{ fontSize:11, fontWeight:800, opacity:.5, marginBottom:8, letterSpacing:.5 }}>SINOPSE</div>
+          <div style={{ fontSize:13, lineHeight:1.6, opacity:.85 }}>{f.overview || "Sem sinopse."}</div>
+        </div>
+      </main>
+    </div>
+  )
+}
