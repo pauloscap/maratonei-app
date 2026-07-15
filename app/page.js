@@ -1,9 +1,4 @@
 "use client"
-<div style={{background:'#FFD400', color:'#08162e', padding:8, fontSize:11, fontFamily:'monospace'}}>
-  DEBUG: series={series.length} | statusKeys={Object.keys(statusMap).length} | progressKeys={Object.keys(progressMap).length} <br/>
-  LS status: {JSON.stringify(statusMap).slice(0,200)} <br/>
-  LS progress: {JSON.stringify(progressMap).slice(0,200)}
-</div>
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { createClient } from "@supabase/supabase-js"
