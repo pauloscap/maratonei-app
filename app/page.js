@@ -21,7 +21,7 @@ export default function Home() {
   const [series, setSeries] = useState([])
   const [resultados, setResultados] = useState([])
   const [buscando, setBuscando] = useState(false)
-  const [view, setView] = useState("grade") // grade | lista
+  const [view, setView] = useState("grade")
 
   useEffect(() => {
     const init = async () => {
@@ -31,7 +31,6 @@ export default function Home() {
       setUserId(uid)
       const savedView = localStorage.getItem(uid + ":view-mode")
       if (savedView) setView(savedView)
-
       const salvas = JSON.parse(localStorage.getItem(uid + ":minhas-series") || "null")
       const listaBase = salvas || BASE
       const comCapas = await Promise.all(listaBase.map(async (s) => {
@@ -78,47 +77,32 @@ export default function Home() {
     localStorage.setItem(userId + ":view-mode", novo)
   }
 
-  const salvarLista = (novaLista) => {
-    setSeries(novaLista)
-    localStorage.setItem(userId + ":minhas-series", JSON.stringify(novaLista))
-  }
+  const salvarLista = (novaLista) => { setSeries(novaLista); localStorage.setItem(userId + ":minhas-series", JSON.stringify(novaLista)) }
   const adicionarSerie = (s) => {
     const nova = { id: s.id, titulo: s.titulo, ano: s.ano || "2024", status: "quero_assistir", img: s.img, q: s.titulo }
     const novaLista = [nova,...series.filter(x => x.id!== s.id)]
-    salvarLista(novaLista)
-    localStorage.setItem(userId + ":serie-atual", JSON.stringify(nova))
-    setBusca(""); setResultados([])
-    setTimeout(() => window.location.href = "/serie/" + s.id, 100)
+    salvarLista(novaLista); localStorage.setItem(userId + ":serie-atual", JSON.stringify(nova)); setBusca(""); setResultados([]); setTimeout(() => window.location.href = "/serie/" + s.id, 100)
   }
-  const abrir = (s) => {
-    localStorage.setItem(userId + ":serie-atual", JSON.stringify(s))
-    window.location.href = "/serie/" + s.id
-  }
+  const abrir = (s) => { localStorage.setItem(userId + ":serie-atual", JSON.stringify(s)); window.location.href = "/serie/" + s.id }
 
   const assistindo = series.filter(s => s.status === "assistindo")
   const queroAssistir = series.filter(s => s.status === "quero_assistir")
   const maratonei = series.filter(s => s.status === "maratonei")
 
-  // CARD GRADE (original)
   const CardGrade = ({ s }) => (
-    <div onClick={() => abrir(s)} style={{ width: 124, cursor: "pointer", flexShrink: 0 }}>
-      <div style={{ width: 124, height: 184, borderRadius: 12, overflow: "hidden", background: "#12182F", border: "1px solid #FFD40033", position: "relative" }}>
-        <img src={s.img} alt={s.titulo} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-        <div style={{ position: "absolute", top: 6, left: 6, background: "#FFD400", color: "#000", fontSize: 8, fontWeight: 900, padding: "3px 6px", borderRadius: 6 }}>{s.status === "quero_assistir"? "QUERO": s.status.toUpperCase()}</div>
+    <div onClick={() => abrir(s)} className="card-grade">
+      <div className="poster-wrap">
+        <img src={s.img} alt={s.titulo} />
+        <div className="badge">{s.status === "quero_assistir"? "QUERO" : s.status.toUpperCase()}</div>
       </div>
-      <div style={{ fontSize: 12, fontWeight: 700, marginTop: 6, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.titulo}</div>
+      <div className="titulo">{s.titulo}</div>
     </div>
   )
 
-  // CARD LISTA (novo)
   const CardLista = ({ s }) => (
     <div onClick={() => abrir(s)} style={{ display:"flex", gap:12, padding:10, background:"#12182F", border:"1px solid #ffffff10", borderRadius:12, cursor:"pointer" }}>
       <img src={s.img} style={{ width:52, height:78, borderRadius:8, objectFit:"cover" }} />
-      <div style={{ flex:1 }}>
-        <div style={{ fontSize:13, fontWeight:800 }}>{s.titulo}</div>
-        <div style={{ fontSize:11, opacity:.5, marginTop:2 }}>{s.ano || "Série"} • {s.status === "quero_assistir"? "Quero Assistir" : s.status}</div>
-        <div style={{ marginTop:8, height:4, background:"#ffffff14", borderRadius:99, overflow:"hidden" }}><div style={{ width: s.status==="maratonei"? "100%": s.status==="assistindo"? "45%":"0%", height:"100%", background: s.status==="maratonei"? "#22c55e": s.status==="assistindo"? "#FFD400": "#8b5cf6" }} /></div>
-      </div>
+      <div style={{ flex:1 }}><div style={{ fontSize:13, fontWeight:800 }}>{s.titulo}</div><div style={{ fontSize:11, opacity:.5, marginTop:2 }}>{s.status === "quero_assistir"? "Quero Assistir" : s.status}</div></div>
       <div style={{ alignSelf:"center", opacity:.3 }}>›</div>
     </div>
   )
@@ -129,29 +113,40 @@ export default function Home() {
         <div style={{ width: 3, height: 14, background: cor, borderRadius: 99 }} />
         <b style={{ fontSize: 14 }}>{titulo}</b><span style={{ fontSize: 11, opacity:.4 }}>• {qtd}</span>
       </div>
-      {view === "grade"? (
-        <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 6 }}>{children}</div>
-      ) : (
-        <div style={{ display: "grid", gap: 8 }}>{children}</div>
-      )}
+      {view === "grade"? <div className="grid-responsive">{children}</div> : <div style={{ display: "grid", gap: 8 }}>{children}</div>}
     </div>
   )
 
   return (
     <div style={{ minHeight: "100vh", background: "#0A0F2A", color: "#fff", paddingBottom: 90 }}>
+      <style>{`
+       .grid-responsive {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 10px;
+        }
+        @media (min-width: 480px) {.grid-responsive { grid-template-columns: repeat(4, 1fr); } }
+        @media (min-width: 768px) {.grid-responsive { grid-template-columns: repeat(5, 1fr); gap: 14px; } }
+        @media (min-width: 1024px) {.grid-responsive { grid-template-columns: repeat(6, 1fr); } }
+        @media (min-width: 1280px) {.grid-responsive { grid-template-columns: repeat(7, 1fr); } }
+       .card-grade { cursor: pointer; }
+       .poster-wrap { width: 100%; aspect-ratio: 2/3; border-radius: 12px; overflow: hidden; background: #12182F; border: 1px solid #FFD40022; position: relative; }
+       .poster-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
+       .badge { position: absolute; top: 6px; left: 6px; background: #FFD400; color: #000; font-size: 8px; font-weight: 900; padding: 3px 6px; border-radius: 6px; }
+       .titulo { font-size: 12px; font-weight: 700; margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      `}</style>
+
       <header style={{ height: 56, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 14px", borderBottom: "1px solid #ffffff0f", position: "sticky", top: 0, background: "#0A0F2A", zIndex: 20 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}><div style={{ width: 28, height: 28, borderRadius: 8, background: "#FFD400", color: "#000", display: "grid", placeItems: "center", fontWeight: 900 }}>M</div><b>maratonei</b></div>
-
-        {/* ÁREA DO PERFIL + BOTÃO GRADE/LISTA ABAIXO */}
         <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:4 }}>
           <div onClick={() => window.location.href = "/perfil"} style={{ width: 30, height: 30, borderRadius: 999, background: "#FFD400", color: "#000", display: "grid", placeItems: "center", fontWeight: 900, fontSize: 12, cursor: "pointer" }}>P</div>
-          <button onClick={toggleView} title={view==="grade"? "Mudar para Lista" : "Mudar para Grade"} style={{ background:"#121A3A", border:"1px solid #ffffff18", color:"#fff", borderRadius:8, padding:"4px 7px", fontSize:11, cursor:"pointer", display:"flex", alignItems:"center", gap:4 }}>
-            {view==="grade"? "☰ Lista" : "⊞ Grade"}
+          <button onClick={toggleView} style={{ background:"#121A3A", border:"1px solid #ffffff18", color:"#fff", borderRadius:8, padding:"4px 8px", fontSize:11, cursor:"pointer" }}>
+            {view==="grade"? "≡ Lista" : "⊞ Grade"}
           </button>
         </div>
       </header>
 
-      <div style={{ maxWidth: 900, margin: "0 auto", padding: 14, position: "relative" }}>
+      <div style={{ maxWidth: 1280, margin: "0 auto", padding: 14, position: "relative" }}>
         <div style={{ background: "#121A3A", border: "1px solid #ffffff12", borderRadius: 999, display: "flex", alignItems: "center", padding: "0 14px", height: 42, maxWidth: 420, margin: "0 auto" }}>
           <span style={{ opacity:.4, marginRight: 8 }}>🔍</span>
           <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar série para adicionar..." style={{ flex: 1, background: "transparent", border: 0, outline: "none", color: "#fff", fontSize: 13 }} />
@@ -160,16 +155,11 @@ export default function Home() {
 
         {busca && (
           <div style={{ position: "absolute", top: 62, left: 14, right: 14, maxWidth: 420, margin: "0 auto", background: "#12182F", border: "1px solid #ffffff18", borderRadius: 16, zIndex: 50, overflow: "hidden", boxShadow: "0 20px 40px #00000080" }}>
-            {buscando && <div style={{ padding: 14, fontSize: 12, opacity:.5 }}>Buscando no catálogo...</div>}
-            {!buscando && resultados.length === 0 && <div style={{ padding: 14, fontSize: 12, opacity:.4 }}>Nenhum resultado para "{busca}"</div>}
+            {buscando && <div style={{ padding: 14, fontSize: 12, opacity:.5 }}>Buscando...</div>}
             {resultados.map(r => (
               <div key={r.id} onClick={() => adicionarSerie(r)} style={{ display: "flex", gap: 10, padding: 10, borderBottom: "1px solid #ffffff0a", cursor: "pointer" }}>
                 <img src={r.img} style={{ width: 44, height: 66, borderRadius: 8, objectFit: "cover" }} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 800 }}>{r.titulo} <span style={{ opacity:.4, fontWeight:400 }}>{r.ano}</span></div>
-                  <div style={{ fontSize: 11, opacity:.5, marginTop: 2 }}>{r.sinopse}</div>
-                  <div style={{ fontSize: 10, color: "#FFD400", marginTop: 4, fontWeight: 800 }}>+ ADICIONAR</div>
-                </div>
+                <div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 800 }}>{r.titulo}</div><div style={{ fontSize: 11, opacity:.5 }}>{r.sinopse}</div><div style={{ fontSize: 10, color: "#FFD400", marginTop: 4, fontWeight: 800 }}>+ ADICIONAR</div></div>
               </div>
             ))}
           </div>
@@ -177,15 +167,9 @@ export default function Home() {
 
         {!busca && (
           <>
-            <Secao titulo="Assistindo" cor="#FFD400" qtd={assistindo.length}>
-              {assistindo.map(s => view==="grade"? <CardGrade key={s.id} s={s}/> : <CardLista key={s.id} s={s}/>)}
-            </Secao>
-            <Secao titulo="Quero Assistir" cor="#8b5cf6" qtd={queroAssistir.length}>
-              {queroAssistir.map(s => view==="grade"? <CardGrade key={s.id} s={s}/> : <CardLista key={s.id} s={s}/>)}
-            </Secao>
-            <Secao titulo="Maratonei" cor="#22c55e" qtd={maratonei.length}>
-              {maratonei.map(s => view==="grade"? <CardGrade key={s.id} s={s}/> : <CardLista key={s.id} s={s}/>)}
-            </Secao>
+            <Secao titulo="Assistindo" cor="#FFD400" qtd={assistindo.length}>{assistindo.map(s => view==="grade"? <CardGrade key={s.id} s={s}/> : <CardLista key={s.id} s={s}/>)}</Secao>
+            <Secao titulo="Quero Assistir" cor="#8b5cf6" qtd={queroAssistir.length}>{queroAssistir.map(s => view==="grade"? <CardGrade key={s.id} s={s}/> : <CardLista key={s.id} s={s}/>)}</Secao>
+            <Secao titulo="Maratonei" cor="#22c55e" qtd={maratonei.length}>{maratonei.map(s => view==="grade"? <CardGrade key={s.id} s={s}/> : <CardLista key={s.id} s={s}/>)}</Secao>
           </>
         )}
       </div>
