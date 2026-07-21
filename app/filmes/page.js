@@ -4,7 +4,7 @@ import { createClient } from "@supabase/supabase-js"
 import { BottomNav } from "../../components/BottomNav"
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_KEY)
-const TMDB_KEY = process.env.NEXT_PUBLIC_TMDB_KEY || "72b2b194ab41f0795c838da8dc56d0ca"
+const TMDB_KEY = process.env.NEXT_PUBLIC_TMDB_KEY || "4e44d9029b1273360df0be1de39768d1"
 const TMDB_IMG = "https://image.tmdb.org/t/p/w342"
 
 export default function FilmesPage() {
@@ -14,6 +14,7 @@ export default function FilmesPage() {
   const [resultados, setResultados] = useState([])
   const [view, setView] = useState("grade")
   const [msg, setMsg] = useState("")
+  const [escolha, setEscolha] = useState(null) // filme que o usuario clicou na busca
 
   useEffect(() => {
     async function init() {
@@ -32,29 +33,17 @@ export default function FilmesPage() {
 
   async function buscarFilmes(q){
     const termo = q.trim()
-    if(!termo) return []
-    // tenta 3 fontes diferentes
-    const fontes = [
-      // 1 - TMDB PT-BR direto
+    const urls = [
       "https://api.themoviedb.org/3/search/movie?api_key="+TMDB_KEY+"&language=pt-BR&query="+encodeURIComponent(termo),
-      // 2 - TMDB EN
       "https://api.themoviedb.org/3/search/movie?api_key="+TMDB_KEY+"&language=en-US&query="+encodeURIComponent(termo),
-      // 3 - OMDb via proxy sem CORS
       "https://api.allorigins.win/raw?url="+encodeURIComponent("https://www.omdbapi.com/?apikey=thewdb&s="+termo+"&type=movie")
     ]
-
-    for(let url of fontes){
+    for(let url of urls){
       try{
         const r = await fetch(url)
         const j = await r.json()
-        if(j.results && j.results.length){
-          return j.results.slice(0,10).map(function(m){
-            return { id:String(m.id), titulo:(m.title||m.original_title)+(m.release_date?" ("+m.release_date.slice(0,4)+")":""), img:m.poster_path?TMDB_IMG+m.poster_path:"https://picsum.photos/seed/"+m.id+"/400/600" }
-          })
-        }
-        if(j.Search && j.Search.length){
-          return j.Search.slice(0,10).map(function(it){ return { id:it.imdbID, titulo:it.Title+" ("+it.Year+")", img:it.Poster!=="N/A"?it.Poster:"https://picsum.photos/seed/"+it.imdbID+"/400/600" } })
-        }
+        if(j.results?.length) return j.results.slice(0,10).map(function(m){ return { id:String(m.id), titulo:(m.title||m.original_title)+(m.release_date?" ("+m.release_date.slice(0,4)+")":""), img:m.poster_path?TMDB_IMG+m.poster_path:"https://picsum.photos/seed/"+m.id+"/400/600" } })
+        if(j.Search?.length) return j.Search.slice(0,10).map(function(it){ return { id:it.imdbID, titulo:it.Title+" ("+it.Year+")", img:it.Poster!=="N/A"?it.Poster:"https://picsum.photos/seed/"+it.imdbID+"/400/600" } })
       }catch(e){ continue }
     }
     return []
@@ -66,19 +55,23 @@ export default function FilmesPage() {
       setMsg("Buscando...")
       const res = await buscarFilmes(busca)
       setResultados(res)
-      setMsg(res.length?"":"Nenhum resultado para '"+busca+"'. Tente sem acento: devoradores de estrelas")
+      setMsg(res.length?"":"Nenhum resultado")
     },400)
     return function(){ clearTimeout(t) }
   },[busca])
 
   function toggle(){ const n=view==="grade"?"lista":"grade"; setView(n); localStorage.setItem(userId+":view-filmes",n) }
-  async function add(f){
-    const novo={ id:String(f.id), titulo:f.titulo, img:f.img, status:"quero_assistir" }
+
+  async function confirmarAdd(statusEscolhido){
+    if(!escolha) return
+    const novo={ id:String(escolha.id), titulo:escolha.titulo, img:escolha.img, status:statusEscolhido }
     const nl=[novo].concat(filmes.filter(function(x){ return String(x.id)!==String(novo.id) }))
-    setFilmes(nl); localStorage.setItem(userId+":meus-filmes", JSON.stringify(nl))
+    setFilmes(nl)
+    localStorage.setItem(userId+":meus-filmes", JSON.stringify(nl))
     try{ await supabase.from("user_filmes").upsert({ user_id:userId, filme_id:novo.id, titulo:novo.titulo, img:novo.img, status:novo.status, updated_at:new Date().toISOString() }, {onConflict:"user_id,filme_id"}) }catch(e){}
-    setBusca(""); setResultados([])
+    setEscolha(null); setBusca(""); setResultados([]); setMsg("")
   }
+
   function abrir(f){ localStorage.setItem(userId+":filme-atual", JSON.stringify(f)); window.location.href="/filme/"+f.id }
 
   const quero=filmes.filter(function(x){ return x.status==="quero_assistir" })
@@ -88,21 +81,41 @@ export default function FilmesPage() {
   return (
     <div style={{minHeight:"100vh",background:"#0A0F2A",color:"#fff",paddingBottom:90}}>
       <style>{`.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}@media(min-width:768px){.grid{grid-template-columns:repeat(5,1fr)}}.list{display:grid;gap:8px}.card{cursor:pointer}.poster{width:100%;aspect-ratio:2/3;border-radius:12px;overflow:hidden;background:#12182F;border:1px solid #222b5a;position:relative}.poster img{width:100%;height:100%;object-fit:cover}.badge{position:absolute;top:6px;left:6px;background:#FFD400;color:#000;font-size:8px;font-weight:900;padding:3px 6px;border-radius:6px}.tit{font-size:12px;font-weight:700;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.row{display:flex;gap:12px;padding:10px;background:#12182F;border:1px solid #222b5a;border-radius:12px;cursor:pointer}.row img{width:52px;height:78px;border-radius:8px;object-fit:cover}`}</style>
+
       <header style={{height:56,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 14px",borderBottom:"1px solid #1e274f",position:"sticky",top:0,background:"#0A0F2A",zIndex:20}}>
         <div style={{display:"flex",gap:8,alignItems:"center"}}><div style={{width:28,height:28,borderRadius:8,background:"#FFD400",color:"#000",display:"grid",placeItems:"center",fontWeight:900}}>M</div><b>maratonei</b></div>
         <button onClick={toggle} style={{background:"#121A3A",border:"1px solid #2a3566",color:"#fff",borderRadius:8,padding:"6px 10px",fontSize:11,cursor:"pointer"}}>{view==="grade"?"Lista":"Grade"}</button>
       </header>
+
       <div style={{maxWidth:1280,margin:"0 auto",padding:14,position:"relative"}}>
         <div style={{background:"#121A3A",border:"1px solid #2a3566",borderRadius:999,display:"flex",alignItems:"center",padding:"0 14px",height:42,maxWidth:420,margin:"0 auto"}}>
-          <input value={busca} onChange={function(e){setBusca(e.target.value)}} placeholder="Buscar filme em PT-BR" style={{flex:1,background:"transparent",border:0,outline:"none",color:"#fff",fontSize:13}}/>
+          <input value={busca} onChange={function(e){setBusca(e.target.value)}} placeholder="Buscar filme" style={{flex:1,background:"transparent",border:0,outline:"none",color:"#fff",fontSize:13}}/>
           {busca&&<span onClick={function(){setBusca("");setResultados([])}} style={{cursor:"pointer",opacity:0.5}}>X</span>}
         </div>
+
         {busca&&<div style={{position:"absolute",top:62,left:14,right:14,maxWidth:420,margin:"0 auto",background:"#12182F",border:"1px solid #2a3566",borderRadius:12,zIndex:50,overflow:"hidden"}}>
-          {resultados.map(function(r){return <div key={r.id} onClick={function(){add(r)}} style={{display:"flex",gap:10,padding:10,borderBottom:"1px solid #1e274f",cursor:"pointer"}}><img src={r.img} style={{width:40,height:60,borderRadius:6,objectFit:"cover"}} alt=""/><div><div style={{fontSize:13,fontWeight:700}}>{r.titulo}</div><div style={{fontSize:10,color:"#FFD400",fontWeight:800,marginTop:4}}>+ ADICIONAR</div></div></div>})}
+          {resultados.map(function(r){return <div key={r.id} onClick={function(){ setEscolha(r) }} style={{display:"flex",gap:10,padding:10,borderBottom:"1px solid #1e274f",cursor:"pointer"}}><img src={r.img} style={{width:40,height:60,borderRadius:6,objectFit:"cover"}} alt=""/><div style={{flex:1}}><div style={{fontSize:13,fontWeight:700}}>{r.titulo}</div><div style={{fontSize:10,color:"#FFD400",fontWeight:800,marginTop:4}}>ESCOLHER LISTA ›</div></div></div>})}
           {msg&&<div style={{padding:12,fontSize:12,opacity:0.5}}>{msg}</div>}
         </div>}
+
         {!busca&&<div><Secao titulo="Quero Assistir" cor="#8b5cf6" qtd={quero.length}>{quero.map(function(s){return view==="grade"?<div key={s.id} onClick={function(){abrir(s)}} className="card"><div className="poster"><img src={s.img} alt=""/><div className="badge">QUERO</div></div><div className="tit">{s.titulo}</div></div>:<div key={s.id} onClick={function(){abrir(s)}} className="row"><img src={s.img} alt=""/><div style={{flex:1}}><div style={{fontSize:13,fontWeight:800}}>{s.titulo}</div></div></div>})}</Secao><Secao titulo="Ja Assisti" cor="#22c55e" qtd={vistos.length}>{vistos.map(function(s){return view==="grade"?<div key={s.id} onClick={function(){abrir(s)}} className="card"><div className="poster"><img src={s.img} alt=""/><div className="badge" style={{background:"#22c55e",color:"#fff"}}>VISTO</div></div><div className="tit">{s.titulo}</div></div>:<div key={s.id} onClick={function(){abrir(s)}} className="row"><img src={s.img} alt=""/><div style={{flex:1}}><div style={{fontSize:13,fontWeight:800}}>{s.titulo}</div></div></div>})}</Secao></div>}
       </div>
+
+      {escolha && <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",backdropFilter:"blur(6px)",zIndex:100,display:"grid",placeItems:"center",padding:16}}>
+        <div style={{width:"100%",maxWidth:360,background:"#12182F",border:"1px solid #2a3566",borderRadius:20,padding:16}}>
+          <div style={{display:"flex",gap:12,alignItems:"center"}}>
+            <img src={escolha.img} alt="" style={{width:64,height:96,borderRadius:10,objectFit:"cover",background:"#000"}}/>
+            <div style={{flex:1}}><div style={{fontSize:14,fontWeight:900,lineHeight:1.2}}>{escolha.titulo}</div><div style={{fontSize:11,opacity:0.5,marginTop:6}}>Onde quer colocar?</div></div>
+            <button onClick={function(){setEscolha(null)}} style={{background:"transparent",border:0,color:"#fff",fontSize:18,cursor:"pointer",opacity:0.6}}>✕</button>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:16}}>
+            <button onClick={function(){confirmarAdd("quero_assistir")}} style={{height:48,borderRadius:12,background:"#FFD400",color:"#000",fontWeight:900,border:0,cursor:"pointer"}}>Quero Assistir</button>
+            <button onClick={function(){confirmarAdd("ja_assisti")}} style={{height:48,borderRadius:12,background:"#22c55e",color:"#fff",fontWeight:900,border:0,cursor:"pointer"}}>Já Assisti ✓</button>
+          </div>
+          <button onClick={function(){setEscolha(null)}} style={{width:"100%",marginTop:10,height:40,borderRadius:10,background:"#1a2142",color:"#fff",border:"1px solid #2a3566",cursor:"pointer",fontSize:12}}>Cancelar</button>
+        </div>
+      </div>}
+
       <BottomNav/>
     </div>
   )
