@@ -128,17 +128,15 @@ export default function Home() {
     <div style={{ minHeight:"100vh", background:"#0A0F2A", color:"#fff", paddingBottom:90 }}>
       <style>{".grid-responsive{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}@media(min-width:480px){.grid-responsive{grid-template-columns:repeat(4,1fr)}}@media(min-width:768px){.grid-responsive{grid-template-columns:repeat(5,1fr);gap:14px}}@media(min-width:1024px){.grid-responsive{grid-template-columns:repeat(6,1fr)}}.card-grade{cursor:pointer}.poster-wrap{width:100%;aspect-ratio:2/3;border-radius:12px;overflow:hidden;background:#12182F;border:1px solid rgba(255,255,255,0.08);position:relative}.poster-wrap img{width:100%;height:100%;object-fit:cover;display:block}.badge{position:absolute;top:6px;left:6px;background:#FFD400;color:#000;font-size:8px;font-weight:900;padding:3px 6px;border-radius:6px}.progress-track{position:absolute;bottom:0;left:0;right:0;height:4px;background:rgba(0,0,0,0.6)}.progress-fill{height:100%}.titulo{font-size:12px;font-weight:700;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sub{font-size:10px;opacity:0.5;margin-top:2px}"}</style>
 
-      {/* HEADER ATUALIZADO - LOGO + FOTO */}
+      {/* HEADER COM SUA LOGO icon-192.png */}
       <header style={{ height:62, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 14px", borderBottom:"1px solid rgba(255,255,255,0.06)", position:"sticky", top:0, background:"rgba(10,15,42,0.92)", backdropFilter:"blur(12px)", zIndex:20 }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-          <div style={{ width:32, height:32, borderRadius:9, background:"#121B3A", border:"1px solid rgba(255,255,255,0.1)", display:"grid", placeItems:"center", overflow:"hidden" }}>
-            <img src="/logo.png" onError={function(e){ e.currentTarget.src="/maratonei-logo.png"; e.currentTarget.onerror=function(){ e.currentTarget.style.display="none"; e.currentTarget.parentElement.innerHTML="🍿" } }} alt="maratonei" style={{ width:22, height:22, objectFit:"contain" }} />
-          </div>
-          <b style={{ fontFamily:"Sora,sans-serif", fontWeight:900, letterSpacing:-0.3 }}>maratonei</b>
+          <img src="/icon-192.png" alt="maratonei" style={{ width:32, height:32, borderRadius:8, objectFit:"contain" }} />
+          <b style={{ fontFamily:"Sora,sans-serif", fontWeight:900, letterSpacing:-0.3, fontSize:16 }}>maratonei</b>
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <button onClick={toggleView} style={{ background:"#121A3A", border:"1px solid rgba(255,255,255,0.12)", color:"#fff", borderRadius:8, padding:"6px 10px", fontSize:11, cursor:"pointer", height:32 }}>{view==="grade"? "Lista" : "Grade"}</button>
-          <button onClick={function(){ window.location.href="/perfil" }} style={{ width:34, height:34, borderRadius:999, overflow:"hidden", border:"1.5px solid #FFD40055", background:"#121B3A", display:"grid", placeItems:"center", cursor:"pointer", padding:0 }}>
+          <button onClick={function(){ window.location.href="/perfil" }} style={{ width:36, height:36, borderRadius:999, overflow:"hidden", border:"1.5px solid #FFD40055", background:"#121B3A", display:"grid", placeItems:"center", cursor:"pointer", padding:0 }}>
             {userFoto? <img src={userFoto} alt="perfil" style={{ width:"100%", height:"100%", objectFit:"cover" }} /> : <span style={{ fontWeight:900, fontSize:12, color:"#FFD400" }}>{userInicial}</span>}
           </button>
         </div>
