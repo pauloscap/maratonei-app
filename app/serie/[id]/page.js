@@ -4,7 +4,6 @@ import { createClient } from "@supabase/supabase-js"
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_KEY)
 
-// corrige IDs antigos que você usava no BASE
 const MAPA_CORRECAO = { "101":"45582", "102":"71268", "103":"73", "104":"73", "201":"46487", "301":"2993", "302":"61167" }
 
 export default function DetalheSerie({ params }) {
@@ -25,7 +24,6 @@ export default function DetalheSerie({ params }) {
       const uid = sess.data.session.user.id
       setUserId(uid)
 
-      // tenta buscar pelo ID real primeiro, depois pelo ID antigo
       let res = await supabase.from("user_series").select("*").eq("user_id", uid).eq("serie_id", idReal).single()
       if (!res.data) {
         const resAntigo = await supabase.from("user_series").select("*").eq("user_id", uid).eq("serie_id", id).single()
@@ -70,15 +68,28 @@ export default function DetalheSerie({ params }) {
         }
         const mapa = {}
         if (Array.isArray(seasons)) { seasons.forEach(function(se){ mapa[se.number] = { numero: se.number, eps: [] } }) }
-        if (Array.isArray(episodes)) { episodes.forEach(function(ep){ if (!mapa[ep.season]) mapa[ep.season] = { numero: ep.season, eps: [] }; mapa[ep.season].eps.push({ id: ep.id, numero: ep.number, nome: ep.name }) }) }
+        if (Array.isArray(episodes)) {
+          episodes.forEach(function(ep){
+            if (!mapa[ep.season]) mapa[ep.season] = { numero: ep.season, eps: [] };
+            mapa[ep.season].eps.push({
+              id: ep.id,
+              numero: ep.number,
+              nome: ep.name,
+              resumo: ep.summary? ep.summary.replace(/<[^>]+>/g,"").trim() : "Sem resumo disponível.",
+              img: ep.image? (ep.image.medium || ep.image.original) : "",
+              runtime: ep.runtime || 0,
+              airdate: ep.airdate || ""
+            })
+          })
+        }
         const lista = Object.values(mapa).sort(function(x,y){ return x.numero - y.numero })
         const totalCalc = lista.reduce(function(acc,t){ return acc + t.eps.length }, 0)
         localStorage.setItem(uid + ":total-" + id, String(totalCalc))
         localStorage.setItem(uid + ":total-" + idReal, String(totalCalc))
         if (lista.length) { setTemporadas(lista); setAberta(lista[0].numero) }
-        else { setTemporadas([{ numero:1, eps: [{ id: rid+"-1", numero:1, nome:"Episódio 1"}]}]); setAberta(1) }
+        else { setTemporadas([{ numero:1, eps: [{ id: rid+"-1", numero:1, nome:"Episódio 1", resumo:"", img:"" }]}]); setAberta(1) }
       } catch (e) {
-        setTemporadas([{ numero:1, eps: Array.from({length:10}, function(_,i){ return { id: rid+"-1-"+(i+1), numero:i+1, nome:"Episódio "+(i+1) } })}])
+        setTemporadas([{ numero:1, eps: Array.from({length:10}, function(_,i){ return { id: rid+"-1-"+(i+1), numero:i+1, nome:"Episódio "+(i+1), resumo:"Resumo não disponível.", img:"" } })}])
         setAberta(1)
         localStorage.setItem(uid + ":total-" + idReal, "10")
       }
@@ -119,7 +130,6 @@ export default function DetalheSerie({ params }) {
   async function abandonar(){
     const nome = serie? serie.titulo : ""
     if (!confirm("Abandonar " + nome + "?")) return
-    // deleta pelos dois IDs pra garantir
     await supabase.from("user_series").delete().eq("user_id", userId).in("serie_id", [id, idReal])
     localStorage.removeItem(userId + ":status-" + id)
     localStorage.removeItem(userId + ":status-" + idReal)
@@ -152,7 +162,7 @@ export default function DetalheSerie({ params }) {
         </div>
       </div>
 
-      <div style={{ maxWidth:680, margin:"0 auto", padding:"44px 14px 14px" }}>
+      <div style={{ maxWidth:720, margin:"0 auto", padding:"44px 14px 20px" }}>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginBottom:16 }}>
           <button onClick={function(){ mudarStatus("assistindo") }} style={{ padding:11, borderRadius:12, fontWeight:800, fontSize:12, background: status==="assistindo"?"#FFD400":"#12182F", color: status==="assistindo"?"#000":"#fff", border:"1px solid rgba(255,255,255,0.08)" }}>Assistindo</button>
           <button onClick={function(){ mudarStatus("quero_assistir") }} style={{ padding:11, borderRadius:12, fontWeight:800, fontSize:12, background: status==="quero_assistir"?"#FFD400":"#12182F", color: status==="quero_assistir"?"#000":"#fff", border:"1px solid rgba(255,255,255,0.08)" }}>Quero Assistir</button>
@@ -168,9 +178,26 @@ export default function DetalheSerie({ params }) {
               <div key={t.numero} style={{ borderTop:"1px solid rgba(255,255,255,0.06)", marginTop:10, paddingTop:10 }}>
                 <div onClick={function(){ setAberta(aberto? null : t.numero) }} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", cursor:"pointer" }}>
                   <span style={{ fontSize:13, fontWeight:700 }}>Temporada {t.numero} <span style={{ fontSize:11, background:"rgba(255,255,255,0.1)", padding:"2px 6px", borderRadius:99 }}>{vistos}/{t.eps.length}</span></span>
-                  <button onClick={function(e){ e.stopPropagation(); maratonarTemp(t) }} style={{ fontSize:10, padding:"4px 8px", borderRadius:99, background: vistos===t.eps.length?"#22c55e":"rgba(255,212,0,0.12)", color: vistos===t.eps.length?"#fff":"#FFD400", border:"1px solid rgba(255,212,0,0.2)", cursor:"pointer" }}>{vistos===t.eps.length?"Desmarcar":"Maratonar tudo"}</button>
+                  <button onClick={function(e){ e.stopPropagation(); maratonarTemp(t) }} style={{ fontSize:10, padding:"5px 10px", borderRadius:99, background: vistos===t.eps.length?"#22c55e":"rgba(255,212,0,0.14)", color: vistos===t.eps.length?"#fff":"#FFD400", border:"1px solid rgba(255,212,0,0.2)", cursor:"pointer", fontWeight:800 }}>{vistos===t.eps.length?"Desmarcar":"Maratonar tudo"}</button>
                 </div>
-                {aberto && <div style={{ marginTop:8, display:"grid", gap:6 }}>{t.eps.map(function(ep){ const ok = epsVistos.includes(ep.id); return (<div key={ep.id} onClick={function(){ toggleEp(ep.id) }} style={{ display:"flex", gap:10, alignItems:"center", padding:"8px 10px", borderRadius:10, background: ok?"rgba(255,255,255,0.06)":"transparent", border:"1px solid rgba(255,255,255,0.06)", cursor:"pointer" }}><div style={{ width:18, height:18, borderRadius:5, border:"1px solid rgba(255,255,255,0.2)", background: ok?"#22c55e":"transparent", display:"grid", placeItems:"center", fontSize:10, color:"#fff" }}>{ok?"✓":""}</div><div style={{ flex:1, fontSize:13 }}>{ep.numero}. {ep.nome}</div><div style={{ fontSize:10, opacity:0.4 }}>{ok?"Visto":"Marcar"}</div></div>)})}</div>}
+                {aberto && <div style={{ marginTop:12, display:"grid", gap:10 }}>{t.eps.map(function(ep){
+                  const ok = epsVistos.includes(ep.id);
+                  return (
+                    <div key={ep.id} style={{ display:"flex", gap:10, padding:10, borderRadius:14, background: ok?"rgba(255,255,255,0.05)":"#0E1430", border: ok? "1px solid #22c55e55" : "1px solid rgba(255,255,255,0.06)", alignItems:"flex-start" }}>
+                      <div style={{ width:84, height:48, borderRadius:8, overflow:"hidden", background:"#0A0F2A", flexShrink:0, border:"1px solid rgba(255,255,255,0.08)" }}>
+                        {ep.img? <img src={ep.img} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} /> : <div style={{ width:"100%", height:"100%", display:"grid", placeItems:"center", fontSize:10, opacity:0.3 }}>SEM IMG</div>}
+                      </div>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontSize:13, fontWeight:800, lineHeight:1.2, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{ep.numero}. {ep.nome}</div>
+                        {ep.airdate && <div style={{ fontSize:10, opacity:0.4, marginTop:2 }}>{ep.airdate}{ep.runtime? ` • ${ep.runtime}min`:""}</div>}
+                        <div style={{ fontSize:11, opacity:0.55, marginTop:5, lineHeight:1.35, display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical", overflow:"hidden" }}>{ep.resumo}</div>
+                      </div>
+                      <button onClick={function(){ toggleEp(ep.id) }} title={ok?"Desmarcar":"Marcar assistido"} style={{ width:36, height:36, minWidth:36, borderRadius:999, border: ok? "0" : "1.5px solid rgba(255,255,255,0.2)", background: ok? "#22c55e" : "transparent", color:"#fff", display:"grid", placeItems:"center", cursor:"pointer", fontSize:14, fontWeight:900, flexShrink:0, marginTop:6 }}>
+                        {ok? "✓" : ""}
+                      </button>
+                    </div>
+                  )
+                })}</div>}
               </div>
             )
           })}
