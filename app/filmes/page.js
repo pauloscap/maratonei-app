@@ -17,6 +17,7 @@ export default function FilmesPage() {
   const [filmes, setFilmes] = useState([])
   const [resultados, setResultados] = useState([])
   const [view, setView] = useState("grade")
+  const [buscando, setBuscando] = useState(false)
 
   useEffect(() => {
     async function init() {
@@ -28,7 +29,6 @@ export default function FilmesPage() {
       if (v) setView(v)
       const raw = localStorage.getItem(uid + ":meus-filmes")
       let lista = raw? JSON.parse(raw) : BASE_FILMES
-      // migra status antigo "assistindo" e "maratonei" para o novo padrao de filmes
       lista = lista.map(function(f){
         let st = f.status
         if (st==="maratonei" || st==="assistido") st="ja_assisti"
@@ -45,13 +45,30 @@ export default function FilmesPage() {
   useEffect(function(){
     if (!busca.trim()) { setResultados([]); return }
     const t = setTimeout(async function(){
+      setBuscando(true)
       try {
-        const r = await fetch("https://api.tvmaze.com/search/shows?q=" + encodeURIComponent(busca))
+        const r = await fetch("https://itunes.apple.com/search?term=" + encodeURIComponent(busca) + "&media=movie&limit=12")
         const j = await r.json()
-        const l = j.slice(0,6).map(function(it){ return { id: String(it.show.id), titulo: it.show.name, img: it.show.image? it.show.image.medium : "https://picsum.photos/seed/" + it.show.id + "/400/600" } })
-        setResultados(l)
-      } catch(e){ setResultados([]) }
-    }, 300)
+        if (j.results && j.results.length) {
+          const l = j.results.map(function(it){
+            const nid = String(it.trackId || it.collectionId)
+            let img = it.artworkUrl100 || ""
+            if (img) img = img.replace("100x100bb", "400x600bb")
+            return { id: nid, titulo: it.trackName, img: img || "https://picsum.photos/seed/" + nid + "/400/600" }
+          })
+          // remove duplicados por titulo
+          const unicos = []
+          const seen = {}
+          l.forEach(function(f){ if (!seen[f.titulo]) { seen[f.titulo]=1; unicos.push(f) } })
+          setResultados(unicos.slice(0,10))
+        } else {
+          setResultados([])
+        }
+      } catch(e){
+        setResultados([])
+      }
+      setBuscando(false)
+    }, 400)
     return function(){ clearTimeout(t) }
   }, [busca])
 
@@ -105,13 +122,24 @@ export default function FilmesPage() {
       <div style={{ maxWidth:1280, margin:"0 auto", padding:14, position:"relative" }}>
         <div style={{ background:"#121A3A", border:"1px solid #2a3566", borderRadius:999, display:"flex", alignItems:"center", padding:"0 14px", height:42, maxWidth:420, margin:"0 auto" }}>
           <span style={{ opacity:0.4, marginRight:8 }}>Q</span>
-          <input value={busca} onChange={function(e){ setBusca(e.target.value) }} placeholder="Buscar filme" style={{ flex:1, background:"transparent", border:0, outline:"none", color:"#fff", fontSize:13 }} />
+          <input value={busca} onChange={function(e){ setBusca(e.target.value) }} placeholder="Buscar filme (ex: Batman, Barbie)" style={{ flex:1, background:"transparent", border:0, outline:"none", color:"#fff", fontSize:13 }} />
           {busca && <span onClick={function(){ setBusca("") }} style={{ cursor:"pointer", opacity:0.5 }}>X</span>}
         </div>
 
-        {busca && resultados.length>0 && <div style={{ position:"absolute", top:62, left:14, right:14, maxWidth:420, margin:"0 auto", background:"#12182F", border:"1px solid #2a3566", borderRadius:12, zIndex:50, overflow:"hidden" }}>{resultados.map(function(r){ return <div key={r.id} onClick={function(){ add(r) }} style={{ display:"flex", gap:10, padding:10, borderBottom:"1px solid #1e274f", cursor:"pointer" }}><img src={r.img} style={{ width:40, height:60, borderRadius:6, objectFit:"cover" }} alt="" /><div><div style={{ fontSize:13, fontWeight:700 }}>{r.titulo}</div><div style={{ fontSize:10, color:"#FFD400", fontWeight:800, marginTop:4 }}>+ ADICIONAR</div></div></div> })}</div>}
+        {busca && <div style={{ position:"absolute", top:62, left:14, right:14, maxWidth:420, margin:"0 auto", background:"#12182F", border:"1px solid #2a3566", borderRadius:12, zIndex:50, overflow:"hidden" }}>
+          {buscando && <div style={{ padding:12, fontSize:12, opacity:0.5 }}>Buscando filmes...</div>}
+          {resultados.map(function(r){ return <div key={r.id} onClick={function(){ add(r) }} style={{ display:"flex", gap:10, padding:10, borderBottom:"1px solid #1e274f", cursor:"pointer" }}><img src={r.img} style={{ width:40, height:60, borderRadius:6, objectFit:"cover" }} alt="" /><div style={{ flex:1 }}><div style={{ fontSize:13, fontWeight:700 }}>{r.titulo}</div><div style={{ fontSize:10, color:"#FFD400", fontWeight:800, marginTop:4 }}>+ ADICIONAR</div></div></div> })}
+          {!buscando && resultados.length===0 && <div style={{ padding:12, fontSize:12, opacity:0.5 }}>Nenhum filme encontrado</div>}
+        </div>}
 
-        {!busca && <div><Secao titulo="Quero Assistir" cor="#8b5cf6" qtd={quero.length}>{quero.length? quero.map(function(s){ return view==="grade"? <div key={s.id} onClick={function(){ abrir(s) }} className="card"><div className="poster"><img src={s.img} alt="" /><div className="badge">QUERO</div></div><div className="tit">{s.titulo}</div></div> : <div key={s.id} onClick={function(){ abrir(s) }} className="row"><img src={s.img} alt="" /><div style={{ flex:1 }}><div style={{ fontSize:13, fontWeight:800 }}>{s.titulo}</div><div style={{ fontSize:11, opacity:0.5, marginTop:4 }}>Ainda nao assisti</div></div><div style={{ opacity:0.3 }}>›</div></div> }) : <div style={{ fontSize:12, opacity:0.4, padding:"10px 0" }}>Nenhum filme aqui ainda</div>}</Secao><Secao titulo="Ja Assisti" cor="#22c55e" qtd={vistos.length}>{vistos.length? vistos.map(function(s){ return view==="grade"? <div key={s.id} onClick={function(){ abrir(s) }} className="card"><div className="poster"><img src={s.img} alt="" /><div className="badge" style={{ background:"#22c55e", color:"#fff" }}>VISTO</div></div><div className="tit">{s.titulo}</div></div> : <div key={s.id} onClick={function(){ abrir(s) }} className="row"><img src={s.img} alt="" /><div style={{ flex:1 }}><div style={{ fontSize:13, fontWeight:800 }}>{s.titulo}</div><div style={{ fontSize:11, color:"#22c55e", marginTop:4 }}>✓ Assistido</div></div></div> }) : <div style={{ fontSize:12, opacity:0.4, padding:"10px 0" }}>Voce ainda nao marcou nenhum como visto</div>}</Secao></div>}
+        {!busca && <div>
+          <Secao titulo="Quero Assistir" cor="#8b5cf6" qtd={quero.length}>
+            {quero.length? quero.map(function(s){ return view==="grade"? <div key={s.id} onClick={function(){ abrir(s) }} className="card"><div className="poster"><img src={s.img} alt="" /><div className="badge">QUERO</div></div><div className="tit">{s.titulo}</div></div> : <div key={s.id} onClick={function(){ abrir(s) }} className="row"><img src={s.img} alt="" /><div style={{ flex:1 }}><div style={{ fontSize:13, fontWeight:800 }}>{s.titulo}</div><div style={{ fontSize:11, opacity:0.5, marginTop:4 }}>Ainda nao assisti</div></div><div style={{ opacity:0.3 }}>›</div></div> }) : <div style={{ fontSize:12, opacity:0.4, padding:"10px 0" }}>Nenhum filme aqui ainda</div>}
+          </Secao>
+          <Secao titulo="Ja Assisti" cor="#22c55e" qtd={vistos.length}>
+            {vistos.length? vistos.map(function(s){ return view==="grade"? <div key={s.id} onClick={function(){ abrir(s) }} className="card"><div className="poster"><img src={s.img} alt="" /><div className="badge" style={{ background:"#22c55e", color:"#fff" }}>VISTO</div></div><div className="tit">{s.titulo}</div></div> : <div key={s.id} onClick={function(){ abrir(s) }} className="row"><img src={s.img} alt="" /><div style={{ flex:1 }}><div style={{ fontSize:13, fontWeight:800 }}>{s.titulo}</div><div style={{ fontSize:11, color:"#22c55e", marginTop:4 }}>✓ Assistido</div></div></div> }) : <div style={{ fontSize:12, opacity:0.4, padding:"10px 0" }}>Voce ainda nao marcou nenhum como visto</div>}
+          </Secao>
+        </div>}
       </div>
       <BottomNav />
     </div>
