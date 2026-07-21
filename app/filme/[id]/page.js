@@ -1,111 +1,101 @@
 "use client"
 import { useEffect, useState } from "react"
-import { useParams, useRouter } from "next/navigation"
-import { getSupa } from "../../../lib/supabase"
+import { createClient } from "@supabase/supabase-js"
 
-const supa = getSupa()
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_KEY)
 
-export default function FilmePage() {
-  const { id } = useParams()
-  const router = useRouter()
-  const [f, setF] = useState(null)
-  const [st, setSt] = useState("quero_assistir")
-  const [savedId, setSavedId] = useState(null)
+export default function DetalheFilme({ params }) {
+  const id = String(params.id)
+  const [uid, setUid] = useState(null)
+  const [filme, setFilme] = useState(null)
+  const [status, setStatus] = useState("quero_assistir")
 
   useEffect(() => {
-    if (!id) return
-    const key = process.env.NEXT_PUBLIC_TMDB_KEY
-    fetch(`https://api.themoviedb.org/3/movie/${id}?api_key=${key}&language=pt-BR`)
-     .then(r => r.json())
-     .then(async j => {
-        setF(j)
-        // verifica se já está salvo no Supabase
-        try {
-          const { data } = await supa.from("filmes").select("*").eq("tmdb_id", j.id).maybeSingle()
-          if (data) {
-            setSavedId(data.id)
-            const s = localStorage.getItem("filme-status-" + data.id)
-            if (s) setSt(s)
-          }
-        } catch {}
-      })
+    async function load() {
+      const s = await supabase.auth.getSession()
+      if (!s.data.session) { window.location.href = "/login"; return }
+      const userId = s.data.session.user.id
+      setUid(userId)
+
+      let f = null
+      try { const raw = localStorage.getItem(userId + ":filme-atual"); if (raw) f = JSON.parse(raw) } catch(e){}
+      if (!f || String(f.id)!==id) {
+        try { const all = JSON.parse(localStorage.getItem(userId + ":meus-filmes") || "[]"); f = all.find(function(x){ return String(x.id)===id }) } catch(e){}
+      }
+      if (!f) f = { id: id, titulo: "Filme " + id, img: "https://picsum.photos/seed/" + id + "/600/900" }
+
+      const st = localStorage.getItem(userId + ":filme-status-" + id) || f.status || "quero_assistir"
+      let finalStatus = st
+      if (finalStatus==="maratonei" || finalStatus==="assistido") finalStatus="ja_assisti"
+      if (finalStatus==="assistindo") finalStatus="quero_assistir"
+
+      setFilme(f)
+      setStatus(finalStatus)
+
+      try {
+        const res = await supabase.from("user_filmes").select("*").eq("user_id", userId).eq("filme_id", id).single()
+        if (res.data && res.data.status) {
+          let sDb = res.data.status
+          if (sDb==="maratonei") sDb="ja_assisti"
+          if (sDb==="assistindo") sDb="quero_assistir"
+          setStatus(sDb)
+        }
+      } catch(e){}
+    }
+    load()
   }, [id])
 
-  const fixar = async (status) => {
-    if (!f) return
-    setSt(status)
+  async function mudar(novoStatus) {
+    if (!uid) return
+    setStatus(novoStatus)
+    localStorage.setItem(uid + ":filme-status-" + id, novoStatus)
+    // atualiza lista geral
     try {
-      let rowId = savedId
-      // 1. Se ainda não existe no Supabase, cria
-      if (!rowId) {
-        const novo = {
-          tmdb_id: f.id,
-          titulo: f.title,
-          poster: f.poster_path,
-          ano: f.release_date? new Date(f.release_date).getFullYear() : null
-        }
-        const { data, error } = await supa.from("filmes").insert([novo]).select().single()
-        if (error) throw error
-        rowId = data.id
-        setSavedId(rowId)
+      const raw = localStorage.getItem(uid + ":meus-filmes")
+      if (raw) {
+        let lista = JSON.parse(raw)
+        lista = lista.map(function(x){ if (String(x.id)===id) return {...x, status:novoStatus}; return x })
+        localStorage.setItem(uid + ":meus-filmes", JSON.stringify(lista))
       }
-      // 2. Salva status no localStorage usando o ID do Supabase
-      localStorage.setItem("filme-status-" + rowId, status)
-      localStorage.setItem("_upd", Date.now())
-    } catch (e) {
-      alert("Erro ao fixar: " + e.message)
-    }
+    } catch(e){}
+    try { await supabase.from("user_filmes").upsert({ user_id: uid, filme_id: id, titulo: filme.titulo, img: filme.img, status: novoStatus, updated_at: new Date().toISOString() }, { onConflict:"user_id,filme_id" }) } catch(e){}
   }
 
-  const abandonar = async () => {
-    if (!confirm(`Abandonar "${f?.title}"?`)) return
+  async function abandonar() {
+    if (!uid) { window.location.href="/filmes"; return }
+    if (!confirm("Remover " + (filme? filme.titulo : "esse filme") + " da sua lista?")) return
+
+    try { await supabase.from("user_filmes").delete().eq("user_id", uid).eq("filme_id", id) } catch(e){ console.log("erro supabase", e) }
+
     try {
-      if (savedId) {
-        await supa.from("filmes").delete().eq("id", savedId)
-        localStorage.removeItem("filme-status-" + savedId)
+      const raw = localStorage.getItem(uid + ":meus-filmes")
+      if (raw) {
+        let lista = JSON.parse(raw)
+        lista = lista.filter(function(x){ return String(x.id)!==id })
+        localStorage.setItem(uid + ":meus-filmes", JSON.stringify(lista))
       }
-      router.push("/filmes")
-    } catch (e) { alert(e.message) }
+      localStorage.removeItem(uid + ":filme-status-" + id)
+      localStorage.removeItem(uid + ":filme-atual")
+    } catch(e){}
+
+    window.location.href = "/filmes"
   }
 
-  if (!f) return <div style={{ background:"#080F25", minHeight:"100vh", display:"grid", placeItems:"center", color:"#fff" }}>Carregando...</div>
-  if (!f.title) return <div style={{ background:"#080F25", minHeight:"100vh", padding:20, color:"#fff" }}><button onClick={()=>router.back()}>‹ Voltar</button></div>
-
-  const poster = f.poster_path? `https://image.tmdb.org/t/p/w500${f.poster_path}` : ""
-  const bg = f.backdrop_path? `https://image.tmdb.org/t/p/w780${f.backdrop_path}` : poster
+  if (!filme) return null
 
   return (
-    <div style={{ minHeight:"100vh", background:"#080F25", color:"#fff", paddingBottom:90, fontFamily:"Inter,sans-serif" }}>
-      <header style={{ height:56, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 16px", borderBottom:"1px solid #ffffff10", position:"sticky", top:0, background:"#080F25", zIndex:10 }}>
-        <button onClick={()=>router.back()} style={{ width:32, height:32, borderRadius:999, border:0, background:"#ffffff14", color:"#fff", cursor:"pointer" }}>‹</button>
-        <b style={{ fontSize:13, maxWidth:180, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{f.title}</b>
-        <button onClick={abandonar} style={{ height:30, padding:"0 10px", borderRadius:999, border:"1px solid #ff5a5a33", background:"#ff5a5a14", color:"#ff8a8a", fontSize:11, fontWeight:700 }}>Abandonar</button>
-      </header>
-
-      <div style={{ height:220, position:"relative", overflow:"hidden" }}>
-        <img src={bg} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", opacity:.5 }} />
-        <div style={{ position:"absolute", inset:0, background:"linear-gradient(to top, #080F25 15%, transparent 85%)" }} />
+    <div style={{ minHeight:"100vh", background:"#080B1F", color:"#fff" }}>
+      <div style={{ height:320, position:"relative", overflow:"hidden" }}>
+        <img src={filme.img} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+        <div style={{ position:"absolute", top:0, left:0, right:0, bottom:0, background:"linear-gradient(180deg, rgba(0,0,0,0.2), #080B1F 95%)" }} />
+        <button onClick={function(){ window.history.back() }} style={{ position:"absolute", top:14, left:14, width:34, height:34, borderRadius:999, background:"#000", border:"1px solid #333", color:"#fff", cursor:"pointer" }}>{"<"}</button>
+        <button onClick={abandonar} style={{ position:"absolute", top:14, right:14, padding:"8px 14px", borderRadius:999, background:"#ef4444", color:"#fff", fontWeight:900, fontSize:12, border:0, cursor:"pointer", zIndex:5 }}>Abandonar</button>
+        <div style={{ position:"absolute", bottom:0, left:16, right:16, display:"flex", gap:12, alignItems:"flex-end", transform:"translateY(18px)" }}>
+          <img src={filme.img} alt="" style={{ width:90, height:135, borderRadius:12, objectFit:"cover", border:"2px solid #222" }} />
+          <div style={{ flex:1, paddingBottom:8 }}><h1 style={{ margin:0, fontSize:18, fontWeight:900 }}>{filme.titulo}</h1><div style={{ fontSize:11, opacity:0.6, marginTop:4 }}>Filme • {status==="ja_assisti"? "Ja assisti" : "Quero assistir"}</div></div>
+        </div>
       </div>
 
-      <main style={{ maxWidth:860, margin:"0 auto", padding:"0 16px", marginTop:-60, position:"relative" }}>
-        <div style={{ display:"flex", gap:14 }}>
-          <img src={poster} alt="" style={{ width:110, height:165, borderRadius:14, objectFit:"cover", background:"#121B3A", border:"1px solid #ffffff18" }} />
-          <div style={{ flex:1, paddingTop:22 }}>
-            <div style={{ fontWeight:900, fontSize:18, lineHeight:1.2 }}>{f.title}</div>
-            <div style={{ fontSize:12, opacity:.5, marginTop:6 }}>{f.release_date?.slice(0,4)} • {f.runtime} min • {f.vote_average?.toFixed(1)}★</div>
-            <div style={{ display:"flex", gap:8, marginTop:14, flexWrap:"wrap" }}>
-              <button onClick={()=>fixar("quero_assistir")} style={{ height:36, padding:"0 14px", borderRadius:999, border:0, cursor:"pointer", background: st==="quero_assistir"? "#fff":"#ffffff14", color: st==="quero_assistir"? "#000":"#fff", fontWeight:700, fontSize:13 }}>Quero Assistir</button>
-              <button onClick={()=>fixar("ja_assisti")} style={{ height:36, padding:"0 14px", borderRadius:999, border:0, cursor:"pointer", background: st==="ja_assisti"? "#22c55e":"#ffffff14", color: st==="ja_assisti"? "#000":"#fff", fontWeight:800, fontSize:13 }}>Já Assisti</button>
-            </div>
-            {savedId && <div style={{ fontSize:11, opacity:.5, marginTop:8 }}>✓ Fixado na sua lista</div>}
-          </div>
-        </div>
-
-        <div style={{ marginTop:20, background:"#121B3A", border:"1px solid #ffffff10", borderRadius:14, padding:14 }}>
-          <div style={{ fontSize:11, fontWeight:800, opacity:.5, marginBottom:8, letterSpacing:.5 }}>SINOPSE</div>
-          <div style={{ fontSize:13, lineHeight:1.6, opacity:.85 }}>{f.overview || "Sem sinopse."}</div>
-        </div>
-      </main>
-    </div>
-  )
-}
+      <div style={{ maxWidth:680, margin:"0 auto", padding:"42px 14px 14px" }}>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+          <button onClick={function(){ mudar("qu
