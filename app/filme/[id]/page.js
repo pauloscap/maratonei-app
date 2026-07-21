@@ -113,4 +113,8 @@ export default function DetalheFilme({ params }) {
           <div style={{ fontSize:12, opacity:0.6, marginTop:6, lineHeight:1.5 }}>Ao escolher, o banner volta para <b>Filmes</b> e entra automaticamente na seção {status==="ja_assisti"?"Ja Assisti":"Quero Assistir"}.</div>
         </div>
 
-        {salvando && <div
+        {salvando && <div style={{ textAlign:"center", marginTop:12, fontSize:12, opacity:0.6 }}>Salvando e voltando...</div>}
+      </div>
+    </div>
+  )
+}
