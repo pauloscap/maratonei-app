@@ -6,9 +6,8 @@ import { BottomNav } from "../../components/BottomNav"
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_KEY)
 
 const BASE_FILMES = [
-  { id: "299534", titulo: "Vingadores: Ultimato", img: "https://image.tmdb.org/t/p/w500/or06FN3Dka5tukK1e9sl16pB3iy.jpg", status: "ja_assisti" },
-  { id: "872585", titulo: "Oppenheimer", img: "https://image.tmdb.org/t/p/w500/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg", status: "quero_assistir" },
-  { id: "155", titulo: "Batman: Cavaleiro das Trevas", img: "https://image.tmdb.org/t/p/w500/qJ2tW6WMUDux911r6m7haRef0WH.jpg", status: "quero_assistir" },
+  { id: "tt15398776", titulo: "Vingadores: Ultimato", img: "https://image.tmdb.org/t/p/w500/or06FN3Dka5tukK1e9sl16pB3iy.jpg", status: "ja_assisti" },
+  { id: "tt15398776_2", titulo: "Oppenheimer", img: "https://image.tmdb.org/t/p/w500/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg", status: "quero_assistir" },
 ]
 
 export default function FilmesPage() {
@@ -37,7 +36,6 @@ export default function FilmesPage() {
         return { id: String(f.id), titulo: f.titulo, img: f.img, status: st }
       }).filter(function(f){ return f.titulo!=="Game of Thrones" })
       setFilmes(lista)
-      localStorage.setItem(uid + ":meus-filmes", JSON.stringify(lista))
     }
     init()
   }, [])
@@ -47,26 +45,18 @@ export default function FilmesPage() {
     const t = setTimeout(async function(){
       setBuscando(true)
       try {
-        const r = await fetch("https://itunes.apple.com/search?term=" + encodeURIComponent(busca) + "&media=movie&limit=12")
+        // API publica OMDb - funciona sem CORS e retorna todos os filmes
+        const r = await fetch("https://www.omdbapi.com/?apikey=thewdb&s=" + encodeURIComponent(busca) + "&type=movie")
         const j = await r.json()
-        if (j.results && j.results.length) {
-          const l = j.results.map(function(it){
-            const nid = String(it.trackId || it.collectionId)
-            let img = it.artworkUrl100 || ""
-            if (img) img = img.replace("100x100bb", "400x600bb")
-            return { id: nid, titulo: it.trackName, img: img || "https://picsum.photos/seed/" + nid + "/400/600" }
+        if (j.Response==="True" && j.Search) {
+          const l = j.Search.slice(0,10).map(function(it){
+            return { id: it.imdbID, titulo: it.Title + " (" + it.Year + ")", img: it.Poster!=="N/A"? it.Poster : "https://picsum.photos/seed/" + it.imdbID + "/400/600" }
           })
-          // remove duplicados por titulo
-          const unicos = []
-          const seen = {}
-          l.forEach(function(f){ if (!seen[f.titulo]) { seen[f.titulo]=1; unicos.push(f) } })
-          setResultados(unicos.slice(0,10))
+          setResultados(l)
         } else {
           setResultados([])
         }
-      } catch(e){
-        setResultados([])
-      }
+      } catch(e){ setResultados([]) }
       setBuscando(false)
     }, 400)
     return function(){ clearTimeout(t) }
@@ -100,18 +90,18 @@ export default function FilmesPage() {
   return (
     <div style={{ minHeight:"100vh", background:"#0A0F2A", color:"#fff", paddingBottom:90 }}>
       <style>{`
-     .grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+    .grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
         @media(min-width:480px){.grid{ grid-template-columns:repeat(4,1fr); } }
         @media(min-width:768px){.grid{ grid-template-columns:repeat(5,1fr); gap:14px; } }
         @media(min-width:1024px){.grid{ grid-template-columns:repeat(6,1fr); } }
-     .list{ display:grid; gap:8px; }
-     .card{ cursor:pointer; }
-     .poster{ width:100%; aspect-ratio:2/3; border-radius:12px; overflow:hidden; background:#12182F; border:1px solid #222b5a; position:relative; }
-     .poster img{ width:100%; height:100%; object-fit:cover; display:block; }
-     .badge{ position:absolute; top:6px; left:6px; background:#FFD400; color:#000; font-size:8px; font-weight:900; padding:3px 6px; border-radius:6px; }
-     .tit{ font-size:12px; font-weight:700; margin-top:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-     .row{ display:flex; gap:12px; padding:10px; background:#12182F; border:1px solid #222b5a; border-radius:12px; cursor:pointer; }
-     .row img{ width:52px; height:78px; border-radius:8px; object-fit:cover; }
+    .list{ display:grid; gap:8px; }
+    .card{ cursor:pointer; }
+    .poster{ width:100%; aspect-ratio:2/3; border-radius:12px; overflow:hidden; background:#12182F; border:1px solid #222b5a; position:relative; }
+    .poster img{ width:100%; height:100%; object-fit:cover; display:block; }
+    .badge{ position:absolute; top:6px; left:6px; background:#FFD400; color:#000; font-size:8px; font-weight:900; padding:3px 6px; border-radius:6px; }
+    .tit{ font-size:12px; font-weight:700; margin-top:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .row{ display:flex; gap:12px; padding:10px; background:#12182F; border:1px solid #222b5a; border-radius:12px; cursor:pointer; }
+    .row img{ width:52px; height:78px; border-radius:8px; object-fit:cover; }
       `}</style>
 
       <header style={{ height:56, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 14px", borderBottom:"1px solid #1e274f", position:"sticky", top:0, background:"#0A0F2A", zIndex:20 }}>
@@ -121,24 +111,19 @@ export default function FilmesPage() {
 
       <div style={{ maxWidth:1280, margin:"0 auto", padding:14, position:"relative" }}>
         <div style={{ background:"#121A3A", border:"1px solid #2a3566", borderRadius:999, display:"flex", alignItems:"center", padding:"0 14px", height:42, maxWidth:420, margin:"0 auto" }}>
-          <span style={{ opacity:0.4, marginRight:8 }}>Q</span>
-          <input value={busca} onChange={function(e){ setBusca(e.target.value) }} placeholder="Buscar filme (ex: Batman, Barbie)" style={{ flex:1, background:"transparent", border:0, outline:"none", color:"#fff", fontSize:13 }} />
+          <input value={busca} onChange={function(e){ setBusca(e.target.value) }} placeholder="Buscar filme (ex: Batman)" style={{ flex:1, background:"transparent", border:0, outline:"none", color:"#fff", fontSize:13 }} />
           {busca && <span onClick={function(){ setBusca("") }} style={{ cursor:"pointer", opacity:0.5 }}>X</span>}
         </div>
 
         {busca && <div style={{ position:"absolute", top:62, left:14, right:14, maxWidth:420, margin:"0 auto", background:"#12182F", border:"1px solid #2a3566", borderRadius:12, zIndex:50, overflow:"hidden" }}>
           {buscando && <div style={{ padding:12, fontSize:12, opacity:0.5 }}>Buscando filmes...</div>}
-          {resultados.map(function(r){ return <div key={r.id} onClick={function(){ add(r) }} style={{ display:"flex", gap:10, padding:10, borderBottom:"1px solid #1e274f", cursor:"pointer" }}><img src={r.img} style={{ width:40, height:60, borderRadius:6, objectFit:"cover" }} alt="" /><div style={{ flex:1 }}><div style={{ fontSize:13, fontWeight:700 }}>{r.titulo}</div><div style={{ fontSize:10, color:"#FFD400", fontWeight:800, marginTop:4 }}>+ ADICIONAR</div></div></div> })}
-          {!buscando && resultados.length===0 && <div style={{ padding:12, fontSize:12, opacity:0.5 }}>Nenhum filme encontrado</div>}
+          {!buscando && resultados.map(function(r){ return <div key={r.id} onClick={function(){ add(r) }} style={{ display:"flex", gap:10, padding:10, borderBottom:"1px solid #1e274f", cursor:"pointer" }}><img src={r.img} style={{ width:40, height:60, borderRadius:6, objectFit:"cover" }} alt="" /><div style={{ flex:1 }}><div style={{ fontSize:13, fontWeight:700 }}>{r.titulo}</div><div style={{ fontSize:10, color:"#FFD400", fontWeight:800, marginTop:4 }}>+ ADICIONAR</div></div></div> })}
+          {!buscando && resultados.length===0 && <div style={{ padding:12, fontSize:12, opacity:0.5 }}>Digite Batman, Avatar, Barbie...</div>}
         </div>}
 
         {!busca && <div>
-          <Secao titulo="Quero Assistir" cor="#8b5cf6" qtd={quero.length}>
-            {quero.length? quero.map(function(s){ return view==="grade"? <div key={s.id} onClick={function(){ abrir(s) }} className="card"><div className="poster"><img src={s.img} alt="" /><div className="badge">QUERO</div></div><div className="tit">{s.titulo}</div></div> : <div key={s.id} onClick={function(){ abrir(s) }} className="row"><img src={s.img} alt="" /><div style={{ flex:1 }}><div style={{ fontSize:13, fontWeight:800 }}>{s.titulo}</div><div style={{ fontSize:11, opacity:0.5, marginTop:4 }}>Ainda nao assisti</div></div><div style={{ opacity:0.3 }}>›</div></div> }) : <div style={{ fontSize:12, opacity:0.4, padding:"10px 0" }}>Nenhum filme aqui ainda</div>}
-          </Secao>
-          <Secao titulo="Ja Assisti" cor="#22c55e" qtd={vistos.length}>
-            {vistos.length? vistos.map(function(s){ return view==="grade"? <div key={s.id} onClick={function(){ abrir(s) }} className="card"><div className="poster"><img src={s.img} alt="" /><div className="badge" style={{ background:"#22c55e", color:"#fff" }}>VISTO</div></div><div className="tit">{s.titulo}</div></div> : <div key={s.id} onClick={function(){ abrir(s) }} className="row"><img src={s.img} alt="" /><div style={{ flex:1 }}><div style={{ fontSize:13, fontWeight:800 }}>{s.titulo}</div><div style={{ fontSize:11, color:"#22c55e", marginTop:4 }}>✓ Assistido</div></div></div> }) : <div style={{ fontSize:12, opacity:0.4, padding:"10px 0" }}>Voce ainda nao marcou nenhum como visto</div>}
-          </Secao>
+          <Secao titulo="Quero Assistir" cor="#8b5cf6" qtd={quero.length}>{quero.length? quero.map(function(s){ return view==="grade"? <div key={s.id} onClick={function(){ abrir(s) }} className="card"><div className="poster"><img src={s.img} alt="" /><div className="badge">QUERO</div></div><div className="tit">{s.titulo}</div></div> : <div key={s.id} onClick={function(){ abrir(s) }} className="row"><img src={s.img} alt="" /><div style={{ flex:1 }}><div style={{ fontSize:13, fontWeight:800 }}>{s.titulo}</div></div><div style={{ opacity:0.3 }}>›</div></div> }) : <div style={{ fontSize:12, opacity:0.4, padding:"10px 0" }}>Nenhum filme</div>}</Secao>
+          <Secao titulo="Ja Assisti" cor="#22c55e" qtd={vistos.length}>{vistos.length? vistos.map(function(s){ return view==="grade"? <div key={s.id} onClick={function(){ abrir(s) }} className="card"><div className="poster"><img src={s.img} alt="" /><div className="badge" style={{ background:"#22c55e", color:"#fff" }}>VISTO</div></div><div className="tit">{s.titulo}</div></div> : <div key={s.id} onClick={function(){ abrir(s) }} className="row"><img src={s.img} alt="" /><div style={{ flex:1 }}><div style={{ fontSize:13, fontWeight:800 }}>{s.titulo}</div><div style={{ fontSize:11, color:"#22c55e", marginTop:4 }}>✓ Assistido</div></div></div> }) : <div style={{ fontSize:12, opacity:0.4, padding:"10px 0" }}>Nenhum visto ainda</div>}</Secao>
         </div>}
       </div>
       <BottomNav />
