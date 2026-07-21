@@ -5,10 +5,10 @@ import { BottomNav } from "../../components/BottomNav"
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_KEY)
 
-const BASE = [
-  { id: "82", titulo: "Game of Thrones", status: "assistindo" },
-  { id: "299534", titulo: "Vingadores Ultimato", status: "maratonei" },
-  { id: "272", titulo: "Batman", status: "quero_assistir" },
+const BASE_FILMES = [
+  { id: "299534", titulo: "Vingadores: Ultimato", img: "https://image.tmdb.org/t/p/w500/or06FN3Dka5tukK1e9sl16pB3iy.jpg", status: "maratonei" },
+  { id: "872585", titulo: "Oppenheimer", img: "https://image.tmdb.org/t/p/w500/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg", status: "assistindo" },
+  { id: "155", titulo: "Batman: Cavaleiro das Trevas", img: "https://image.tmdb.org/t/p/w500/qJ2tW6WMUDux911r6m7haRef0WH.jpg", status: "quero_assistir" },
 ]
 
 export default function FilmesPage() {
@@ -26,33 +26,11 @@ export default function FilmesPage() {
       setUserId(uid)
       const v = localStorage.getItem(uid + ":view-filmes")
       if (v) setView(v)
-
-      let lista = []
-      try {
-        const r = await supabase.from("user_filmes").select("*").eq("user_id", uid).order("updated_at", { ascending: false })
-        if (r.data && r.data.length) lista = r.data.map(function(x){ return { id: String(x.filme_id), titulo: x.titulo, img: x.img, status: x.status } })
-      } catch(e) {}
-
-      if (!lista.length) {
-        const raw = localStorage.getItem(uid + ":meus-filmes")
-        if (raw) lista = JSON.parse(raw)
-        else lista = BASE
-      }
-
-      const finalList = await Promise.all(lista.map(async function(f){
-        let img = f.img
-        if (!img) {
-          try {
-            const req = await fetch("https://api.tvmaze.com/search/shows?q=" + encodeURIComponent(f.titulo))
-            const js = await req.json()
-            if (js && js[0] && js[0].show && js[0].show.image) img = js[0].show.image.medium
-          } catch(e) {}
-        }
-        const st = f.status || "quero_assistir"
-        const prog = st === "maratonei"? 100 : st === "assistindo"? 45 : 0
-        return { id: String(f.id || f.filme_id), titulo: f.titulo, img: img || "https://picsum.photos/seed/" + f.titulo + "/400/600", status: st, progresso: prog }
-      }))
-      setFilmes(finalList)
+      const raw = localStorage.getItem(uid + ":meus-filmes")
+      const lista = raw? JSON.parse(raw) : BASE_FILMES
+      const listaLimpa = lista.filter(function(f){ return f.titulo!== "Game of Thrones" && f.id!== "82" })
+      setFilmes(listaLimpa)
+      localStorage.setItem(uid + ":meus-filmes", JSON.stringify(listaLimpa))
     }
     init()
   }, [])
@@ -71,7 +49,6 @@ export default function FilmesPage() {
   }, [busca])
 
   function toggle(){ const n = view === "grade"? "lista" : "grade"; setView(n); localStorage.setItem(userId + ":view-filmes", n) }
-
   async function add(f){
     const novo = { id: String(f.id), titulo: f.titulo, img: f.img, status: "quero_assistir", progresso: 0 }
     const nl = [novo].concat(filmes.filter(function(x){ return String(x.id)!== String(novo.id) }))
@@ -80,7 +57,6 @@ export default function FilmesPage() {
     try { await supabase.from("user_filmes").upsert({ user_id: userId, filme_id: novo.id, titulo: novo.titulo, img: novo.img, status: "quero_assistir", updated_at: new Date().toISOString() }, { onConflict: "user_id,filme_id" }) } catch(e){}
     setBusca(""); setResultados([])
   }
-
   function abrir(f){ localStorage.setItem(userId + ":filme-atual", JSON.stringify(f)); window.location.href = "/filme/" + f.id }
 
   const assist = filmes.filter(function(x){ return x.status === "assistindo" })
@@ -99,21 +75,19 @@ export default function FilmesPage() {
   return (
     <div style={{ minHeight:"100vh", background:"#0A0F2A", color:"#fff", paddingBottom:90 }}>
       <style>{`
-       .grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+      .grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
         @media(min-width:480px){.grid{ grid-template-columns:repeat(4,1fr); } }
         @media(min-width:768px){.grid{ grid-template-columns:repeat(5,1fr); gap:14px; } }
         @media(min-width:1024px){.grid{ grid-template-columns:repeat(6,1fr); } }
-        @media(min-width:1280px){.grid{ grid-template-columns:repeat(7,1fr); } }
-       .list{ display:grid; gap:8px; }
-       .card{ cursor:pointer; }
-       .poster{ width:100%; aspect-ratio:2/3; border-radius:12px; overflow:hidden; background:#12182F; border:1px solid #222b5a; position:relative; }
-       .poster img{ width:100%; height:100%; object-fit:cover; display:block; }
-       .badge{ position:absolute; top:6px; left:6px; background:#FFD400; color:#000; font-size:8px; font-weight:900; padding:3px 6px; border-radius:6px; }
-       .track{ position:absolute; bottom:0; left:0; right:0; height:4px; background:#000; }
-       .fill{ height:100%; }
-       .tit{ font-size:12px; font-weight:700; margin-top:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-       .row{ display:flex; gap:12px; padding:10px; background:#12182F; border:1px solid #222b5a; border-radius:12px; cursor:pointer; }
-       .row img{ width:52px; height:78px; border-radius:8px; object-fit:cover; }
+      .list{ display:grid; gap:8px; }
+      .card{ cursor:pointer; }
+      .poster{ width:100%; aspect-ratio:2/3; border-radius:12px; overflow:hidden; background:#12182F; border:1px solid #222b5a; position:relative; }
+      .poster img{ width:100%; height:100%; object-fit:cover; display:block; }
+      .badge{ position:absolute; top:6px; left:6px; background:#FFD400; color:#000; font-size:8px; font-weight:900; padding:3px 6px; border-radius:6px; }
+      .track{ position:absolute; bottom:0; left:0; right:0; height:4px; background:#000; }
+      .tit{ font-size:12px; font-weight:700; margin-top:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      .row{ display:flex; gap:12px; padding:10px; background:#12182F; border:1px solid #222b5a; border-radius:12px; cursor:pointer; }
+      .row img{ width:52px; height:78px; border-radius:8px; object-fit:cover; }
       `}</style>
 
       <header style={{ height:56, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 14px", borderBottom:"1px solid #1e274f", position:"sticky", top:0, background:"#0A0F2A", zIndex:20 }}>
@@ -130,7 +104,7 @@ export default function FilmesPage() {
 
         {busca && resultados.length>0 && <div style={{ position:"absolute", top:62, left:14, right:14, maxWidth:420, margin:"0 auto", background:"#12182F", border:"1px solid #2a3566", borderRadius:12, zIndex:50, overflow:"hidden" }}>{resultados.map(function(r){ return <div key={r.id} onClick={function(){ add(r) }} style={{ display:"flex", gap:10, padding:10, borderBottom:"1px solid #1e274f", cursor:"pointer" }}><img src={r.img} style={{ width:40, height:60, borderRadius:6, objectFit:"cover" }} alt="" /><div><div style={{ fontSize:13, fontWeight:700 }}>{r.titulo}</div><div style={{ fontSize:10, color:"#FFD400", fontWeight:800, marginTop:4 }}>+ ADICIONAR</div></div></div> })}</div>}
 
-        {!busca && <div><Secao titulo="Assistindo" cor="#FFD400" qtd={assist.length}>{assist.map(function(s){ return view==="grade"? <div key={s.id} onClick={function(){ abrir(s) }} className="card"><div className="poster"><img src={s.img} alt="" /><div className="badge">ASSISTINDO</div><div className="track"><div className="fill" style={{ width:s.progresso+"%", background:"#FFD400" }} /></div></div><div className="tit">{s.titulo}</div></div> : <div key={s.id} onClick={function(){ abrir(s) }} className="row"><img src={s.img} alt="" /><div style={{ flex:1 }}><div style={{ fontSize:13, fontWeight:800 }}>{s.titulo}</div><div style={{ height:4, background:"#222", marginTop:8, borderRadius:99 }}><div style={{ width:s.progresso+"%", height:"100%", background:"#FFD400" }} /></div></div></div> })}</Secao><Secao titulo="Quero Assistir" cor="#8b5cf6" qtd={quero.length}>{quero.map(function(s){ return view==="grade"? <div key={s.id} onClick={function(){ abrir(s) }} className="card"><div className="poster"><img src={s.img} alt="" /><div className="badge">QUERO</div><div className="track"><div className="fill" style={{ width:s.progresso+"%", background:"#8b5cf6" }} /></div></div><div className="tit">{s.titulo}</div></div> : <div key={s.id} onClick={function(){ abrir(s) }} className="row"><img src={s.img} alt="" /><div style={{ flex:1 }}><div style={{ fontSize:13, fontWeight:800 }}>{s.titulo}</div></div><div style={{ opacity:0.3 }}>›</div></div> })}</Secao><Secao titulo="Maratonei" cor="#22c55e" qtd={mara.length}>{mara.map(function(s){ return view==="grade"? <div key={s.id} onClick={function(){ abrir(s) }} className="card"><div className="poster"><img src={s.img} alt="" /><div className="badge">MARATONEI</div><div className="track"><div className="fill" style={{ width:"100%", background:"#22c55e" }} /></div></div><div className="tit">{s.titulo}</div></div> : <div key={s.id} onClick={function(){ abrir(s) }} className="row"><img src={s.img} alt="" /><div style={{ flex:1 }}><div style={{ fontSize:13, fontWeight:800 }}>{s.titulo}</div><div style={{ fontSize:11, opacity:0.5 }}>100%</div></div></div> })}</Secao></div>}
+        {!busca && <div><Secao titulo="Assistindo" cor="#FFD400" qtd={assist.length}>{assist.map(function(s){ return view==="grade"? <div key={s.id} onClick={function(){ abrir(s) }} className="card"><div className="poster"><img src={s.img} alt="" /><div className="badge">ASSISTINDO</div><div className="track"><div style={{ width:s.progresso+"%", height:"100%", background:"#FFD400" }} /></div></div><div className="tit">{s.titulo}</div></div> : <div key={s.id} onClick={function(){ abrir(s) }} className="row"><img src={s.img} alt="" /><div style={{ flex:1 }}><div style={{ fontSize:13, fontWeight:800 }}>{s.titulo}</div><div style={{ height:4, background:"#222", marginTop:8, borderRadius:99 }}><div style={{ width:s.progresso+"%", height:"100%", background:"#FFD400" }} /></div></div></div> })}</Secao><Secao titulo="Quero Assistir" cor="#8b5cf6" qtd={quero.length}>{quero.map(function(s){ return view==="grade"? <div key={s.id} onClick={function(){ abrir(s) }} className="card"><div className="poster"><img src={s.img} alt="" /><div className="badge">QUERO</div></div><div className="tit">{s.titulo}</div></div> : <div key={s.id} onClick={function(){ abrir(s) }} className="row"><img src={s.img} alt="" /><div style={{ flex:1 }}><div style={{ fontSize:13, fontWeight:800 }}>{s.titulo}</div></div><div style={{ opacity:0.3 }}>›</div></div> })}</Secao><Secao titulo="Maratonei" cor="#22c55e" qtd={mara.length}>{mara.map(function(s){ return view==="grade"? <div key={s.id} onClick={function(){ abrir(s) }} className="card"><div className="poster"><img src={s.img} alt="" /><div className="badge">MARATONEI</div><div className="track"><div style={{ width:"100%", height:"100%", background:"#22c55e" }} /></div></div><div className="tit">{s.titulo}</div></div> : <div key={s.id} onClick={function(){ abrir(s) }} className="row"><img src={s.img} alt="" /><div style={{ flex:1 }}><div style={{ fontSize:13, fontWeight:800 }}>{s.titulo}</div><div style={{ fontSize:11, opacity:0.5 }}>100%</div></div></div> })}</Secao></div>}
       </div>
       <BottomNav />
     </div>
