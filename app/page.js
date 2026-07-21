@@ -6,13 +6,11 @@ import { BottomNav } from "../components/BottomNav"
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_KEY)
 
 const BASE = [
-  { id: 101, titulo: "Abbott Elementary", status: "assistindo" },
-  { id: 102, titulo: "X-Men 97", q: "X-Men 97", status: "assistindo" },
-  { id: 103, titulo: "Off Campus", status: "quero_assistir" },
-  { id: 104, titulo: "The Walking Dead", status: "assistindo" },
-  { id: 201, titulo: "Elle", q: "Elle Legally Blonde", status: "quero_assistir" },
-  { id: 301, titulo: "Stranger Things", status: "maratonei" },
-  { id: 302, titulo: "The Last of Us", status: "maratonei" },
+  { id: "45582", titulo: "Abbott Elementary", status: "assistindo" },
+  { id: "71268", titulo: "X-Men '97", q: "X-Men 97", status: "assistindo" },
+  { id: "73", titulo: "The Walking Dead", status: "assistindo" },
+  { id: "2993", titulo: "Stranger Things", status: "maratonei" },
+  { id: "61167", titulo: "The Last of Us", status: "maratonei" },
 ]
 
 export default function Home() {
