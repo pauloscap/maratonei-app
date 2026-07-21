@@ -98,4 +98,11 @@ export default function DetalheFilme({ params }) {
 
       <div style={{ maxWidth:680, margin:"0 auto", padding:"42px 14px 14px" }}>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-          <button onClick={function(){ mudar("qu
+          <button onClick={function(){ mudar("quero_assistir") }} style={{ padding:12, borderRadius:12, fontWeight:800, background: status==="quero_assistir"? "#FFD400" : "#12182F", color: status==="quero_assistir"? "#000" : "#fff", border:"1px solid #222", cursor:"pointer" }}>Quero Assistir</button>
+          <button onClick={function(){ mudar("ja_assisti") }} style={{ padding:12, borderRadius:12, fontWeight:800, background: status==="ja_assisti"? "#22c55e" : "#12182F", color: status==="ja_assisti"? "#fff" : "#fff", border:"1px solid #222", cursor:"pointer" }}>Ja Assisti ✓</button>
+        </div>
+        <div style={{ marginTop:16, background:"#12182F", border:"1px solid #1e274f", borderRadius:16, padding:14 }}><b style={{ fontSize:13 }}>Sobre</b><div style={{ fontSize:12, opacity:0.6, marginTop:6, lineHeight:1.5 }}>Marque como Ja Assisti quando terminar. O filme vai para a lista de concluidos.</div></div>
+      </div>
+    </div>
+  )
+}
