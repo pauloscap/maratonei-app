@@ -1,118 +1,82 @@
 "use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@supabase/supabase-js"
-import { BottomNav } from "../../components/BottomNav"
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_KEY)
 
-const BASE_FILMES = [
-  { id: "299534", titulo: "Vingadores: Ultimato", status: "maratonei" },
-  { id: "272", titulo: "Batman", status: "quero_assistir" },
-  { id: "82", titulo: "Game of Thrones", q: "Game of Thrones", status: "assistindo" },
+const BASE = [
+  { id: "299534", titulo: "Vingadores Ultimato" },
+  { id: "272", titulo: "Batman" },
+  { id: "82", titulo: "The Last of Us" }
 ]
 
-export default function Filmes() {
-  const [userId, setUserId] = useState("anon")
+export default function FilmesPage() {
+  const [uid, setUid] = useState("")
+  const [view, setView] = useState("grade")
   const [busca, setBusca] = useState("")
   const [filmes, setFilmes] = useState([])
-  const [resultados, setResultados] = useState([])
-  const [buscando, setBuscando] = useState(false)
-  const [view, setView] = useState("grade")
+  const [res, setRes] = useState([])
 
   useEffect(() => {
-    async function init() {
-      const sess = await supabase.auth.getSession()
-      if (!sess.data.session) { window.location.href = "/login"; return }
-      const uid = sess.data.session.user.id
-      setUserId(uid)
-      const savedView = localStorage.getItem(uid + ":view-mode-filmes")
-      if (savedView) setView(savedView)
-
-      // tenta buscar do supabase, se não tiver usa BASE
-      let res = await supabase.from("user_filmes").select("*").eq("user_id", uid).order("updated_at", { ascending: false })
-      let lista = res.data
-      if (!lista ||!lista.length) {
-        // usa BASE temporario se tabela ainda nao tem nada
-        const raw = JSON.parse(localStorage.getItem(uid + ":meus-filmes") || "null")
-        lista = raw || BASE_FILMES.map(f=>({ filme_id: String(f.id), titulo: f.titulo, status: f.status }))
-      }
-
-      const comDados = await Promise.all(lista.map(async function(f){
-        const fid = f.filme_id || f.id
-        let img = f.img
-        if (!img) {
-          try {
-            const q = f.q || f.titulo
-            const r = await fetch("https://api.tvmaze.com/search/shows?q=" + encodeURIComponent(q))
-            const j = await r.json()
-            img = j && j[0] && j[0].show && (j[0].show.image && (j[0].show.image.medium || j[0].show.image.original)) || ""
-          } catch(e){}
-        }
-        const st = localStorage.getItem(uid + ":filme-status-" + fid) || f.status || "quero_assistir"
-        const progresso = st==="maratonei"? 100 : st==="assistindo"? 45 : 0
-        return { id: String(fid), titulo: f.titulo, img: img || "https://picsum.photos/seed/" + fid + "/400/600", status: st, progresso: progresso }
-      }))
-      setFilmes(comDados)
+    async function load() {
+      const s = await supabase.auth.getSession()
+      if (!s.data.session) { window.location.href = "/login"; return }
+      const id = s.data.session.user.id
+      setUid(id)
+      const v = localStorage.getItem(id + ":view-filmes")
+      if (v) setView(v)
+      const salvos = JSON.parse(localStorage.getItem(id + ":meus-filmes") || "null")
+      const lista = salvos || BASE.map(b=>({ id: b.id, titulo: b.titulo, img: "https://picsum.photos/seed/" + b.id + "/400/600", status:"quero_assistir", progresso:0 }))
+      setFilmes(lista)
     }
-    init()
+    load()
   }, [])
 
-  useEffect(function(){
-    if (!busca.trim()) { setResultados([]); return }
-    const t = setTimeout(async function(){
-      setBuscando(true)
-      try {
-        const r = await fetch("https://api.tvmaze.com/search/shows?q=" + encodeURIComponent(busca))
-        const j = await r.json()
-        const lista = j.slice(0,8).map(function(item){ return { id: String(item.show.id), titulo: item.show.name, ano: item.show.premiered? item.show.premiered.slice(0,4):"", img: item.show.image? (item.show.image.medium || item.show.image.original) : "https://picsum.photos/seed/"+item.show.id+"/400/600" } })
-        setResultados(lista)
-      } catch(e){ setResultados([]) }
-      setBuscando(false)
-    }, 350)
-    return function(){ clearTimeout(t) }
+  useEffect(() => {
+    if (!busca) { setRes([]); return }
+    const t = setTimeout(async () => {
+      const r = await fetch("https://api.tvmaze.com/search/shows?q=" + encodeURIComponent(busca))
+      const j = await r.json()
+      const out = j.slice(0,6).map(i=>({ id: String(i.show.id), titulo: i.show.name, img: i.show.image? i.show.image.medium : "https://picsum.photos/seed/"+i.show.id+"/400/600" }))
+      setRes(out)
+    }, 400)
+    return () => clearTimeout(t)
   }, [busca])
 
-  function toggleView(){
-    const novo = view==="grade"? "lista":"grade"
-    setView(novo)
-    localStorage.setItem(userId + ":view-mode-filmes", novo)
+  function mudarView() {
+    const n = view === "grade"? "lista" : "grade"
+    setView(n)
+    localStorage.setItem(uid + ":view-filmes", n)
   }
 
-  async function adicionarFilme(f){
-    const novo = { id: String(f.id), titulo: f.titulo, img: f.img, status:"quero_assistir", progresso:0 }
-    const novaLista = [novo].concat(filmes.filter(function(x){ return String(x.id)!==String(novo.id) }))
-    setFilmes(novaLista)
-    localStorage.setItem(userId + ":meus-filmes", JSON.stringify(novaLista))
-    try { await supabase.from("user_filmes").upsert({ user_id: userId, filme_id: novo.id, titulo: novo.titulo, img: novo.img, status:"quero_assistir", updated_at: new Date().toISOString() }, { onConflict:"user_id,filme_id" }) } catch(e){}
-    setBusca(""); setResultados([])
-    window.location.href = "/filme/" + novo.id
+  function addFilme(f) {
+    const novo = { id: f.id, titulo: f.titulo, img: f.img, status:"quero_assistir", progresso:0 }
+    const nova = [novo].concat(filmes.filter(x=>x.id!==novo.id))
+    setFilmes(nova)
+    localStorage.setItem(uid + ":meus-filmes", JSON.stringify(nova))
+    setBusca("")
+    setRes([])
   }
 
-  function abrir(f){
-    localStorage.setItem(userId + ":filme-atual", JSON.stringify(f))
+  function abrir(f) {
+    localStorage.setItem(uid + ":filme-atual", JSON.stringify(f))
     window.location.href = "/filme/" + f.id
   }
 
-  const assistindo = filmes.filter(function(s){ return s.status==="assistindo" })
-  const quero = filmes.filter(function(s){ return s.status==="quero_assistir" })
-  const maratonei = filmes.filter(function(s){ return s.status==="maratonei" })
-
-  function CardGrade(props){
-    const s = props.s
-    return (
-      <div onClick={function(){ abrir(s) }} className="card-grade">
-        <div className="poster-wrap">
-          <img src={s.img} alt="" />
-          <div className="badge">{s.status==="quero_assistir"? "QUERO" : s.status.toUpperCase()}</div>
-          <div className="progress-track"><div className="progress-fill" style={{ width: s.progresso+"%", background: s.status==="maratonei"? "#22c55e" : s.status==="quero_assistir"? "#8b5cf6":"#FFD400" }} /></div>
-        </div>
-        <div className="titulo">{s.titulo}</div>
-      </div>
-    )
-  }
-
-  function CardLista(props){
-    const s = props.s
-    return (
-      <div onClick={function(){ abrir(s) }} style={{ display:"flex", gap:12, padding:10, background:"#12182F", border:"1px solid rgba(255,255,255,0.08)", borderRadius:12, cursor:"pointer" }}>
-        <div style={{ position:"relative" }}><img src={s.img} alt="" style={{ width:52, height:78, borderRadius:8, objectFit:"cover" }} /><div
+  return (
+    <div className="page">
+      <style>{`
+       .page { min-height:100vh; background:#0A0F2A; color:#fff; padding-bottom:80px; }
+       .top { height:56px; display:flex; align-items:center; justify-content:space-between; padding:0 14px; border-bottom:1px solid #1a2142; position:sticky; top:0; background:#0A0F2A; z-index:10; }
+       .search { background:#121A3A; border:1px solid #1e2a5a; border-radius:999px; display:flex; align-items:center; padding:0 14px; height:42px; max-width:420px; margin:14px auto; }
+       .search input { flex:1; background:transparent; border:0; outline:none; color:#fff; }
+       .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+        @media(min-width:480px){.grid{ grid-template-columns:repeat(4,1fr); } }
+        @media(min-width:768px){.grid{ grid-template-columns:repeat(5,1fr); gap:14px; } }
+        @media(min-width:1024px){.grid{ grid-template-columns:repeat(6,1fr); } }
+       .card { cursor:pointer; }
+       .poster { width:100%; aspect-ratio:2/3; border-radius:12px; overflow:hidden; background:#12182F; position:relative; border:1px solid #1e2a5a; }
+       .poster img { width:100%; height:100%; object-fit:cover; }
+       .badge { position:absolute; top:6px; left:6px; background:#FFD400; color:#000; font-size:8px; font-weight:900; padding:3px 6px; border-radius:6px; }
+       .bar { position:absolute; bottom:0; left:0; right:0; height:4px; background:#000; }
+       .fill { height:100%; background:#FFD400; }
