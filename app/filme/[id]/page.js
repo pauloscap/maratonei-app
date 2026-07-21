@@ -9,6 +9,7 @@ export default function DetalheFilme({ params }) {
   const [uid, setUid] = useState(null)
   const [filme, setFilme] = useState(null)
   const [status, setStatus] = useState("quero_assistir")
+  const [salvando, setSalvando] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -25,59 +26,64 @@ export default function DetalheFilme({ params }) {
       if (!f) f = { id: id, titulo: "Filme " + id, img: "https://picsum.photos/seed/" + id + "/600/900" }
 
       const st = localStorage.getItem(userId + ":filme-status-" + id) || f.status || "quero_assistir"
-      let finalStatus = st
-      if (finalStatus==="maratonei" || finalStatus==="assistido") finalStatus="ja_assisti"
-      if (finalStatus==="assistindo") finalStatus="quero_assistir"
-
       setFilme(f)
-      setStatus(finalStatus)
+      setStatus(st==="maratonei"||st==="assistido"?"ja_assisti":st==="assistindo"?"quero_assistir":st)
 
       try {
-        const res = await supabase.from("user_filmes").select("*").eq("user_id", userId).eq("filme_id", id).single()
-        if (res.data && res.data.status) {
-          let sDb = res.data.status
-          if (sDb==="maratonei") sDb="ja_assisti"
-          if (sDb==="assistindo") sDb="quero_assistir"
-          setStatus(sDb)
-        }
+        const res = await supabase.from("user_filmes").select("status").eq("user_id", userId).eq("filme_id", id).single()
+        if (res.data?.status) setStatus(res.data.status)
       } catch(e){}
     }
     load()
   }, [id])
 
   async function mudar(novoStatus) {
-    if (!uid) return
+    if (!uid || salvando) return
+    setSalvando(true)
     setStatus(novoStatus)
-    localStorage.setItem(uid + ":filme-status-" + id, novoStatus)
-    // atualiza lista geral
+
+    // 1 - atualiza localStorage
     try {
+      localStorage.setItem(uid + ":filme-status-" + id, novoStatus)
       const raw = localStorage.getItem(uid + ":meus-filmes")
       if (raw) {
         let lista = JSON.parse(raw)
-        lista = lista.map(function(x){ if (String(x.id)===id) return {...x, status:novoStatus}; return x })
+        let achou = false
+        lista = lista.map(function(x){ if (String(x.id)===id){ achou=true; return {...x, status:novoStatus} } return x })
+        if(!achou && filme) lista.unshift({...filme, id:id, status:novoStatus})
         localStorage.setItem(uid + ":meus-filmes", JSON.stringify(lista))
       }
     } catch(e){}
-    try { await supabase.from("user_filmes").upsert({ user_id: uid, filme_id: id, titulo: filme.titulo, img: filme.img, status: novoStatus, updated_at: new Date().toISOString() }, { onConflict:"user_id,filme_id" }) } catch(e){}
+
+    // 2 - salva no supabase
+    try {
+      await supabase.from("user_filmes").upsert({
+        user_id: uid,
+        filme_id: id,
+        titulo: filme?.titulo || "Filme",
+        img: filme?.img || "",
+        status: novoStatus,
+        updated_at: new Date().toISOString()
+      }, { onConflict:"user_id,filme_id" })
+    } catch(e){}
+
+    // 3 - volta pra lista onde o banner vai estar na seção correta
+    setTimeout(function(){ window.location.href = "/filmes" }, 300)
   }
 
   async function abandonar() {
-    if (!uid) { window.location.href="/filmes"; return }
-    if (!confirm("Remover " + (filme? filme.titulo : "esse filme") + " da sua lista?")) return
-
-    try { await supabase.from("user_filmes").delete().eq("user_id", uid).eq("filme_id", id) } catch(e){ console.log("erro supabase", e) }
-
+    if (!uid) return
+    if (!confirm("Remover "+ (filme?.titulo||"esse filme") +" da sua lista?")) return
+    try { await supabase.from("user_filmes").delete().eq("user_id", uid).eq("filme_id", id) } catch(e){}
     try {
       const raw = localStorage.getItem(uid + ":meus-filmes")
       if (raw) {
-        let lista = JSON.parse(raw)
-        lista = lista.filter(function(x){ return String(x.id)!==id })
+        let lista = JSON.parse(raw).filter(function(x){ return String(x.id)!==id })
         localStorage.setItem(uid + ":meus-filmes", JSON.stringify(lista))
       }
       localStorage.removeItem(uid + ":filme-status-" + id)
       localStorage.removeItem(uid + ":filme-atual")
     } catch(e){}
-
     window.location.href = "/filmes"
   }
 
@@ -85,24 +91,26 @@ export default function DetalheFilme({ params }) {
 
   return (
     <div style={{ minHeight:"100vh", background:"#080B1F", color:"#fff" }}>
-      <div style={{ height:320, position:"relative", overflow:"hidden" }}>
+      <div style={{ height:360, position:"relative", overflow:"hidden" }}>
         <img src={filme.img} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
-        <div style={{ position:"absolute", top:0, left:0, right:0, bottom:0, background:"linear-gradient(180deg, rgba(0,0,0,0.2), #080B1F 95%)" }} />
-        <button onClick={function(){ window.history.back() }} style={{ position:"absolute", top:14, left:14, width:34, height:34, borderRadius:999, background:"#000", border:"1px solid #333", color:"#fff", cursor:"pointer" }}>{"<"}</button>
+        <div style={{ position:"absolute", inset:0, background:"linear-gradient(180deg, rgba(0,0,0,0.2), #080B1F 95%)" }} />
+        <button onClick={function(){ window.location.href="/filmes" }} style={{ position:"absolute", top:14, left:14, width:34, height:34, borderRadius:999, background:"#000", border:"1px solid #333", color:"#fff", cursor:"pointer", zIndex:2 }}>{"<"}</button>
         <button onClick={abandonar} style={{ position:"absolute", top:14, right:14, padding:"8px 14px", borderRadius:999, background:"#ef4444", color:"#fff", fontWeight:900, fontSize:12, border:0, cursor:"pointer", zIndex:5 }}>Abandonar</button>
         <div style={{ position:"absolute", bottom:0, left:16, right:16, display:"flex", gap:12, alignItems:"flex-end", transform:"translateY(18px)" }}>
-          <img src={filme.img} alt="" style={{ width:90, height:135, borderRadius:12, objectFit:"cover", border:"2px solid #222" }} />
-          <div style={{ flex:1, paddingBottom:8 }}><h1 style={{ margin:0, fontSize:18, fontWeight:900 }}>{filme.titulo}</h1><div style={{ fontSize:11, opacity:0.6, marginTop:4 }}>Filme • {status==="ja_assisti"? "Ja assisti" : "Quero assistir"}</div></div>
+          <img src={filme.img} alt="" style={{ width:96, height:144, borderRadius:12, objectFit:"cover", border:"2px solid #222", background:"#000" }} />
+          <div style={{ flex:1, paddingBottom:10 }}><h1 style={{ margin:0, fontSize:18, fontWeight:900, lineHeight:1.2 }}>{filme.titulo}</h1><div style={{ fontSize:11, opacity:0.6, marginTop:4 }}>{status==="ja_assisti"?"Já assisti ✓":"Quero assistir"}</div></div>
         </div>
       </div>
 
-      <div style={{ maxWidth:680, margin:"0 auto", padding:"42px 14px 14px" }}>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-          <button onClick={function(){ mudar("quero_assistir") }} style={{ padding:12, borderRadius:12, fontWeight:800, background: status==="quero_assistir"? "#FFD400" : "#12182F", color: status==="quero_assistir"? "#000" : "#fff", border:"1px solid #222", cursor:"pointer" }}>Quero Assistir</button>
-          <button onClick={function(){ mudar("ja_assisti") }} style={{ padding:12, borderRadius:12, fontWeight:800, background: status==="ja_assisti"? "#22c55e" : "#12182F", color: status==="ja_assisti"? "#fff" : "#fff", border:"1px solid #222", cursor:"pointer" }}>Ja Assisti ✓</button>
+      <div style={{ maxWidth:680, margin:"0 auto", padding:"44px 14px 20px" }}>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+          <button disabled={salvando} onClick={function(){ mudar("quero_assistir") }} style={{ height:48, borderRadius:12, fontWeight:900, fontSize:13, background: status==="quero_assistir"? "#FFD400" : "#12182F", color: status==="quero_assistir"? "#000" : "#fff", border:"1px solid #222", cursor:"pointer", opacity:salvando?0.6:1 }}>{status==="quero_assistir"?"★ Quero Assistir":"Quero Assistir"}</button>
+          <button disabled={salvando} onClick={function(){ mudar("ja_assisti") }} style={{ height:48, borderRadius:12, fontWeight:900, fontSize:13, background: status==="ja_assisti"? "#22c55e" : "#12182F", color:"#fff", border:"1px solid #222", cursor:"pointer", opacity:salvando?0.6:1 }}>{status==="ja_assisti"?"✓ Já Assisti":"Já Assisti"}</button>
         </div>
-        <div style={{ marginTop:16, background:"#12182F", border:"1px solid #1e274f", borderRadius:16, padding:14 }}><b style={{ fontSize:13 }}>Sobre</b><div style={{ fontSize:12, opacity:0.6, marginTop:6, lineHeight:1.5 }}>Marque como Ja Assisti quando terminar. O filme vai para a lista de concluidos.</div></div>
-      </div>
-    </div>
-  )
-}
+
+        <div style={{ marginTop:16, background:"#12182F", border:"1px solid #1e274f", borderRadius:16, padding:14 }}>
+          <b style={{ fontSize:13 }}>Como funciona</b>
+          <div style={{ fontSize:12, opacity:0.6, marginTop:6, lineHeight:1.5 }}>Ao escolher, o banner volta para <b>Filmes</b> e entra automaticamente na seção {status==="ja_assisti"?"Ja Assisti":"Quero Assistir"}.</div>
+        </div>
+
+        {salvando && <div
