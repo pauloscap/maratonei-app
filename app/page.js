@@ -5,6 +5,44 @@ import { BottomNav } from "../components/BottomNav"
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_KEY)
 const IDS_REMOVER = ["101","102","103","201"]
+const TMDB_KEY = process.env.NEXT_PUBLIC_TMDB_KEY || "4e44d9029b1273360df0be1de39768d1"
+const TMDB_IMG = "https://image.tmdb.org/t/p/w342"
+
+async function buscarSeriesPTBR(q){
+  const termo = q.trim()
+  if(!termo) return []
+  // 1 - TMDB PT-BR (títulos traduzidos)
+  try{
+    const r = await fetch(`https://api.themoviedb.org/3/search/tv?api_key=${TMDB_KEY}&language=pt-BR&query=${encodeURIComponent(termo)}`)
+    const j = await r.json()
+    if(j.results && j.results.length){
+      return j.results.slice(0,8).map(function(m){
+        return {
+          id: String(m.id),
+          titulo: m.name || m.original_name,
+          tituloOriginal: m.original_name,
+          ano: m.first_air_date? m.first_air_date.slice(0,4) : "",
+          img: m.poster_path? TMDB_IMG + m.poster_path : "https://picsum.photos/seed/"+m.id+"/400/600",
+          origem: "tmdb"
+        }
+      })
+    }
+  }catch(e){}
+  // 2 - Fallback TVMaze (sempre em inglês, mas garante resultado)
+  try{
+    const r2 = await fetch("https://api.tvmaze.com/search/shows?q=" + encodeURIComponent(termo))
+    const j2 = await r2.json()
+    return j2.slice(0,8).map(function(item){
+      return {
+        id: String(item.show.id),
+        titulo: item.show.name,
+        ano: item.show.premiered? item.show.premiered.slice(0,4) : "",
+        img: item.show.image? (item.show.image.medium || item.show.image.original) : "https://picsum.photos/seed/"+item.show.id+"/400/600",
+        origem: "tvmaze"
+      }
+    })
+  }catch(e){ return [] }
+}
 
 export default function Home() {
   const [userId, setUserId] = useState("anon")
@@ -26,14 +64,12 @@ export default function Home() {
       setUserInicial((u.user_metadata?.full_name || u.email || "P")[0].toUpperCase())
       const savedView = localStorage.getItem(uid + ":view-mode")
       if (savedView) setView(savedView)
-
       IDS_REMOVER.forEach(function(badId){
         localStorage.removeItem(uid + ":status-" + badId)
         localStorage.removeItem(uid + ":eps-" + badId)
         localStorage.removeItem(uid + ":total-" + badId)
       })
       await supabase.from("user_series").delete().eq("user_id", uid).in("serie_id", IDS_REMOVER)
-
       const { data: doSupabase } = await supabase.from("user_series").select("*").eq("user_id", uid)
       let listaBase = []
       if (doSupabase && doSupabase.length > 0) {
@@ -44,19 +80,15 @@ export default function Home() {
         if (salvas && salvas.length > 0) {
           salvas = salvas.filter(function(s){ return IDS_REMOVER.indexOf(String(s.id)) === -1 })
           listaBase = salvas
-        } else {
-          listaBase = [] // USUÁRIO NOVO LIMPO
-        }
+        } else { listaBase = [] }
       }
-
       const comDados = await Promise.all(listaBase.map(async function(s){
         let img = s.img
+        // se não tem imagem, busca de novo em PT-BR
         if (!img) {
           try {
-            const q = s.q || s.titulo
-            const r = await fetch("https://api.tvmaze.com/search/shows?q=" + encodeURIComponent(q))
-            const j = await r.json()
-            img = j && j[0] && j[0].show && (j[0].show.image? (j[0].show.image.medium || j[0].show.image.original) : "")
+            const res = await buscarSeriesPTBR(s.q || s.titulo)
+            if(res[0]) img = res[0].img
           } catch(e){}
         }
         const st = localStorage.getItem(uid + ":status-" + s.id) || s.status
@@ -67,7 +99,7 @@ export default function Home() {
         else if (st === "quero_assistir") progresso = 0
         else if (totalSalvo > 0) progresso = Math.round((epsVistos.length / totalSalvo) * 100)
         else if (epsVistos.length > 0) progresso = Math.min(15 + epsVistos.length * 6, 92)
-        return {...s, id: String(s.id), img: img || "https://picsum.photos/seed/"+s.id+"/400/600", status: st, progresso: progresso, epsVistos: epsVistos.length, totalEps: totalSalvo }
+        return {...s, id: String(s.id), titulo: s.titulo, img: img || "https://picsum.photos/seed/"+s.id+"/400/600", status: st, progresso: progresso, epsVistos: epsVistos.length, totalEps: totalSalvo }
       }))
       setSeries(comDados)
     }
@@ -77,12 +109,8 @@ export default function Home() {
   useEffect(() => {
     if (!busca.trim()) { setResultados([]); return }
     const t = setTimeout(async function(){
-      try {
-        const r = await fetch("https://api.tvmaze.com/search/shows?q=" + encodeURIComponent(busca))
-        const j = await r.json()
-        const lista = j.slice(0, 8).map(function(item){ return { id: String(item.show.id), titulo: item.show.name, ano: item.show.premiered? item.show.premiered.slice(0,4) : "", img: item.show.image? (item.show.image.medium || item.show.image.original) : "https://picsum.photos/seed/"+item.show.id+"/400/600" } })
-        setResultados(lista)
-      } catch(e){ setResultados([]) }
+      const res = await buscarSeriesPTBR(busca)
+      setResultados(res)
     }, 350)
     return function(){ clearTimeout(t) }
   }, [busca])
@@ -90,7 +118,7 @@ export default function Home() {
   function toggleView(){ const novo = view === "grade"? "lista" : "grade"; setView(novo); localStorage.setItem(userId + ":view-mode", novo) }
   function salvarLista(novaLista){ setSeries(novaLista); localStorage.setItem(userId + ":minhas-series", JSON.stringify(novaLista)) }
   async function adicionarSerie(s){
-    const nova = { id: String(s.id), titulo: s.titulo, ano: s.ano || "2024", status: "quero_assistir", img: s.img, q: s.titulo, progresso:0, epsVistos:0, totalEps:0 }
+    const nova = { id: String(s.id), titulo: s.titulo, ano: s.ano || "2024", status: "quero_assistir", img: s.img, q: s.tituloOriginal || s.titulo, progresso:0, epsVistos:0, totalEps:0, origem: s.origem || "tmdb" }
     const novaLista = [nova].concat(series.filter(function(x){ return String(x.id)!== String(nova.id) }))
     salvarLista(novaLista)
     localStorage.setItem(userId + ":serie-atual", JSON.stringify(nova))
@@ -139,7 +167,7 @@ export default function Home() {
       </header>
       <div style={{ maxWidth:1280, margin:"0 auto", padding:14, position:"relative" }}>
         <div style={{ background:"#121A3A", border:"1px solid rgba(255,255,255,0.08)", borderRadius:999, display:"flex", alignItems:"center", padding:"0 14px", height:42, maxWidth:420, margin:"0 auto" }}><span style={{ opacity:0.4, marginRight:8 }}>⌕</span><input value={busca} onChange={function(e){ setBusca(e.target.value) }} placeholder="Buscar série para adicionar..." style={{ flex:1, background:"transparent", border:0, outline:"none", color:"#fff", fontSize:13 }} />{busca && <span onClick={function(){ setBusca("") }} style={{ cursor:"pointer", opacity:0.5 }}>✕</span>}</div>
-        {busca && <div style={{ position:"absolute", top:62, left:14, right:14, maxWidth:420, margin:"0 auto", background:"#12182F", border:"1px solid rgba(255,255,255,0.12)", borderRadius:16, zIndex:50, overflow:"hidden" }}>{resultados.map(function(r){ return (<div key={r.id} onClick={function(){ adicionarSerie(r) }} style={{ display:"flex", gap:10, padding:10, borderBottom:"1px solid rgba(255,255,255,0.05)", cursor:"pointer" }}><img src={r.img} style={{ width:44, height:66, borderRadius:8, objectFit:"cover" }} alt="" /><div style={{ flex:1 }}><div style={{ fontSize:13, fontWeight:800 }}>{r.titulo}</div><div style={{ fontSize:10, color:"#FFD400", fontWeight:800, marginTop:4 }}>+ ADICIONAR</div></div></div>) })}</div>}
+        {busca && <div style={{ position:"absolute", top:62, left:14, right:14, maxWidth:420, margin:"0 auto", background:"#12182F", border:"1px solid rgba(255,255,255,0.12)", borderRadius:16, zIndex:50, overflow:"hidden" }}>{resultados.map(function(r){ return (<div key={r.id} onClick={function(){ adicionarSerie(r) }} style={{ display:"flex", gap:10, padding:10, borderBottom:"1px solid rgba(255,255,255,0.05)", cursor:"pointer" }}><img src={r.img} style={{ width:44, height:66, borderRadius:8, objectFit:"cover" }} alt="" /><div style={{ flex:1 }}><div style={{ fontSize:13, fontWeight:800 }}>{r.titulo}</div><div style={{ fontSize:10, opacity:0.4 }}>{r.ano}</div><div style={{ fontSize:10, color:"#FFD400", fontWeight:800, marginTop:4 }}>+ ADICIONAR</div></div></div>) })}</div>}
         {!busca && <>
           <Secao titulo="Assistindo" cor="#FFD400" qtd={assistindo.length}>{assistindo.map(function(s){ return view==="grade"? <CardGrade key={s.id} s={s}/> : <CardLista key={s.id} s={s}/> })}</Secao>
           <Secao titulo="Quero Assistir" cor="#8b5cf6" qtd={queroAssistir.length}>{queroAssistir.map(function(s){ return view==="grade"? <CardGrade key={s.id} s={s}/> : <CardLista key={s.id} s={s}/> })}</Secao>
