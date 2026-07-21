@@ -5,7 +5,6 @@ import { BottomNav } from "../components/BottomNav"
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_KEY)
 
-// BASE limpo - sem Abbott e X-Men 97 quebrados
 const BASE = [
   { id: "73", titulo: "The Walking Dead", status: "assistindo" },
   { id: "2993", titulo: "Stranger Things", status: "maratonei" },
@@ -21,23 +20,27 @@ export default function Home() {
   const [resultados, setResultados] = useState([])
   const [buscando, setBuscando] = useState(false)
   const [view, setView] = useState("grade")
+  const [userFoto, setUserFoto] = useState("")
+  const [userInicial, setUserInicial] = useState("P")
 
   useEffect(() => {
     const init = async () => {
       const { data } = await supabase.auth.getSession()
       if (!data.session) { window.location.href = "/login"; return }
       const uid = data.session.user.id
+      const u = data.session.user
       setUserId(uid)
+      setUserFoto(u.user_metadata?.avatar_url || "")
+      setUserInicial((u.user_metadata?.full_name || u.email || "P")[0].toUpperCase())
+
       const savedView = localStorage.getItem(uid + ":view-mode")
       if (savedView) setView(savedView)
 
-      // LIMPEZA AUTOMÁTICA dos IDs quebrados 101 e 102
       IDS_REMOVER.forEach(function(badId){
         localStorage.removeItem(uid + ":status-" + badId)
         localStorage.removeItem(uid + ":eps-" + badId)
         localStorage.removeItem(uid + ":total-" + badId)
       })
-      // limpa do Supabase também
       await supabase.from("user_series").delete().eq("user_id", uid).in("serie_id", IDS_REMOVER)
 
       let salvas = JSON.parse(localStorage.getItem(uid + ":minhas-series") || "null")
@@ -124,7 +127,23 @@ export default function Home() {
   return (
     <div style={{ minHeight:"100vh", background:"#0A0F2A", color:"#fff", paddingBottom:90 }}>
       <style>{".grid-responsive{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}@media(min-width:480px){.grid-responsive{grid-template-columns:repeat(4,1fr)}}@media(min-width:768px){.grid-responsive{grid-template-columns:repeat(5,1fr);gap:14px}}@media(min-width:1024px){.grid-responsive{grid-template-columns:repeat(6,1fr)}}.card-grade{cursor:pointer}.poster-wrap{width:100%;aspect-ratio:2/3;border-radius:12px;overflow:hidden;background:#12182F;border:1px solid rgba(255,255,255,0.08);position:relative}.poster-wrap img{width:100%;height:100%;object-fit:cover;display:block}.badge{position:absolute;top:6px;left:6px;background:#FFD400;color:#000;font-size:8px;font-weight:900;padding:3px 6px;border-radius:6px}.progress-track{position:absolute;bottom:0;left:0;right:0;height:4px;background:rgba(0,0,0,0.6)}.progress-fill{height:100%}.titulo{font-size:12px;font-weight:700;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sub{font-size:10px;opacity:0.5;margin-top:2px}"}</style>
-      <header style={{ height:56, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 14px", borderBottom:"1px solid rgba(255,255,255,0.06)", position:"sticky", top:0, background:"#0A0F2A", zIndex:20 }}><div style={{ display:"flex", alignItems:"center", gap:8 }}><div style={{ width:28, height:28, borderRadius:8, background:"#FFD400", color:"#000", display:"grid", placeItems:"center", fontWeight:900 }}>M</div><b>maratonei</b></div><div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:4 }}><div onClick={function(){ window.location.href="/perfil" }} style={{ width:30, height:30, borderRadius:999, background:"#FFD400", color:"#000", display:"grid", placeItems:"center", fontWeight:900, fontSize:12, cursor:"pointer" }}>P</div><button onClick={toggleView} style={{ background:"#121A3A", border:"1px solid rgba(255,255,255,0.12)", color:"#fff", borderRadius:8, padding:"4px 8px", fontSize:11, cursor:"pointer" }}>{view==="grade"? "Lista" : "Grade"}</button></div></header>
+
+      {/* HEADER ATUALIZADO - LOGO + FOTO */}
+      <header style={{ height:62, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 14px", borderBottom:"1px solid rgba(255,255,255,0.06)", position:"sticky", top:0, background:"rgba(10,15,42,0.92)", backdropFilter:"blur(12px)", zIndex:20 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <div style={{ width:32, height:32, borderRadius:9, background:"#121B3A", border:"1px solid rgba(255,255,255,0.1)", display:"grid", placeItems:"center", overflow:"hidden" }}>
+            <img src="/logo.png" onError={function(e){ e.currentTarget.src="/maratonei-logo.png"; e.currentTarget.onerror=function(){ e.currentTarget.style.display="none"; e.currentTarget.parentElement.innerHTML="🍿" } }} alt="maratonei" style={{ width:22, height:22, objectFit:"contain" }} />
+          </div>
+          <b style={{ fontFamily:"Sora,sans-serif", fontWeight:900, letterSpacing:-0.3 }}>maratonei</b>
+        </div>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <button onClick={toggleView} style={{ background:"#121A3A", border:"1px solid rgba(255,255,255,0.12)", color:"#fff", borderRadius:8, padding:"6px 10px", fontSize:11, cursor:"pointer", height:32 }}>{view==="grade"? "Lista" : "Grade"}</button>
+          <button onClick={function(){ window.location.href="/perfil" }} style={{ width:34, height:34, borderRadius:999, overflow:"hidden", border:"1.5px solid #FFD40055", background:"#121B3A", display:"grid", placeItems:"center", cursor:"pointer", padding:0 }}>
+            {userFoto? <img src={userFoto} alt="perfil" style={{ width:"100%", height:"100%", objectFit:"cover" }} /> : <span style={{ fontWeight:900, fontSize:12, color:"#FFD400" }}>{userInicial}</span>}
+          </button>
+        </div>
+      </header>
+
       <div style={{ maxWidth:1280, margin:"0 auto", padding:14, position:"relative" }}>
         <div style={{ background:"#121A3A", border:"1px solid rgba(255,255,255,0.08)", borderRadius:999, display:"flex", alignItems:"center", padding:"0 14px", height:42, maxWidth:420, margin:"0 auto" }}><span style={{ opacity:0.4, marginRight:8 }}>Q</span><input value={busca} onChange={function(e){ setBusca(e.target.value) }} placeholder="Buscar serie para adicionar..." style={{ flex:1, background:"transparent", border:0, outline:"none", color:"#fff", fontSize:13 }} />{busca && <span onClick={function(){ setBusca("") }} style={{ cursor:"pointer", opacity:0.5, fontSize:12, marginLeft:8 }}>X</span>}</div>
         {busca && <div style={{ position:"absolute", top:62, left:14, right:14, maxWidth:420, margin:"0 auto", background:"#12182F", border:"1px solid rgba(255,255,255,0.12)", borderRadius:16, zIndex:50, overflow:"hidden" }}>{resultados.map(function(r){ return (<div key={r.id} onClick={function(){ adicionarSerie(r) }} style={{ display:"flex", gap:10, padding:10, borderBottom:"1px solid rgba(255,255,255,0.05)", cursor:"pointer" }}><img src={r.img} style={{ width:44, height:66, borderRadius:8, objectFit:"cover" }} alt="" /><div style={{ flex:1 }}><div style={{ fontSize:13, fontWeight:800 }}>{r.titulo}</div><div style={{ fontSize:10, color:"#FFD400", marginTop:4, fontWeight:800 }}>+ ADICIONAR</div></div></div>) })}</div>}
