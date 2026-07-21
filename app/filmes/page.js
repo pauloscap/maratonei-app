@@ -1,82 +1,138 @@
 "use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@supabase/supabase-js"
+import { BottomNav } from "../../components/BottomNav"
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_KEY)
 
 const BASE = [
-  { id: "299534", titulo: "Vingadores Ultimato" },
-  { id: "272", titulo: "Batman" },
-  { id: "82", titulo: "The Last of Us" }
+  { id: "82", titulo: "Game of Thrones", status: "assistindo" },
+  { id: "299534", titulo: "Vingadores Ultimato", status: "maratonei" },
+  { id: "272", titulo: "Batman", status: "quero_assistir" },
 ]
 
 export default function FilmesPage() {
-  const [uid, setUid] = useState("")
-  const [view, setView] = useState("grade")
+  const [userId, setUserId] = useState("anon")
   const [busca, setBusca] = useState("")
   const [filmes, setFilmes] = useState([])
-  const [res, setRes] = useState([])
+  const [resultados, setResultados] = useState([])
+  const [view, setView] = useState("grade")
 
   useEffect(() => {
-    async function load() {
+    async function init() {
       const s = await supabase.auth.getSession()
       if (!s.data.session) { window.location.href = "/login"; return }
-      const id = s.data.session.user.id
-      setUid(id)
-      const v = localStorage.getItem(id + ":view-filmes")
+      const uid = s.data.session.user.id
+      setUserId(uid)
+      const v = localStorage.getItem(uid + ":view-filmes")
       if (v) setView(v)
-      const salvos = JSON.parse(localStorage.getItem(id + ":meus-filmes") || "null")
-      const lista = salvos || BASE.map(b=>({ id: b.id, titulo: b.titulo, img: "https://picsum.photos/seed/" + b.id + "/400/600", status:"quero_assistir", progresso:0 }))
-      setFilmes(lista)
+
+      let lista = []
+      try {
+        const r = await supabase.from("user_filmes").select("*").eq("user_id", uid).order("updated_at", { ascending: false })
+        if (r.data && r.data.length) lista = r.data.map(function(x){ return { id: String(x.filme_id), titulo: x.titulo, img: x.img, status: x.status } })
+      } catch(e) {}
+
+      if (!lista.length) {
+        const raw = localStorage.getItem(uid + ":meus-filmes")
+        if (raw) lista = JSON.parse(raw)
+        else lista = BASE
+      }
+
+      const finalList = await Promise.all(lista.map(async function(f){
+        let img = f.img
+        if (!img) {
+          try {
+            const req = await fetch("https://api.tvmaze.com/search/shows?q=" + encodeURIComponent(f.titulo))
+            const js = await req.json()
+            if (js && js[0] && js[0].show && js[0].show.image) img = js[0].show.image.medium
+          } catch(e) {}
+        }
+        const st = f.status || "quero_assistir"
+        const prog = st === "maratonei"? 100 : st === "assistindo"? 45 : 0
+        return { id: String(f.id || f.filme_id), titulo: f.titulo, img: img || "https://picsum.photos/seed/" + f.titulo + "/400/600", status: st, progresso: prog }
+      }))
+      setFilmes(finalList)
     }
-    load()
+    init()
   }, [])
 
-  useEffect(() => {
-    if (!busca) { setRes([]); return }
-    const t = setTimeout(async () => {
-      const r = await fetch("https://api.tvmaze.com/search/shows?q=" + encodeURIComponent(busca))
-      const j = await r.json()
-      const out = j.slice(0,6).map(i=>({ id: String(i.show.id), titulo: i.show.name, img: i.show.image? i.show.image.medium : "https://picsum.photos/seed/"+i.show.id+"/400/600" }))
-      setRes(out)
-    }, 400)
-    return () => clearTimeout(t)
+  useEffect(function(){
+    if (!busca.trim()) { setResultados([]); return }
+    const t = setTimeout(async function(){
+      try {
+        const r = await fetch("https://api.tvmaze.com/search/shows?q=" + encodeURIComponent(busca))
+        const j = await r.json()
+        const l = j.slice(0,6).map(function(it){ return { id: String(it.show.id), titulo: it.show.name, img: it.show.image? it.show.image.medium : "https://picsum.photos/seed/" + it.show.id + "/400/600" } })
+        setResultados(l)
+      } catch(e){ setResultados([]) }
+    }, 300)
+    return function(){ clearTimeout(t) }
   }, [busca])
 
-  function mudarView() {
-    const n = view === "grade"? "lista" : "grade"
-    setView(n)
-    localStorage.setItem(uid + ":view-filmes", n)
+  function toggle(){ const n = view === "grade"? "lista" : "grade"; setView(n); localStorage.setItem(userId + ":view-filmes", n) }
+
+  async function add(f){
+    const novo = { id: String(f.id), titulo: f.titulo, img: f.img, status: "quero_assistir", progresso: 0 }
+    const nl = [novo].concat(filmes.filter(function(x){ return String(x.id)!== String(novo.id) }))
+    setFilmes(nl)
+    localStorage.setItem(userId + ":meus-filmes", JSON.stringify(nl))
+    try { await supabase.from("user_filmes").upsert({ user_id: userId, filme_id: novo.id, titulo: novo.titulo, img: novo.img, status: "quero_assistir", updated_at: new Date().toISOString() }, { onConflict: "user_id,filme_id" }) } catch(e){}
+    setBusca(""); setResultados([])
   }
 
-  function addFilme(f) {
-    const novo = { id: f.id, titulo: f.titulo, img: f.img, status:"quero_assistir", progresso:0 }
-    const nova = [novo].concat(filmes.filter(x=>x.id!==novo.id))
-    setFilmes(nova)
-    localStorage.setItem(uid + ":meus-filmes", JSON.stringify(nova))
-    setBusca("")
-    setRes([])
-  }
+  function abrir(f){ localStorage.setItem(userId + ":filme-atual", JSON.stringify(f)); window.location.href = "/filme/" + f.id }
 
-  function abrir(f) {
-    localStorage.setItem(uid + ":filme-atual", JSON.stringify(f))
-    window.location.href = "/filme/" + f.id
+  const assist = filmes.filter(function(x){ return x.status === "assistindo" })
+  const quero = filmes.filter(function(x){ return x.status === "quero_assistir" })
+  const mara = filmes.filter(function(x){ return x.status === "maratonei" })
+
+  function Secao(p){
+    return (
+      <div style={{ marginTop:22 }}>
+        <div style={{ display:"flex", gap:8, alignItems:"center", marginBottom:10 }}><div style={{ width:3, height:14, background:p.cor, borderRadius:99 }} /><b style={{ fontSize:14 }}>{p.titulo}</b><span style={{ fontSize:11, opacity:0.4 }}> - {p.qtd}</span></div>
+        <div className={view==="grade"? "grid" : "list"}>{p.children}</div>
+      </div>
+    )
   }
 
   return (
-    <div className="page">
+    <div style={{ minHeight:"100vh", background:"#0A0F2A", color:"#fff", paddingBottom:90 }}>
       <style>{`
-       .page { min-height:100vh; background:#0A0F2A; color:#fff; padding-bottom:80px; }
-       .top { height:56px; display:flex; align-items:center; justify-content:space-between; padding:0 14px; border-bottom:1px solid #1a2142; position:sticky; top:0; background:#0A0F2A; z-index:10; }
-       .search { background:#121A3A; border:1px solid #1e2a5a; border-radius:999px; display:flex; align-items:center; padding:0 14px; height:42px; max-width:420px; margin:14px auto; }
-       .search input { flex:1; background:transparent; border:0; outline:none; color:#fff; }
-       .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+       .grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
         @media(min-width:480px){.grid{ grid-template-columns:repeat(4,1fr); } }
         @media(min-width:768px){.grid{ grid-template-columns:repeat(5,1fr); gap:14px; } }
         @media(min-width:1024px){.grid{ grid-template-columns:repeat(6,1fr); } }
-       .card { cursor:pointer; }
-       .poster { width:100%; aspect-ratio:2/3; border-radius:12px; overflow:hidden; background:#12182F; position:relative; border:1px solid #1e2a5a; }
-       .poster img { width:100%; height:100%; object-fit:cover; }
-       .badge { position:absolute; top:6px; left:6px; background:#FFD400; color:#000; font-size:8px; font-weight:900; padding:3px 6px; border-radius:6px; }
-       .bar { position:absolute; bottom:0; left:0; right:0; height:4px; background:#000; }
-       .fill { height:100%; background:#FFD400; }
+        @media(min-width:1280px){.grid{ grid-template-columns:repeat(7,1fr); } }
+       .list{ display:grid; gap:8px; }
+       .card{ cursor:pointer; }
+       .poster{ width:100%; aspect-ratio:2/3; border-radius:12px; overflow:hidden; background:#12182F; border:1px solid #222b5a; position:relative; }
+       .poster img{ width:100%; height:100%; object-fit:cover; display:block; }
+       .badge{ position:absolute; top:6px; left:6px; background:#FFD400; color:#000; font-size:8px; font-weight:900; padding:3px 6px; border-radius:6px; }
+       .track{ position:absolute; bottom:0; left:0; right:0; height:4px; background:#000; }
+       .fill{ height:100%; }
+       .tit{ font-size:12px; font-weight:700; margin-top:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+       .row{ display:flex; gap:12px; padding:10px; background:#12182F; border:1px solid #222b5a; border-radius:12px; cursor:pointer; }
+       .row img{ width:52px; height:78px; border-radius:8px; object-fit:cover; }
+      `}</style>
+
+      <header style={{ height:56, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 14px", borderBottom:"1px solid #1e274f", position:"sticky", top:0, background:"#0A0F2A", zIndex:20 }}>
+        <div style={{ display:"flex", gap:8, alignItems:"center" }}><div style={{ width:28, height:28, borderRadius:8, background:"#FFD400", color:"#000", display:"grid", placeItems:"center", fontWeight:900 }}>M</div><b>maratonei</b></div>
+        <div style={{ display:"flex", gap:8, alignItems:"center" }}><button onClick={toggle} style={{ background:"#121A3A", border:"1px solid #2a3566", color:"#fff", borderRadius:8, padding:"6px 10px", fontSize:11, cursor:"pointer" }}>{view==="grade"? "Lista" : "Grade"}</button><div onClick={function(){ window.location.href="/perfil" }} style={{ width:30, height:30, borderRadius:999, background:"#FFD400", color:"#000", display:"grid", placeItems:"center", fontWeight:900, cursor:"pointer" }}>P</div></div>
+      </header>
+
+      <div style={{ maxWidth:1280, margin:"0 auto", padding:14, position:"relative" }}>
+        <div style={{ background:"#121A3A", border:"1px solid #2a3566", borderRadius:999, display:"flex", alignItems:"center", padding:"0 14px", height:42, maxWidth:420, margin:"0 auto" }}>
+          <span style={{ opacity:0.4, marginRight:8 }}>Q</span>
+          <input value={busca} onChange={function(e){ setBusca(e.target.value) }} placeholder="Buscar filme" style={{ flex:1, background:"transparent", border:0, outline:"none", color:"#fff", fontSize:13 }} />
+          {busca && <span onClick={function(){ setBusca("") }} style={{ cursor:"pointer", opacity:0.5 }}>X</span>}
+        </div>
+
+        {busca && resultados.length>0 && <div style={{ position:"absolute", top:62, left:14, right:14, maxWidth:420, margin:"0 auto", background:"#12182F", border:"1px solid #2a3566", borderRadius:12, zIndex:50, overflow:"hidden" }}>{resultados.map(function(r){ return <div key={r.id} onClick={function(){ add(r) }} style={{ display:"flex", gap:10, padding:10, borderBottom:"1px solid #1e274f", cursor:"pointer" }}><img src={r.img} style={{ width:40, height:60, borderRadius:6, objectFit:"cover" }} alt="" /><div><div style={{ fontSize:13, fontWeight:700 }}>{r.titulo}</div><div style={{ fontSize:10, color:"#FFD400", fontWeight:800, marginTop:4 }}>+ ADICIONAR</div></div></div> })}</div>}
+
+        {!busca && <div><Secao titulo="Assistindo" cor="#FFD400" qtd={assist.length}>{assist.map(function(s){ return view==="grade"? <div key={s.id} onClick={function(){ abrir(s) }} className="card"><div className="poster"><img src={s.img} alt="" /><div className="badge">ASSISTINDO</div><div className="track"><div className="fill" style={{ width:s.progresso+"%", background:"#FFD400" }} /></div></div><div className="tit">{s.titulo}</div></div> : <div key={s.id} onClick={function(){ abrir(s) }} className="row"><img src={s.img} alt="" /><div style={{ flex:1 }}><div style={{ fontSize:13, fontWeight:800 }}>{s.titulo}</div><div style={{ height:4, background:"#222", marginTop:8, borderRadius:99 }}><div style={{ width:s.progresso+"%", height:"100%", background:"#FFD400" }} /></div></div></div> })}</Secao><Secao titulo="Quero Assistir" cor="#8b5cf6" qtd={quero.length}>{quero.map(function(s){ return view==="grade"? <div key={s.id} onClick={function(){ abrir(s) }} className="card"><div className="poster"><img src={s.img} alt="" /><div className="badge">QUERO</div><div className="track"><div className="fill" style={{ width:s.progresso+"%", background:"#8b5cf6" }} /></div></div><div className="tit">{s.titulo}</div></div> : <div key={s.id} onClick={function(){ abrir(s) }} className="row"><img src={s.img} alt="" /><div style={{ flex:1 }}><div style={{ fontSize:13, fontWeight:800 }}>{s.titulo}</div></div><div style={{ opacity:0.3 }}>›</div></div> })}</Secao><Secao titulo="Maratonei" cor="#22c55e" qtd={mara.length}>{mara.map(function(s){ return view==="grade"? <div key={s.id} onClick={function(){ abrir(s) }} className="card"><div className="poster"><img src={s.img} alt="" /><div className="badge">MARATONEI</div><div className="track"><div className="fill" style={{ width:"100%", background:"#22c55e" }} /></div></div><div className="tit">{s.titulo}</div></div> : <div key={s.id} onClick={function(){ abrir(s) }} className="row"><img src={s.img} alt="" /><div style={{ flex:1 }}><div style={{ fontSize:13, fontWeight:800 }}>{s.titulo}</div><div style={{ fontSize:11, opacity:0.5 }}>100%</div></div></div> })}</Secao></div>}
+      </div>
+      <BottomNav />
+    </div>
+  )
+}
