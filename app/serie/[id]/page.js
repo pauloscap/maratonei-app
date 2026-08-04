@@ -24,37 +24,56 @@ export default function DetalheSerie() {
       const uid = sess.data.session.user.id
       setUserId(uid)
 
-      // 1. Pega SEMPRE do Supabase primeiro - nunca do localStorage
+      // 1. PEGA SEMPRE DO BANCO - NUNCA DO LOCALSTORAGE
       const { data: row, error } = await supabase.from("user_series").select("*").eq("user_id", uid).eq("serie_id", id).single()
-      
-      if (error || !row) { 
+
+      if (error || !row) {
         console.error("Série não encontrada:", error)
-        window.location.href = "/"; 
-        return 
+        window.location.href = "/"
+        return
       }
 
-      let s = { 
-        id: row.serie_id, 
-        titulo: row.titulo, 
-        ano: row.ano, 
-        img: row.img, 
-        q: row.q, 
-        status: row.status, 
-        origem: row.origem || "tmdb" 
+      let s = {
+        id: row.serie_id,
+        titulo: row.titulo,
+        ano: row.ano,
+        img: row.img,
+        q: row.q,
+        status: row.status,
+        origem: row.origem || "tmdb"
       }
-      
+
       setSerie(s)
       setStatus(row.status || "assistindo")
       setEpsVistos(row.eps_vistos || [])
 
       try {
         let lista = []
+        let imgAtualizada = false
+        let tituloAtualizado = false
+        let anoAtualizado = false
 
         if (s.origem === "tmdb") {
           const details = await fetch(`https://api.themoviedb.org/3/tv/${id}?api_key=${TMDB_KEY}&language=pt-BR`).then(r=>r.json())
           if (details && details.name) {
             const newImg = details.poster_path? `https://image.tmdb.org/t/p/w500${details.poster_path}` : s.img
-            s = {...s, titulo: details.name, ano: details.first_air_date? details.first_air_date.slice(0,4) : "", img: newImg, banner: newImg }
+            const newTitulo = details.name
+            const newAno = details.first_air_date? details.first_air_date.slice(0,4) : s.ano
+
+            // ATUALIZA NO BANCO SE MUDOU
+            if (newImg !== s.img || newTitulo !== s.titulo || newAno !== s.ano) {
+              await supabase.from("user_series").update({
+                img: newImg,
+                titulo: newTitulo,
+                ano: newAno,
+                updated_at: new Date().toISOString()
+              }).eq("user_id", uid).eq("serie_id", id)
+              imgAtualizada = true
+              tituloAtualizado = true
+              anoAtualizado = true
+            }
+
+            s = {...s, titulo: newTitulo, ano: newAno, img: newImg, banner: newImg }
             setSerie(s)
           }
           if (details && details.seasons) {
@@ -90,7 +109,20 @@ export default function DetalheSerie() {
           const episodes = await c.json()
           if (show && show.name) {
             const newImg = show.image? (show.image.original || show.image.medium) : s.img
-            s = {...s, titulo: show.name, ano: show.premiered? show.premiered.slice(0,4) : "", img: newImg, banner: newImg }
+            const newTitulo = show.name
+            const newAno = show.premiered? show.premiered.slice(0,4) : s.ano
+
+            // ATUALIZA NO BANCO SE MUDOU
+            if (newImg !== s.img || newTitulo !== s.titulo || newAno !== s.ano) {
+              await supabase.from("user_series").update({
+                img: newImg,
+                titulo: newTitulo,
+                ano: newAno,
+                updated_at: new Date().toISOString()
+              }).eq("user_id", uid).eq("serie_id", id)
+            }
+
+            s = {...s, titulo: newTitulo, ano: newAno, img: newImg, banner: newImg }
             setSerie(s)
           }
           const mapa = {}
@@ -176,7 +208,7 @@ export default function DetalheSerie() {
         <div style={{ position:"absolute", bottom:0, left:16, right:16, display:"flex", gap:12, alignItems:"flex-end", transform:"translateY(22px)" }}>
           <img src={serie.img} alt="" style={{ width:90, height:135, borderRadius:12, objectFit:"cover", border:"2px solid rgba(255,255,255,0.15)", flexShrink:0 }} />
           <div style={{ flex:1, paddingBottom:6, minWidth:0 }}>
-            <h1 style={{ margin:0, fontSize:18, fontWeight:900, wordWrap:"break-word" }}>{serie.titulo}</h1>
+            <h1 style={{ margin:0, fontSize:18, fontWeight:900, wordWrap:"break-word", overflowWrap:"break-word" }}>{serie.titulo}</h1>
             <div style={{ fontSize:11, opacity:0.6, marginTop:4 }}>{loading? "carregando..." : temporadas.length + " temp • " + epsVistos.length + "/" + totalEps + " • " + progresso + "%"}</div>
             <div style={{ height:4, background:"rgba(255,255,255,0.15)", borderRadius:99, marginTop:8 }}><div style={{ width: progresso + "%", height:"100%", background:"#FFD400", borderRadius:99 }} /></div>
           </div>
