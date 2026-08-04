@@ -126,7 +126,7 @@ export default function Home() {
       else if (epsVistos.length > 0) progresso = Math.min(15 + epsVistos.length * 6, 92)
 
       return {
-   ...s,
+  ...s,
         id: String(s.id),
         img: img || "https://picsum.photos/seed/"+s.id+"/400/600",
         status: st,
@@ -156,12 +156,17 @@ export default function Home() {
 
       await carregarSeries(uid)
 
+      // REALTIME: só INSERT e UPDATE, ignora DELETE
       channel = supabase.channel('user_series_realtime_' + uid)
-.on('postgres_changes',
-        { event: '*', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` },
+    .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` },
         () => { carregarSeries(uid) }
       )
-.subscribe()
+    .on('postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` },
+        () => { carregarSeries(uid) }
+      )
+    .subscribe()
 
       const handleFocus = () => carregarSeries(uid)
       window.addEventListener('focus', handleFocus)
@@ -233,22 +238,28 @@ export default function Home() {
 
   async function abandonarSerie(s, e){
     e.stopPropagation()
+    e.preventDefault()
+
     if (!confirm("Abandonar " + s.titulo + "?")) return
 
+    // 1. Fecha overlay e remove da tela AGORA
+    setSerieOverlay(null)
+    setSeries(prev => prev.filter(x => x.id!== s.id))
+
+    // 2. Deleta do banco em background
     const { error } = await supabase
- .from("user_series")
- .delete()
- .eq("user_id", userId)
- .eq("serie_id", s.id)
+  .from("user_series")
+  .delete()
+  .eq("user_id", userId)
+  .eq("serie_id", s.id)
 
     if (error) {
       alert("Erro ao abandonar: " + error.message)
+      carregarSeries(userId)
       return
     }
 
-    setSeries(series.filter(x => x.id!== s.id))
-    setSerieOverlay(null)
-
+    // 3. Limpa localStorage
     localStorage.removeItem(userId + ":status-" + s.id)
     localStorage.removeItem(userId + ":eps-" + s.id)
     localStorage.removeItem(userId + ":total-" + s.id)
