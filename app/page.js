@@ -42,49 +42,6 @@ async function buscarSeriesPTBR(q){
   }catch(e){ return [] }
 }
 
-async function migrarLocalStorageProBanco(uid) {
-  const chaves = ['quero_assistir', 'assistindo', 'maratonei']
-  let migradas = 0
-  let rows = []
-
-  for (const status of chaves) {
-    const local = localStorage.getItem(uid + "_" + status)
-    if (!local) continue
-
-    const series = JSON.parse(local)
-    if (!series.length) continue
-
-    rows = rows.concat(series.map(s => ({
-      user_id: uid,
-      serie_id: String(s.id || s.serie_id),
-      titulo: s.titulo,
-      ano: s.ano || "0000",
-      img: s.img,
-      q: s.q || s.tituloOriginal || s.titulo,
-      status: status,
-      origem: s.origem || 'tmdb',
-      updated_at: new Date().toISOString()
-    })))
-  }
-
-  if (rows.length > 0) {
-    console.log(`[MIGRAÇÃO] Enviando ${rows.length} séries antigas pro banco...`)
-    const { error } = await supabase.from("user_series").upsert(rows, { onConflict: 'user_id,serie_id' })
-
-    if (error) {
-      console.error(`[MIGRAÇÃO] Erro:`, error)
-    } else {
-      migradas = rows.length
-      // limpa localStorage antigo
-      chaves.forEach(status => localStorage.removeItem(uid + "_" + status))
-      localStorage.removeItem(uid + ":minhas-series")
-      console.log(`[MIGRAÇÃO] ${migradas} séries enviadas!`)
-    }
-  }
-
-  return migradas
-}
-
 export default function Home() {
   const [userId, setUserId] = useState("anon")
   const [busca, setBusca] = useState("")
@@ -98,14 +55,61 @@ export default function Home() {
   async function carregarSeries(uid) {
     const { data: doSupabase } = await supabase.from("user_series").select("*").eq("user_id", uid).order("updated_at", { ascending: false })
 
-    let listaBase = doSupabase || []
+    const localRaw = localStorage.getItem(uid + ":minhas-series")
+    const doLocal = localRaw? JSON.parse(localRaw) : []
 
+    const mapaFinal = {}
+
+    // 1. Pega do Supabase primeiro
+    if (doSupabase) {
+      doSupabase.forEach(function(r){
+        mapaFinal[String(r.serie_id)] = {
+          id: String(r.serie_id),
+          titulo: r.titulo,
+          ano: r.ano || "0000",
+          img: r.img,
+          q: r.q,
+          status: r.status,
+          origem: r.origem || "tmdb"
+        }
+      })
+    }
+
+    // 2. Sobe pro banco tudo que só existe no localStorage
+    const seriesPraSubir = []
+    doLocal.forEach(function(s){
+      const sid = String(s.id)
+      if (!mapaFinal[sid] && IDS_REMOVER.indexOf(sid) === -1) {
+        mapaFinal[sid] = s
+        seriesPraSubir.push({
+          user_id: uid,
+          serie_id: sid,
+          titulo: s.titulo,
+          ano: s.ano || "0000",
+          img: s.img,
+          q: s.q || s.tituloOriginal || s.titulo,
+          status: s.status || "quero_assistir",
+          origem: s.origem || "tmdb",
+          updated_at: new Date().toISOString()
+        })
+      }
+    })
+
+    if (seriesPraSubir.length > 0) {
+      console.log(`[SYNC] Subindo ${seriesPraSubir.length} séries antigas pro banco...`)
+      await supabase.from("user_series").upsert(seriesPraSubir, { onConflict: 'user_id,serie_id' })
+    }
+
+    // Remove IDs bugados
     IDS_REMOVER.forEach(function(badId){
+      delete mapaFinal[badId]
       localStorage.removeItem(uid + ":status-" + badId)
       localStorage.removeItem(uid + ":eps-" + badId)
       localStorage.removeItem(uid + ":total-" + badId)
     })
     await supabase.from("user_series").delete().eq("user_id", uid).in("serie_id", IDS_REMOVER)
+
+    let listaBase = Object.values(mapaFinal)
 
     const comDados = await Promise.all(listaBase.map(async function(s){
       let img = s.img
@@ -115,9 +119,9 @@ export default function Home() {
           if(res[0]) img = res[0].img
         } catch(e){}
       }
-      const st = s.status
-      const epsVistos = JSON.parse(localStorage.getItem(uid + ":eps-" + s.serie_id) || "[]")
-      const totalSalvo = Number(localStorage.getItem(uid + ":total-" + s.serie_id) || 0)
+      const st = localStorage.getItem(uid + ":status-" + s.id) || s.status
+      const epsVistos = JSON.parse(localStorage.getItem(uid + ":eps-" + s.id) || "[]")
+      const totalSalvo = Number(localStorage.getItem(uid + ":total-" + s.id) || 0)
       let progresso = 0
       if (st === "maratonei") progresso = 100
       else if (st === "quero_assistir") progresso = 0
@@ -125,13 +129,10 @@ export default function Home() {
       else if (epsVistos.length > 0) progresso = Math.min(15 + epsVistos.length * 6, 92)
 
       return {
-        id: String(s.serie_id),
-        titulo: s.titulo,
-        ano: s.ano,
-        img: img || "https://picsum.photos/seed/"+s.serie_id+"/400/600",
-        q: s.q,
+       ...s,
+        id: String(s.id),
+        img: img || "https://picsum.photos/seed/"+s.id+"/400/600",
         status: st,
-        origem: s.origem,
         progresso: progresso,
         epsVistos: epsVistos.length,
         totalEps: totalSalvo
@@ -156,24 +157,14 @@ export default function Home() {
       const savedView = localStorage.getItem(uid + ":view-mode")
       if (savedView) setView(savedView)
 
-      // Migra séries antigas do localStorage 1 vez
-      const jaMigrou = localStorage.getItem(uid + ":migrou_v2")
-      if (!jaMigrou) {
-        const qtd = await migrarLocalStorageProBanco(uid)
-        if (qtd > 0) {
-          localStorage.setItem(uid + ":migrou_v2", "1")
-          alert(`${qtd} séries antigas foram sincronizadas!`)
-        }
-      }
-
       await carregarSeries(uid)
 
       channel = supabase.channel('user_series_realtime_' + uid)
-   .on('postgres_changes',
+  .on('postgres_changes',
         { event: '*', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` },
         () => { carregarSeries(uid) }
       )
-   .subscribe()
+  .subscribe()
     }
     init()
 
