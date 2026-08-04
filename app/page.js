@@ -60,7 +60,6 @@ export default function Home() {
 
     const mapaFinal = {}
 
-    // 1. Pega do Supabase primeiro
     if (doSupabase) {
       doSupabase.forEach(function(r){
         mapaFinal[String(r.serie_id)] = {
@@ -75,7 +74,6 @@ export default function Home() {
       })
     }
 
-    // 2. Sobe pro banco tudo que só existe no localStorage
     const seriesPraSubir = []
     doLocal.forEach(function(s){
       const sid = String(s.id)
@@ -100,7 +98,6 @@ export default function Home() {
       await supabase.from("user_series").upsert(seriesPraSubir, { onConflict: 'user_id,serie_id' })
     }
 
-    // Remove IDs bugados
     IDS_REMOVER.forEach(function(badId){
       delete mapaFinal[badId]
       localStorage.removeItem(uid + ":status-" + badId)
@@ -129,7 +126,7 @@ export default function Home() {
       else if (epsVistos.length > 0) progresso = Math.min(15 + epsVistos.length * 6, 92)
 
       return {
-       ...s,
+     ...s,
         id: String(s.id),
         img: img || "https://picsum.photos/seed/"+s.id+"/400/600",
         status: st,
@@ -147,10 +144,10 @@ export default function Home() {
     let channel
 
     const init = async () => {
-      const { data } = await supabase.auth.getSession()
-      if (!data.session) { window.location.href = "/login"; return }
-      const uid = data.session.user.id
-      const u = data.session.user
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) { window.location.href = "/login"; return }
+      const uid = session.user.id
+      const u = session.user
       setUserId(uid)
       setUserFoto(u.user_metadata?.avatar_url || "")
       setUserInicial((u.user_metadata?.full_name || u.email || "P")[0].toUpperCase())
@@ -159,12 +156,24 @@ export default function Home() {
 
       await carregarSeries(uid)
 
+      // REALTIME: atualiza quando deletar/adicionar
       channel = supabase.channel('user_series_realtime_' + uid)
-  .on('postgres_changes',
+.on('postgres_changes',
         { event: '*', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` },
         () => { carregarSeries(uid) }
       )
-  .subscribe()
+.subscribe()
+
+      // RECARREGA quando volta pro app - ESSENCIAL NO MOBILE
+      const handleFocus = () => carregarSeries(uid)
+      window.addEventListener('focus', handleFocus)
+      window.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') handleFocus()
+      })
+
+      return () => {
+        window.removeEventListener('focus', handleFocus)
+      }
     }
     init()
 
