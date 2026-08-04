@@ -5,7 +5,7 @@ import { BottomNav } from "../components/BottomNav"
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_KEY)
 const IDS_REMOVER = ["101","102","103","201"]
-const TMDB_KEY = process.env.NEXT_PUBLIC_SUPABASE_KEY || "4e44d9029b1273360df0be1de39768d1"
+const TMDB_KEY = process.env.NEXT_PUBLIC_TMDB_KEY || "4e44d9029b1273360df0be1de39768d1"
 const TMDB_IMG = "https://image.tmdb.org/t/p/w342"
 
 async function buscarSeriesPTBR(q){
@@ -53,18 +53,16 @@ export default function Home() {
   const [loading, setLoading] = useState(true)
 
   async function carregarSeries(uid) {
-    // 1. PUXA DO SUPABASE
     const { data: doSupabase } = await supabase.from("user_series").select("*").eq("user_id", uid).order("updated_at", { ascending: false })
 
-    // 2. PUXA DO LOCALSTORAGE TAMBÉM
     const localRaw = localStorage.getItem(uid + ":minhas-series")
     const doLocal = localRaw? JSON.parse(localRaw) : []
 
-    // 3. MESCLA OS DOIS - SUPABASE TEM PRIORIDADE
-    const mapaSupabase = {}
+    const mapaFinal = {}
+
     if (doSupabase) {
       doSupabase.forEach(function(r){
-        mapaSupabase[String(r.serie_id)] = {
+        mapaFinal[String(r.serie_id)] = {
           id: String(r.serie_id),
           titulo: r.titulo,
           ano: r.ano || "0000",
@@ -76,17 +74,26 @@ export default function Home() {
       })
     }
 
-    // ADICIONA DO LOCALSTORAGE SÓ SE NÃO EXISTIR NO SUPABASE
     doLocal.forEach(function(s){
       const sid = String(s.id)
-      if (!mapaSupabase[sid] && IDS_REMOVER.indexOf(sid) === -1) {
-        mapaSupabase[sid] = s
+      if (!mapaFinal[sid] && IDS_REMOVER.indexOf(sid) === -1) {
+        mapaFinal[sid] = s
+        supabase.from("user_series").upsert({
+          user_id: uid,
+          serie_id: sid,
+          titulo: s.titulo,
+          ano: s.ano || "0000",
+          img: s.img,
+          q: s.q || s.titulo,
+          status: s.status || "quero_assistir",
+          origem: s.origem || "tvmaze",
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'user_id,serie_id' })
       }
     })
 
-    let listaBase = Object.values(mapaSupabase)
+    let listaBase = Object.values(mapaFinal)
 
-    // LIMPA IDs ANTIGOS
     IDS_REMOVER.forEach(function(badId){
       localStorage.removeItem(uid + ":status-" + badId)
       localStorage.removeItem(uid + ":eps-" + badId)
@@ -94,7 +101,6 @@ export default function Home() {
     })
     await supabase.from("user_series").delete().eq("user_id", uid).in("serie_id", IDS_REMOVER)
 
-    // CALCULA PROGRESSO E IMAGEM
     const comDados = await Promise.all(listaBase.map(async function(s){
       let img = s.img
       if (!img) {
@@ -113,7 +119,7 @@ export default function Home() {
       else if (epsVistos.length > 0) progresso = Math.min(15 + epsVistos.length * 6, 92)
 
       return {
-       ...s,
+     ...s,
         id: String(s.id),
         img: img || "https://picsum.photos/seed/"+s.id+"/400/600",
         status: st,
@@ -124,13 +130,13 @@ export default function Home() {
     }))
 
     setSeries(comDados)
-    // ATUALIZA LOCALSTORAGE COM DADOS MESCLADOS
     localStorage.setItem(uid + ":minhas-series", JSON.stringify(comDados))
     setLoading(false)
   }
 
   useEffect(() => {
     let channel
+
     const init = async () => {
       const { data } = await supabase.auth.getSession()
       if (!data.session) { window.location.href = "/login"; return }
@@ -144,12 +150,12 @@ export default function Home() {
 
       await carregarSeries(uid)
 
-      // REALTIME: ATUALIZA QUANDO MUDAR EM OUTRO DISPOSITIVO
-      channel = supabase.channel('user_series_changes')
-     .on('postgres_changes', { event: '*', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` }, () => {
-          carregarSeries(uid)
-        })
-     .subscribe()
+      channel = supabase.channel('user_series_realtime_' + uid)
+    .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` },
+        () => { carregarSeries(uid) }
+      )
+    .subscribe()
     }
     init()
 
@@ -183,7 +189,6 @@ export default function Home() {
       totalEps:0
     }
 
-    // SALVA NO SUPABASE PRIMEIRO
     await supabase.from("user_series").upsert({
       user_id: userId,
       serie_id: nova.id,
