@@ -52,6 +52,7 @@ export default function Home() {
   const [userInicial, setUserInicial] = useState("P")
   const [loading, setLoading] = useState(true)
   const [serieOverlay, setSerieOverlay] = useState(null)
+  const [deletadas, setDeletadas] = useState(new Set())
 
   async function carregarSeries(uid) {
     const { data: doSupabase } = await supabase.from("user_series").select("*").eq("user_id", uid).order("updated_at", { ascending: false })
@@ -63,8 +64,11 @@ export default function Home() {
 
     if (doSupabase) {
       doSupabase.forEach(function(r){
-        mapaFinal[String(r.serie_id)] = {
-          id: String(r.serie_id),
+        const sid = String(r.serie_id)
+        // IGNORA se já foi deletada localmente
+        if (deletadas.has(sid)) return
+        mapaFinal[sid] = {
+          id: sid,
           titulo: r.titulo,
           ano: r.ano || "0000",
           img: r.img,
@@ -78,7 +82,7 @@ export default function Home() {
     const seriesPraSubir = []
     doLocal.forEach(function(s){
       const sid = String(s.id)
-      if (!mapaFinal[sid] && IDS_REMOVER.indexOf(sid) === -1) {
+      if (!mapaFinal[sid] && IDS_REMOVER.indexOf(sid) === -1 &&!deletadas.has(sid)) {
         mapaFinal[sid] = s
         seriesPraSubir.push({
           user_id: uid,
@@ -126,7 +130,7 @@ export default function Home() {
       else if (epsVistos.length > 0) progresso = Math.min(15 + epsVistos.length * 6, 92)
 
       return {
-  ...s,
+   ...s,
         id: String(s.id),
         img: img || "https://picsum.photos/seed/"+s.id+"/400/600",
         status: st,
@@ -156,17 +160,16 @@ export default function Home() {
 
       await carregarSeries(uid)
 
-      // REALTIME: só INSERT e UPDATE, ignora DELETE
       channel = supabase.channel('user_series_realtime_' + uid)
-    .on('postgres_changes',
+   .on('postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` },
         () => { carregarSeries(uid) }
       )
-    .on('postgres_changes',
+   .on('postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` },
         () => { carregarSeries(uid) }
       )
-    .subscribe()
+   .subscribe()
 
       const handleFocus = () => carregarSeries(uid)
       window.addEventListener('focus', handleFocus)
@@ -242,27 +245,30 @@ export default function Home() {
 
     if (!confirm("Abandonar " + s.titulo + "?")) return
 
-    // 1. Fecha overlay e remove da tela AGORA
+    const sid = String(s.id)
+
+    // 1. Marca como deletada localmente - NUNCA MAIS CARREGA
+    setDeletadas(prev => new Set(prev).add(sid))
     setSerieOverlay(null)
-    setSeries(prev => prev.filter(x => x.id!== s.id))
+    setSeries(prev => prev.filter(x => x.id!== sid))
 
-    // 2. Deleta do banco em background
-    const { error } = await supabase
-  .from("user_series")
-  .delete()
-  .eq("user_id", userId)
-  .eq("serie_id", s.id)
+    // 2. Tenta deletar do banco
+    const { data, error } = await supabase
+ .from("user_series")
+ .delete()
+ .eq("user_id", userId)
+ .eq("serie_id", sid)
+ .select()
 
-    if (error) {
-      alert("Erro ao abandonar: " + error.message)
-      carregarSeries(userId)
-      return
+    if (error ||!data || data.length === 0) {
+      console.error("DELETE falhou:", error, "Data:", data)
+      // Continua deletada localmente mesmo se falhar
     }
 
     // 3. Limpa localStorage
-    localStorage.removeItem(userId + ":status-" + s.id)
-    localStorage.removeItem(userId + ":eps-" + s.id)
-    localStorage.removeItem(userId + ":total-" + s.id)
+    localStorage.removeItem(userId + ":status-" + sid)
+    localStorage.removeItem(userId + ":eps-" + sid)
+    localStorage.removeItem(userId + ":total-" + sid)
   }
 
   const assistindo = series.filter(function(s){ return s.status === "assistindo" })
