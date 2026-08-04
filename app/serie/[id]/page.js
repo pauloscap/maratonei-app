@@ -10,6 +10,7 @@ export default function DetalheSerie() {
   const params = useParams()
   const router = useRouter()
   const id = String(params.id)
+
   const [userId, setUserId] = useState(null)
   const [serie, setSerie] = useState(null)
   const [status, setStatus] = useState("assistindo")
@@ -17,17 +18,38 @@ export default function DetalheSerie() {
   const [temporadas, setTemporadas] = useState([])
   const [aberta, setAberta] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [key, setKey] = useState(id) // FORÇA REMOUNT
+
+  // Se o ID mudou, força remount completo
+  useEffect(() => {
+    if (id!== key) {
+      setKey(id)
+      setLoading(true)
+      setSerie(null)
+      setTemporadas([])
+    }
+  }, [id, key])
 
   useEffect(() => {
+    if (key!== id) return // Só roda quando o key = id
+
     async function run() {
-      const sess = await supabase.auth.getSession()
-      if (!sess.data.session) { window.location.href = "/login"; return }
-      const uid = sess.data.session.user.id
+      setLoading(true)
+
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) { router.push("/login"); return }
+      const uid = session.user.id
       setUserId(uid)
 
-      const { data: row, error } = await supabase.from("user_series").select("*").eq("user_id", uid).eq("serie_id", id).single()
+      // BUSCA SEMPRE DO BANCO COM ID DA URL - SEM CACHE
+      const { data: row, error } = await supabase
+       .from("user_series")
+       .select("*")
+       .eq("user_id", uid)
+       .eq("serie_id", id)
+       .maybeSingle()
 
-      if (error || !row) {
+      if (error ||!row) {
         console.error("Série não encontrada:", error)
         router.push("/")
         return
@@ -49,26 +71,27 @@ export default function DetalheSerie() {
 
       try {
         let lista = []
-        let precisaAtualizar = false
         let updates = {}
 
         if (s.origem === "tmdb") {
-          const details = await fetch(`https://api.themoviedb.org/3/tv/${id}?api_key=${TMDB_KEY}&language=pt-BR`).then(r=>r.json())
+          const details = await fetch(`https://api.themoviedb.org/3/tv/${id}?api_key=${TMDB_KEY}&language=pt-BR`, { cache: 'no-store' }).then(r=>r.json())
+
           if (details && details.name) {
             const newImg = details.poster_path? `https://image.tmdb.org/t/p/w500${details.poster_path}` : s.img
             const newTitulo = details.name
             const newAno = details.first_air_date? details.first_air_date.slice(0,4) : s.ano
 
-            if (newImg !== s.img) { updates.img = newImg; precisaAtualizar = true }
-            if (newTitulo !== s.titulo) { updates.titulo = newTitulo; precisaAtualizar = true }
-            if (newAno !== s.ano) { updates.ano = newAno; precisaAtualizar = true }
+            if (newImg!== s.img) updates.img = newImg
+            if (newTitulo!== s.titulo) updates.titulo = newTitulo
+            if (newAno!== s.ano) updates.ano = newAno
 
             s = {...s, titulo: newTitulo, ano: newAno, img: newImg, banner: newImg }
             setSerie(s)
           }
+
           if (details && details.seasons) {
             const seasonPromises = details.seasons.filter(se=>se.season_number>0).map(se=>
-              fetch(`https://api.themoviedb.org/3/tv/${id}/season/${se.season_number}?api_key=${TMDB_KEY}&language=pt-BR`).then(r=>r.json())
+              fetch(`https://api.themoviedb.org/3/tv/${id}/season/${se.season_number}?api_key=${TMDB_KEY}&language=pt-BR`, { cache: 'no-store' }).then(r=>r.json())
             )
             const seasonsData = await Promise.all(seasonPromises)
             const mapa = {}
@@ -90,24 +113,22 @@ export default function DetalheSerie() {
           }
         } else {
           const [a, b, c] = await Promise.all([
-            fetch("https://api.tvmaze.com/shows/" + id),
-            fetch("https://api.tvmaze.com/shows/" + id + "/seasons"),
-            fetch("https://api.tvmaze.com/shows/" + id + "/episodes")
+            fetch("https://api.tvmaze.com/shows/" + id, { cache: 'no-store' }),
+            fetch("https://api.tvmaze.com/shows/" + id + "/seasons", { cache: 'no-store' }),
+            fetch("https://api.tvmaze.com/shows/" + id + "/episodes", { cache: 'no-store' })
           ])
           const show = await a.json()
           const seasons = await b.json()
           const episodes = await c.json()
+
           if (show && show.name) {
             const newImg = show.image? (show.image.original || show.image.medium) : s.img
             const newTitulo = show.name
             const newAno = show.premiered? show.premiered.slice(0,4) : s.ano
 
-            if (newImg !== s.img || newTitulo !== s.titulo || newAno !== s.ano) {
-              updates.img = newImg
-              updates.titulo = newTitulo
-              updates.ano = newAno
-              precisaAtualizar = true
-            }
+            if (newImg!== s.img) updates.img = newImg
+            if (newTitulo!== s.titulo) updates.titulo = newTitulo
+            if (newAno!== s.ano) updates.ano = newAno
 
             s = {...s, titulo: newTitulo, ano: newAno, img: newImg, banner: newImg }
             setSerie(s)
@@ -131,10 +152,10 @@ export default function DetalheSerie() {
           lista = Object.values(mapa).sort((x,y) => x.numero - y.numero)
         }
 
-        // SALVA NO BANCO SE MUDOU ALGUMA COISA
-        if (precisaAtualizar) {
+        // ATUALIZA NO BANCO SE MUDOU
+        if (Object.keys(updates).length > 0) {
           await supabase.from("user_series").update({
-            ...updates,
+           ...updates,
             updated_at: new Date().toISOString()
           }).eq("user_id", uid).eq("serie_id", id)
         }
@@ -152,7 +173,7 @@ export default function DetalheSerie() {
       setLoading(false)
     }
     run()
-  }, [id])
+  }, [id, key, router])
 
   async function toggleEp(eid){
     let novo
@@ -166,8 +187,8 @@ export default function DetalheSerie() {
     const ids = temp.eps.map(e => e.id)
     const todos = ids.every(i => epsVistos.includes(i))
     let novo
-    if (todos) novo = epsVistos.filter(i => !ids.includes(i))
-    else novo = Array.from(new Set([...epsVistos, ...ids]))
+    if (todos) novo = epsVistos.filter(i =>!ids.includes(i))
+    else novo = Array.from(new Set([...epsVistos,...ids]))
     setEpsVistos(novo)
     await supabase.from("user_series").update({ eps_vistos: novo, updated_at: new Date().toISOString() }).eq("user_id", userId).eq("serie_id", id)
   }
@@ -180,29 +201,26 @@ export default function DetalheSerie() {
   async function abandonar(){
     const nome = serie? serie.titulo : ""
     if (!confirm("Abandonar " + nome + "?")) return
-    
+
     const { error } = await supabase.from("user_series").delete().eq("user_id", userId).eq("serie_id", id)
-    
+
     if (error) {
       alert("Erro ao abandonar: " + error.message)
       return
     }
-    
-    localStorage.removeItem(userId + ":status-" + id)
-    localStorage.removeItem(userId + ":eps-" + id)
-    localStorage.removeItem(userId + ":total-" + id)
-    
+
+    // FORÇA VOLTAR PRA HOME
     router.push("/")
   }
 
   const totalEps = useMemo(() => temporadas.reduce((a,t) => a + t.eps.length, 0), [temporadas])
   const progresso = totalEps? Math.round((epsVistos.length/totalEps)*100) : 0
-  
+
   if (loading) return <div style={{minHeight:"100vh", background:"#080B1F", display:"grid", placeItems:"center", color:"#fff"}}>Carregando...</div>
   if (!serie) return null
 
   return (
-    <div style={{ minHeight:"100vh", background:"#080B1F", color:"#fff" }}>
+    <div key={key} style={{ minHeight:"100vh", background:"#080B1F", color:"#fff" }}>
       <div style={{ height:300, position:"relative", overflow:"hidden" }}>
         <img src={serie.banner || serie.img} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", background:"#12182F" }} />
         <div style={{ position:"absolute", top:0, left:0, right:0, bottom:0, background:"linear-gradient(180deg, rgba(0,0,0,0.2), #080B1F 95%)" }} />
