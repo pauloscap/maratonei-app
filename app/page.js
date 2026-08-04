@@ -126,7 +126,7 @@ export default function Home() {
       else if (epsVistos.length > 0) progresso = Math.min(15 + epsVistos.length * 6, 92)
 
       return {
-    ...s,
+   ...s,
         id: String(s.id),
         img: img || "https://picsum.photos/seed/"+s.id+"/400/600",
         status: st,
@@ -226,28 +226,29 @@ export default function Home() {
     setTimeout(function(){ window.location.href = "/serie/" + nova.id }, 100)
   }
 
-  function abrir(s){ localStorage.setItem(userId + ":serie-atual", JSON.stringify(s)); window.location.href = "/serie/" + s.id }
+  function abrir(s){
+    localStorage.setItem(userId + ":serie-atual", JSON.stringify(s));
+    window.location.href = "/serie/" + s.id
+  }
 
   async function abandonarSerie(s, e){
     e.stopPropagation()
     if (!confirm("Abandonar " + s.titulo + "?")) return
 
     const { error } = await supabase
-  .from("user_series")
-  .delete()
-  .eq("user_id", userId)
-  .eq("serie_id", s.id)
+ .from("user_series")
+ .delete()
+ .eq("user_id", userId)
+ .eq("serie_id", s.id)
 
     if (error) {
       alert("Erro ao abandonar: " + error.message)
       return
     }
 
-    // Remove da lista local na hora
     setSeries(series.filter(x => x.id!== s.id))
     setSerieOverlay(null)
 
-    // Limpa localStorage
     localStorage.removeItem(userId + ":status-" + s.id)
     localStorage.removeItem(userId + ":eps-" + s.id)
     localStorage.removeItem(userId + ":total-" + s.id)
@@ -263,7 +264,13 @@ export default function Home() {
 
     return (
       <div className="card-grade">
-        <div className="poster-wrap" onClick={function(){ setSerieOverlay(mostrarOverlay? null : s.id) }}>
+        <div
+          className="poster-wrap"
+          onClick={function(e){
+            e.stopPropagation()
+            setSerieOverlay(mostrarOverlay? null : s.id)
+          }}
+        >
           <img src={s.img} alt="" loading="lazy" />
           <div className="badge">{s.status === "quero_assistir"? "QUERO" : s.status.toUpperCase()}</div>
           <div className="progress-track"><div className="progress-fill" style={{ width: s.progresso + "%", background: s.status==="maratonei"? "#22c55e" : s.status==="quero_assistir"? "#8b5cf6" : "#FFD400" }} /></div>
@@ -327,7 +334,13 @@ export default function Home() {
 
     return (
       <div style={{ position: 'relative' }}>
-        <div onClick={function(){ setSerieOverlay(mostrarOverlay? null : s.id) }} style={{ display:"flex", gap:12, padding:10, background:"#12182F", border:"1px solid rgba(255,255,255,0.08)", borderRadius:12, cursor:"pointer", alignItems:"center" }}>
+        <div
+          onClick={function(e){
+            e.stopPropagation()
+            setSerieOverlay(mostrarOverlay? null : s.id)
+          }}
+          style={{ display:"flex", gap:12, padding:10, background:"#12182F", border:"1px solid rgba(255,255,255,0.08)", borderRadius:12, cursor:"pointer", alignItems:"center" }}
+        >
           <div style={{ width:52, height:78, minWidth:52, borderRadius:8, overflow:"hidden" }}>
             <img src={s.img} style={{ width:"100%", height:"100%", objectFit:"cover" }} alt="" />
           </div>
@@ -408,7 +421,7 @@ export default function Home() {
   if(loading) return <div style={{minHeight:"100vh", background:"#0A0F2A", display:"grid", placeItems:"center", color:"#fff"}}>Sincronizando...</div>
 
   return (
-    <div style={{ minHeight:"100vh", background:"#0A0F2A", color:"#fff", paddingBottom:90 }} onClick={function(){ setSerieOverlay(null) }}>
+    <div style={{ minHeight:"100vh", background:"#0A0F2A", color:"#fff", paddingBottom:90 }}>
       <style>{`.grid-responsive{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}@media(min-width:480px){.grid-responsive{grid-template-columns:repeat(4,1fr)}}@media(min-width:768px){.grid-responsive{grid-template-columns:repeat(5,1fr);gap:14px}}@media(min-width:1024px){.grid-responsive{grid-template-columns:repeat(6,1fr);gap:16px}}.card-grade{cursor:pointer;display:flex;flex-direction:column;width:100%}.poster-wrap{width:100%;height:0;padding-bottom:150%;position:relative;border-radius:12px;overflow:hidden;background:#12182F;border:1px solid rgba(255,255,255,0.08)}.poster-wrap img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}.badge{position:absolute;top:6px;left:6px;background:#FFD400;color:#000;font-size:8px;font-weight:900;padding:3px 6px;border-radius:6px}.progress-track{position:absolute;bottom:0;left:0;right:0;height:4px;background:rgba(0,0,0,0.65)}.progress-fill{height:100%}.titulo{font-size:11.5px;font-weight:700;margin-top:7px;line-height:1.25;height:28px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}`}</style>
       <header style={{ height:62, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 14px", borderBottom:"1px solid rgba(255,255,255,0.06)", position:"sticky", top:0, background:"rgba(10,15,42,0.92)", backdropFilter:"blur(12px)", zIndex:20 }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}><img src="/icon-192.png" alt="maratonei" style={{ width:32, height:32, borderRadius:8 }} /><b style={{ fontFamily:"Sora,sans-serif", fontWeight:900, fontSize:16 }}>maratonei</b></div>
