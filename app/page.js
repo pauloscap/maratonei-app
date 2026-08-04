@@ -53,40 +53,79 @@ export default function Home() {
   const [loading, setLoading] = useState(true)
 
   async function carregarSeries(uid) {
-    // LIMPA IDs ANTIGOS
-    await supabase.from("user_series").delete().eq("user_id", uid).in("serie_id", IDS_REMOVER)
-
-    // PUXA SEMPRE DO SUPABASE
+    // 1. PUXA DO SUPABASE
     const { data: doSupabase } = await supabase.from("user_series").select("*").eq("user_id", uid).order("updated_at", { ascending: false })
 
-    if (!doSupabase || doSupabase.length === 0) {
-      setSeries([])
-      setLoading(false)
-      return
+    // 2. PUXA DO LOCALSTORAGE TAMBÉM
+    const localRaw = localStorage.getItem(uid + ":minhas-series")
+    const doLocal = localRaw? JSON.parse(localRaw) : []
+
+    // 3. MESCLA OS DOIS - SUPABASE TEM PRIORIDADE
+    const mapaSupabase = {}
+    if (doSupabase) {
+      doSupabase.forEach(function(r){
+        mapaSupabase[String(r.serie_id)] = {
+          id: String(r.serie_id),
+          titulo: r.titulo,
+          ano: r.ano || "0000",
+          img: r.img,
+          q: r.q,
+          status: r.status,
+          origem: r.origem || "tvmaze"
+        }
+      })
     }
 
-    const comDados = await Promise.all(doSupabase.map(async function(r){
-      let img = r.img
+    // ADICIONA DO LOCALSTORAGE SÓ SE NÃO EXISTIR NO SUPABASE
+    doLocal.forEach(function(s){
+      const sid = String(s.id)
+      if (!mapaSupabase[sid] && IDS_REMOVER.indexOf(sid) === -1) {
+        mapaSupabase[sid] = s
+      }
+    })
+
+    let listaBase = Object.values(mapaSupabase)
+
+    // LIMPA IDs ANTIGOS
+    IDS_REMOVER.forEach(function(badId){
+      localStorage.removeItem(uid + ":status-" + badId)
+      localStorage.removeItem(uid + ":eps-" + badId)
+      localStorage.removeItem(uid + ":total-" + badId)
+    })
+    await supabase.from("user_series").delete().eq("user_id", uid).in("serie_id", IDS_REMOVER)
+
+    // CALCULA PROGRESSO E IMAGEM
+    const comDados = await Promise.all(listaBase.map(async function(s){
+      let img = s.img
       if (!img) {
         try {
-          const res = await buscarSeriesPTBR(r.q || r.titulo)
+          const res = await buscarSeriesPTBR(s.q || s.titulo)
           if(res[0]) img = res[0].img
         } catch(e){}
       }
+      const st = localStorage.getItem(uid + ":status-" + s.id) || s.status
+      const epsVistos = JSON.parse(localStorage.getItem(uid + ":eps-" + s.id) || "[]")
+      const totalSalvo = Number(localStorage.getItem(uid + ":total-" + s.id) || 0)
+      let progresso = 0
+      if (st === "maratonei") progresso = 100
+      else if (st === "quero_assistir") progresso = 0
+      else if (totalSalvo > 0) progresso = Math.round((epsVistos.length / totalSalvo) * 100)
+      else if (epsVistos.length > 0) progresso = Math.min(15 + epsVistos.length * 6, 92)
+
       return {
-        id: String(r.serie_id),
-        titulo: r.titulo,
-        ano: r.ano || "0000",
-        img: img || "https://picsum.photos/seed/"+r.serie_id+"/400/600",
-        q: r.q,
-        status: r.status,
-        origem: r.origem || "tvmaze",
-        progresso: 0,
-        epsVistos: 0,
-        totalEps: 0
+       ...s,
+        id: String(s.id),
+        img: img || "https://picsum.photos/seed/"+s.id+"/400/600",
+        status: st,
+        progresso: progresso,
+        epsVistos: epsVistos.length,
+        totalEps: totalSalvo
       }
     }))
+
     setSeries(comDados)
+    // ATUALIZA LOCALSTORAGE COM DADOS MESCLADOS
+    localStorage.setItem(uid + ":minhas-series", JSON.stringify(comDados))
     setLoading(false)
   }
 
@@ -107,10 +146,10 @@ export default function Home() {
 
       // REALTIME: ATUALIZA QUANDO MUDAR EM OUTRO DISPOSITIVO
       channel = supabase.channel('user_series_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` }, () => {
+     .on('postgres_changes', { event: '*', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` }, () => {
           carregarSeries(uid)
         })
-      .subscribe()
+     .subscribe()
     }
     init()
 
@@ -138,7 +177,10 @@ export default function Home() {
       status: "quero_assistir",
       img: s.img,
       q: s.tituloOriginal || s.titulo,
-      origem: s.origem || "tmdb"
+      origem: s.origem || "tmdb",
+      progresso:0,
+      epsVistos:0,
+      totalEps:0
     }
 
     // SALVA NO SUPABASE PRIMEIRO
@@ -154,6 +196,9 @@ export default function Home() {
       updated_at: new Date().toISOString()
     }, { onConflict: 'user_id,serie_id' })
 
+    const novaLista = [nova].concat(series.filter(function(x){ return String(x.id)!== String(nova.id) }))
+    setSeries(novaLista)
+    localStorage.setItem(userId + ":minhas-series", JSON.stringify(novaLista))
     localStorage.setItem(userId + ":serie-atual", JSON.stringify(nova))
     setBusca(""); setResultados([])
     setTimeout(function(){ window.location.href = "/serie/" + nova.id }, 100)
@@ -167,7 +212,7 @@ export default function Home() {
 
   function CardGrade(props){
     const s = props.s
-    return (<div onClick={function(){ abrir(s) }} className="card-grade"><div className="poster-wrap"><img src={s.img} alt="" loading="lazy" /><div className="badge">{s.status === "quero_assistir"? "QUERO" : s.status.toUpperCase()}</div></div><div className="titulo">{s.titulo}</div></div>)
+    return (<div onClick={function(){ abrir(s) }} className="card-grade"><div className="poster-wrap"><img src={s.img} alt="" loading="lazy" /><div className="badge">{s.status === "quero_assistir"? "QUERO" : s.status.toUpperCase()}</div><div className="progress-track"><div className="progress-fill" style={{ width: s.progresso + "%", background: s.status==="maratonei"? "#22c55e" : s.status==="quero_assistir"? "#8b5cf6" : "#FFD400" }} /></div></div><div className="titulo">{s.titulo}</div></div>)
   }
   function CardLista(props){
     const s = props.s
@@ -195,7 +240,7 @@ export default function Home() {
 
   return (
     <div style={{ minHeight:"100vh", background:"#0A0F2A", color:"#fff", paddingBottom:90 }}>
-      <style>{`.grid-responsive{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}@media(min-width:480px){.grid-responsive{grid-template-columns:repeat(4,1fr)}}@media(min-width:768px){.grid-responsive{grid-template-columns:repeat(5,1fr);gap:14px}}@media(min-width:1024px){.grid-responsive{grid-template-columns:repeat(6,1fr);gap:16px}}.card-grade{cursor:pointer;display:flex;flex-direction:column;width:100%}.poster-wrap{width:100%;height:0;padding-bottom:150%;position:relative;border-radius:12px;overflow:hidden;background:#12182F;border:1px solid rgba(255,255,255,0.08)}.poster-wrap img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}.badge{position:absolute;top:6px;left:6px;background:#FFD400;color:#000;font-size:8px;font-weight:900;padding:3px 6px;border-radius:6px}.titulo{font-size:11.5px;font-weight:700;margin-top:7px;line-height:1.25;height:28px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}`}</style>
+      <style>{`.grid-responsive{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}@media(min-width:480px){.grid-responsive{grid-template-columns:repeat(4,1fr)}}@media(min-width:768px){.grid-responsive{grid-template-columns:repeat(5,1fr);gap:14px}}@media(min-width:1024px){.grid-responsive{grid-template-columns:repeat(6,1fr);gap:16px}}.card-grade{cursor:pointer;display:flex;flex-direction:column;width:100%}.poster-wrap{width:100%;height:0;padding-bottom:150%;position:relative;border-radius:12px;overflow:hidden;background:#12182F;border:1px solid rgba(255,255,255,0.08)}.poster-wrap img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}.badge{position:absolute;top:6px;left:6px;background:#FFD400;color:#000;font-size:8px;font-weight:900;padding:3px 6px;border-radius:6px}.progress-track{position:absolute;bottom:0;left:0;right:0;height:4px;background:rgba(0,0,0,0.65)}.progress-fill{height:100%}.titulo{font-size:11.5px;font-weight:700;margin-top:7px;line-height:1.25;height:28px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}`}</style>
       <header style={{ height:62, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 14px", borderBottom:"1px solid rgba(255,255,255,0.06)", position:"sticky", top:0, background:"rgba(10,15,42,0.92)", backdropFilter:"blur(12px)", zIndex:20 }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}><img src="/icon-192.png" alt="maratonei" style={{ width:32, height:32, borderRadius:8 }} /><b style={{ fontFamily:"Sora,sans-serif", fontWeight:900, fontSize:16 }}>maratonei</b></div>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}><button onClick={toggleView} style={{ background:"#121A3A", border:"1px solid rgba(255,255,255,0.12)", color:"#fff", borderRadius:8, padding:"6px 10px", fontSize:11, cursor:"pointer", height:32, fontWeight:700 }}>{view==="grade"? "Lista" : "Grade"}</button><button onClick={function(){ window.location.href="/perfil" }} style={{ width:36, height:36, borderRadius:999, overflow:"hidden", border:"1.5px solid #FFD40055", background:"#121B3A", display:"grid", placeItems:"center", cursor:"pointer", padding:0 }}>{userFoto? <img src={userFoto} style={{ width:"100%", height:"100%", objectFit:"cover" }} alt=""/> : <span style={{ fontWeight:900, fontSize:12, color:"#FFD400" }}>{userInicial}</span>}</button></div>
