@@ -42,6 +42,49 @@ async function buscarSeriesPTBR(q){
   }catch(e){ return [] }
 }
 
+async function migrarLocalStorageProBanco(uid) {
+  const chaves = ['quero_assistir', 'assistindo', 'maratonei']
+  let migradas = 0
+  let rows = []
+
+  for (const status of chaves) {
+    const local = localStorage.getItem(uid + "_" + status)
+    if (!local) continue
+
+    const series = JSON.parse(local)
+    if (!series.length) continue
+
+    rows = rows.concat(series.map(s => ({
+      user_id: uid,
+      serie_id: String(s.id || s.serie_id),
+      titulo: s.titulo,
+      ano: s.ano || "0000",
+      img: s.img,
+      q: s.q || s.tituloOriginal || s.titulo,
+      status: status,
+      origem: s.origem || 'tmdb',
+      updated_at: new Date().toISOString()
+    })))
+  }
+
+  if (rows.length > 0) {
+    console.log(`[MIGRAÇÃO] Enviando ${rows.length} séries antigas pro banco...`)
+    const { error } = await supabase.from("user_series").upsert(rows, { onConflict: 'user_id,serie_id' })
+
+    if (error) {
+      console.error(`[MIGRAÇÃO] Erro:`, error)
+    } else {
+      migradas = rows.length
+      // limpa localStorage antigo
+      chaves.forEach(status => localStorage.removeItem(uid + "_" + status))
+      localStorage.removeItem(uid + ":minhas-series")
+      console.log(`[MIGRAÇÃO] ${migradas} séries enviadas!`)
+    }
+  }
+
+  return migradas
+}
+
 export default function Home() {
   const [userId, setUserId] = useState("anon")
   const [busca, setBusca] = useState("")
@@ -55,44 +98,7 @@ export default function Home() {
   async function carregarSeries(uid) {
     const { data: doSupabase } = await supabase.from("user_series").select("*").eq("user_id", uid).order("updated_at", { ascending: false })
 
-    const localRaw = localStorage.getItem(uid + ":minhas-series")
-    const doLocal = localRaw? JSON.parse(localRaw) : []
-
-    const mapaFinal = {}
-
-    if (doSupabase) {
-      doSupabase.forEach(function(r){
-        mapaFinal[String(r.serie_id)] = {
-          id: String(r.serie_id),
-          titulo: r.titulo,
-          ano: r.ano || "0000",
-          img: r.img,
-          q: r.q,
-          status: r.status,
-          origem: r.origem || "tvmaze"
-        }
-      })
-    }
-
-    doLocal.forEach(function(s){
-      const sid = String(s.id)
-      if (!mapaFinal[sid] && IDS_REMOVER.indexOf(sid) === -1) {
-        mapaFinal[sid] = s
-        supabase.from("user_series").upsert({
-          user_id: uid,
-          serie_id: sid,
-          titulo: s.titulo,
-          ano: s.ano || "0000",
-          img: s.img,
-          q: s.q || s.titulo,
-          status: s.status || "quero_assistir",
-          origem: s.origem || "tvmaze",
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'user_id,serie_id' })
-      }
-    })
-
-    let listaBase = Object.values(mapaFinal)
+    let listaBase = doSupabase || []
 
     IDS_REMOVER.forEach(function(badId){
       localStorage.removeItem(uid + ":status-" + badId)
@@ -109,9 +115,9 @@ export default function Home() {
           if(res[0]) img = res[0].img
         } catch(e){}
       }
-      const st = localStorage.getItem(uid + ":status-" + s.id) || s.status
-      const epsVistos = JSON.parse(localStorage.getItem(uid + ":eps-" + s.id) || "[]")
-      const totalSalvo = Number(localStorage.getItem(uid + ":total-" + s.id) || 0)
+      const st = s.status
+      const epsVistos = JSON.parse(localStorage.getItem(uid + ":eps-" + s.serie_id) || "[]")
+      const totalSalvo = Number(localStorage.getItem(uid + ":total-" + s.serie_id) || 0)
       let progresso = 0
       if (st === "maratonei") progresso = 100
       else if (st === "quero_assistir") progresso = 0
@@ -119,10 +125,13 @@ export default function Home() {
       else if (epsVistos.length > 0) progresso = Math.min(15 + epsVistos.length * 6, 92)
 
       return {
-     ...s,
-        id: String(s.id),
-        img: img || "https://picsum.photos/seed/"+s.id+"/400/600",
+        id: String(s.serie_id),
+        titulo: s.titulo,
+        ano: s.ano,
+        img: img || "https://picsum.photos/seed/"+s.serie_id+"/400/600",
+        q: s.q,
         status: st,
+        origem: s.origem,
         progresso: progresso,
         epsVistos: epsVistos.length,
         totalEps: totalSalvo
@@ -130,7 +139,6 @@ export default function Home() {
     }))
 
     setSeries(comDados)
-    localStorage.setItem(uid + ":minhas-series", JSON.stringify(comDados))
     setLoading(false)
   }
 
@@ -148,14 +156,24 @@ export default function Home() {
       const savedView = localStorage.getItem(uid + ":view-mode")
       if (savedView) setView(savedView)
 
+      // Migra séries antigas do localStorage 1 vez
+      const jaMigrou = localStorage.getItem(uid + ":migrou_v2")
+      if (!jaMigrou) {
+        const qtd = await migrarLocalStorageProBanco(uid)
+        if (qtd > 0) {
+          localStorage.setItem(uid + ":migrou_v2", "1")
+          alert(`${qtd} séries antigas foram sincronizadas!`)
+        }
+      }
+
       await carregarSeries(uid)
 
       channel = supabase.channel('user_series_realtime_' + uid)
-    .on('postgres_changes',
+   .on('postgres_changes',
         { event: '*', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` },
         () => { carregarSeries(uid) }
       )
-    .subscribe()
+   .subscribe()
     }
     init()
 
@@ -189,7 +207,7 @@ export default function Home() {
       totalEps:0
     }
 
-    await supabase.from("user_series").upsert({
+    const { error } = await supabase.from("user_series").upsert({
       user_id: userId,
       serie_id: nova.id,
       titulo: nova.titulo,
@@ -201,10 +219,12 @@ export default function Home() {
       updated_at: new Date().toISOString()
     }, { onConflict: 'user_id,serie_id' })
 
-    const novaLista = [nova].concat(series.filter(function(x){ return String(x.id)!== String(nova.id) }))
-    setSeries(novaLista)
-    localStorage.setItem(userId + ":minhas-series", JSON.stringify(novaLista))
-    localStorage.setItem(userId + ":serie-atual", JSON.stringify(nova))
+    if (error) {
+      console.error("Erro ao salvar:", error)
+      alert("Erro: " + error.message)
+      return
+    }
+
     setBusca(""); setResultados([])
     setTimeout(function(){ window.location.href = "/serie/" + nova.id }, 100)
   }
