@@ -51,6 +51,7 @@ export default function Home() {
   const [userFoto, setUserFoto] = useState("")
   const [userInicial, setUserInicial] = useState("P")
   const [loading, setLoading] = useState(true)
+  const [serieOverlay, setSerieOverlay] = useState(null)
 
   async function carregarSeries(uid) {
     const { data: doSupabase } = await supabase.from("user_series").select("*").eq("user_id", uid).order("updated_at", { ascending: false })
@@ -94,7 +95,6 @@ export default function Home() {
     })
 
     if (seriesPraSubir.length > 0) {
-      console.log(`[SYNC] Subindo ${seriesPraSubir.length} séries antigas pro banco...`)
       await supabase.from("user_series").upsert(seriesPraSubir, { onConflict: 'user_id,serie_id' })
     }
 
@@ -126,7 +126,7 @@ export default function Home() {
       else if (epsVistos.length > 0) progresso = Math.min(15 + epsVistos.length * 6, 92)
 
       return {
-     ...s,
+    ...s,
         id: String(s.id),
         img: img || "https://picsum.photos/seed/"+s.id+"/400/600",
         status: st,
@@ -156,7 +156,6 @@ export default function Home() {
 
       await carregarSeries(uid)
 
-      // REALTIME: atualiza quando deletar/adicionar
       channel = supabase.channel('user_series_realtime_' + uid)
 .on('postgres_changes',
         { event: '*', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` },
@@ -164,7 +163,6 @@ export default function Home() {
       )
 .subscribe()
 
-      // RECARREGA quando volta pro app - ESSENCIAL NO MOBILE
       const handleFocus = () => carregarSeries(uid)
       window.addEventListener('focus', handleFocus)
       window.addEventListener('visibilitychange', () => {
@@ -220,7 +218,6 @@ export default function Home() {
     }, { onConflict: 'user_id,serie_id' })
 
     if (error) {
-      console.error("Erro ao salvar:", error)
       alert("Erro: " + error.message)
       return
     }
@@ -231,18 +228,165 @@ export default function Home() {
 
   function abrir(s){ localStorage.setItem(userId + ":serie-atual", JSON.stringify(s)); window.location.href = "/serie/" + s.id }
 
+  async function abandonarSerie(s, e){
+    e.stopPropagation()
+    if (!confirm("Abandonar " + s.titulo + "?")) return
+
+    const { error } = await supabase
+  .from("user_series")
+  .delete()
+  .eq("user_id", userId)
+  .eq("serie_id", s.id)
+
+    if (error) {
+      alert("Erro ao abandonar: " + error.message)
+      return
+    }
+
+    // Remove da lista local na hora
+    setSeries(series.filter(x => x.id!== s.id))
+    setSerieOverlay(null)
+
+    // Limpa localStorage
+    localStorage.removeItem(userId + ":status-" + s.id)
+    localStorage.removeItem(userId + ":eps-" + s.id)
+    localStorage.removeItem(userId + ":total-" + s.id)
+  }
+
   const assistindo = series.filter(function(s){ return s.status === "assistindo" })
   const queroAssistir = series.filter(function(s){ return s.status === "quero_assistir" })
   const maratonei = series.filter(function(s){ return s.status === "maratonei" })
 
   function CardGrade(props){
     const s = props.s
-    return (<div onClick={function(){ abrir(s) }} className="card-grade"><div className="poster-wrap"><img src={s.img} alt="" loading="lazy" /><div className="badge">{s.status === "quero_assistir"? "QUERO" : s.status.toUpperCase()}</div><div className="progress-track"><div className="progress-fill" style={{ width: s.progresso + "%", background: s.status==="maratonei"? "#22c55e" : s.status==="quero_assistir"? "#8b5cf6" : "#FFD400" }} /></div></div><div className="titulo">{s.titulo}</div></div>)
+    const mostrarOverlay = serieOverlay === s.id
+
+    return (
+      <div className="card-grade">
+        <div className="poster-wrap" onClick={function(){ setSerieOverlay(mostrarOverlay? null : s.id) }}>
+          <img src={s.img} alt="" loading="lazy" />
+          <div className="badge">{s.status === "quero_assistir"? "QUERO" : s.status.toUpperCase()}</div>
+          <div className="progress-track"><div className="progress-fill" style={{ width: s.progresso + "%", background: s.status==="maratonei"? "#22c55e" : s.status==="quero_assistir"? "#8b5cf6" : "#FFD400" }} /></div>
+
+          {mostrarOverlay && (
+            <div style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'rgba(0,0,0,0.85)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 16,
+              backdropFilter: 'blur(4px)'
+            }}>
+              <button
+                onClick={function(e){ e.stopPropagation(); abrir(s); setSerieOverlay(null) }}
+                style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: 999,
+                  background: '#22c55e',
+                  border: '2px solid rgba(255,255,255,0.2)',
+                  display: 'grid',
+                  placeItems: 'center',
+                  cursor: 'pointer',
+                  fontSize: 24,
+                  color: '#fff',
+                  fontWeight: 900
+                }}
+                title="Atualizar"
+              >✓</button>
+              <button
+                onClick={function(e){ abandonarSerie(s, e) }}
+                style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: 999,
+                  background: '#ef4444',
+                  border: '2px solid rgba(255,255,255,0.2)',
+                  display: 'grid',
+                  placeItems: 'center',
+                  cursor: 'pointer',
+                  fontSize: 20,
+                  color: '#fff',
+                  fontWeight: 900
+                }}
+                title="Abandonar"
+              >🗑</button>
+            </div>
+          )}
+        </div>
+        <div className="titulo">{s.titulo}</div>
+      </div>
+    )
   }
+
   function CardLista(props){
     const s = props.s
-    return (<div onClick={function(){ abrir(s) }} style={{ display:"flex", gap:12, padding:10, background:"#12182F", border:"1px solid rgba(255,255,255,0.08)", borderRadius:12, cursor:"pointer", alignItems:"center" }}><div style={{ width:52, height:78, minWidth:52, borderRadius:8, overflow:"hidden" }}><img src={s.img} style={{ width:"100%", height:"100%", objectFit:"cover" }} alt="" /></div><div style={{ flex:1 }}><div style={{ fontSize:13, fontWeight:800 }}>{s.titulo}</div></div></div>)
+    const mostrarOverlay = serieOverlay === s.id
+
+    return (
+      <div style={{ position: 'relative' }}>
+        <div onClick={function(){ setSerieOverlay(mostrarOverlay? null : s.id) }} style={{ display:"flex", gap:12, padding:10, background:"#12182F", border:"1px solid rgba(255,255,255,0.08)", borderRadius:12, cursor:"pointer", alignItems:"center" }}>
+          <div style={{ width:52, height:78, minWidth:52, borderRadius:8, overflow:"hidden" }}>
+            <img src={s.img} style={{ width:"100%", height:"100%", objectFit:"cover" }} alt="" />
+          </div>
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:13, fontWeight:800 }}>{s.titulo}</div>
+          </div>
+        </div>
+
+        {mostrarOverlay && (
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            right: 10,
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            zIndex: 10
+          }}>
+            <button
+              onClick={function(e){ e.stopPropagation(); abrir(s); setSerieOverlay(null) }}
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 999,
+                background: '#22c55e',
+                border: '2px solid rgba(255,255,255,0.2)',
+                display: 'grid',
+                placeItems: 'center',
+                cursor: 'pointer',
+                fontSize: 20,
+                color: '#fff',
+                fontWeight: 900
+              }}
+              title="Atualizar"
+            >✓</button>
+            <button
+              onClick={function(e){ abandonarSerie(s, e) }}
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 999,
+                background: '#ef4444',
+                border: '2px solid rgba(255,255,255,0.2)',
+                display: 'grid',
+                placeItems: 'center',
+                cursor: 'pointer',
+                fontSize: 18,
+                color: '#fff',
+                fontWeight: 900
+              }}
+              title="Abandonar"
+            >🗑</button>
+          </div>
+        )}
+      </div>
+    )
   }
+
   function Secao(props){
     return (
       <div style={{ marginTop:24 }}>
@@ -264,7 +408,7 @@ export default function Home() {
   if(loading) return <div style={{minHeight:"100vh", background:"#0A0F2A", display:"grid", placeItems:"center", color:"#fff"}}>Sincronizando...</div>
 
   return (
-    <div style={{ minHeight:"100vh", background:"#0A0F2A", color:"#fff", paddingBottom:90 }}>
+    <div style={{ minHeight:"100vh", background:"#0A0F2A", color:"#fff", paddingBottom:90 }} onClick={function(){ setSerieOverlay(null) }}>
       <style>{`.grid-responsive{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}@media(min-width:480px){.grid-responsive{grid-template-columns:repeat(4,1fr)}}@media(min-width:768px){.grid-responsive{grid-template-columns:repeat(5,1fr);gap:14px}}@media(min-width:1024px){.grid-responsive{grid-template-columns:repeat(6,1fr);gap:16px}}.card-grade{cursor:pointer;display:flex;flex-direction:column;width:100%}.poster-wrap{width:100%;height:0;padding-bottom:150%;position:relative;border-radius:12px;overflow:hidden;background:#12182F;border:1px solid rgba(255,255,255,0.08)}.poster-wrap img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}.badge{position:absolute;top:6px;left:6px;background:#FFD400;color:#000;font-size:8px;font-weight:900;padding:3px 6px;border-radius:6px}.progress-track{position:absolute;bottom:0;left:0;right:0;height:4px;background:rgba(0,0,0,0.65)}.progress-fill{height:100%}.titulo{font-size:11.5px;font-weight:700;margin-top:7px;line-height:1.25;height:28px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}`}</style>
       <header style={{ height:62, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 14px", borderBottom:"1px solid rgba(255,255,255,0.06)", position:"sticky", top:0, background:"rgba(10,15,42,0.92)", backdropFilter:"blur(12px)", zIndex:20 }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}><img src="/icon-192.png" alt="maratonei" style={{ width:32, height:32, borderRadius:8 }} /><b style={{ fontFamily:"Sora,sans-serif", fontWeight:900, fontSize:16 }}>maratonei</b></div>
