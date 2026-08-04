@@ -29,8 +29,25 @@ export default function FilmesPage() {
       setUserInicial((u.user_metadata?.full_name || u.email || "M")[0].toUpperCase())
       const v = localStorage.getItem(uid + ":view-filmes")
       if (v) setView(v)
-      const raw = localStorage.getItem(uid + ":meus-filmes")
-      setFilmes(raw? JSON.parse(raw) : [])
+
+      const { data: doSupabase } = await supabase.from("user_filmes").select("*").eq("user_id", uid)
+      let listaBase = []
+      if (doSupabase && doSupabase.length > 0) {
+        listaBase = doSupabase.map(function(r){
+          return {
+            id: String(r.filme_id),
+            titulo: r.titulo,
+            img: r.img,
+            status: r.status,
+            ano: r.ano || "0000"
+          }
+        })
+        localStorage.setItem(uid + ":meus-filmes", JSON.stringify(listaBase))
+      } else {
+        const raw = localStorage.getItem(uid + ":meus-filmes")
+        listaBase = raw? JSON.parse(raw) : []
+      }
+      setFilmes(listaBase)
     }
     init()
   }, [])
@@ -46,8 +63,22 @@ export default function FilmesPage() {
       try{
         const r = await fetch(url)
         const j = await r.json()
-        if(j.results?.length) return j.results.slice(0,10).map(function(m){ return { id:String(m.id), titulo:(m.title||m.original_title)+(m.release_date?" ("+m.release_date.slice(0,4)+")":""), img:m.poster_path?TMDB_IMG+m.poster_path:"https://picsum.photos/seed/"+m.id+"/400/600" } })
-        if(j.Search?.length) return j.Search.slice(0,10).map(function(it){ return { id:it.imdbID, titulo:it.Title, img:it.Poster!=="N/A"?it.Poster:"https://picsum.photos/seed/"+it.imdbID+"/400/600" } })
+        if(j.results?.length) return j.results.slice(0,10).map(function(m){
+          return {
+            id:String(m.id),
+            titulo: m.title || m.original_title,
+            ano: m.release_date? m.release_date.slice(0,4) : "0000",
+            img: m.poster_path? TMDB_IMG+m.poster_path : "https://picsum.photos/seed/"+m.id+"/400/600"
+          }
+        })
+        if(j.Search?.length) return j.Search.slice(0,10).map(function(it){
+          return {
+            id: it.imdbID,
+            titulo: it.Title,
+            ano: it.Year || "0000",
+            img: it.Poster!=="N/A"? it.Poster : "https://picsum.photos/seed/"+it.imdbID+"/400/600"
+          }
+        })
       }catch(e){ continue }
     }
     return []
@@ -68,39 +99,66 @@ export default function FilmesPage() {
 
   async function confirmarAdd(statusEscolhido){
     if(!escolha) return
-    const novo={ id:String(escolha.id), titulo:escolha.titulo, img:escolha.img, status:statusEscolhido }
+    const novo={
+      id: String(escolha.id),
+      titulo: escolha.titulo,
+      img: escolha.img,
+      ano: escolha.ano || "0000",
+      status: statusEscolhido
+    }
     const nl=[novo].concat(filmes.filter(function(x){ return String(x.id)!==String(novo.id) }))
     setFilmes(nl)
     localStorage.setItem(userId+":meus-filmes", JSON.stringify(nl))
-    try{ await supabase.from("user_filmes").upsert({ user_id:userId, filme_id:novo.id, titulo:novo.titulo, img:novo.img, status:novo.status, updated_at:new Date().toISOString() }, {onConflict:"user_id,filme_id"}) }catch(e){}
+    try{
+      await supabase.from("user_filmes").upsert({
+        user_id: userId,
+        filme_id: novo.id,
+        titulo: novo.titulo,
+        img: novo.img,
+        ano: novo.ano,
+        status: novo.status,
+        updated_at: new Date().toISOString()
+      }, {onConflict:"user_id,filme_id"})
+    }catch(e){}
     setEscolha(null); setBusca(""); setResultados([])
   }
 
   function abrir(f){ localStorage.setItem(userId+":filme-atual", JSON.stringify(f)); window.location.href="/filme/"+f.id }
 
-  const quero=filmes.filter(function(x){ return x.status==="quero_assistir" })
-  const vistos=filmes.filter(function(x){ return x.status==="ja_assisti" })
+  // ORDENA DO MAIS RECENTE PRO MAIS ANTIGO
+  const ordenarPorAno = function(a,b){
+    const anoA = Number(a.ano) || 0
+    const anoB = Number(b.ano) || 0
+    return anoB - anoA
+  }
 
-  function Secao(p){ return <div style={{marginTop:24}}><div style={{display:"flex",gap:8,alignItems:"center",marginBottom:12}}><div style={{width:3,height:14,background:p.cor,borderRadius:99}}/><b style={{fontSize:14,fontFamily:"Sora,sans-serif"}}>{p.titulo}</b><span style={{fontSize:11,opacity:0.4}}> - {p.qtd}</span></div><div className={view==="grade"?"grid":"list"}>{p.children}</div></div> }
+  const quero = filmes.filter(function(x){ return x.status==="quero_assistir" }).sort(ordenarPorAno)
+  const vistos = filmes.filter(function(x){ return x.status==="ja_assisti" }).sort(ordenarPorAno)
+
+  function Secao(p){ return <div style={{marginTop:24}}><div style={{display:"flex",gap:8,alignItems:"center",marginBottom:12}}><div style={{width:3,height:14,background:p.cor,borderRadius:99}}/><b style={{fontSize:14,fontFamily:"Sora,sans-serif"}}>{p.titulo}</b><span style={{fontSize:11,opacity:0.4}}> - {p.qtd}</span></div>{p.qtd===0? (
+          <div style={{background:"#12182F", border:"1px dashed rgba(255,255,255,0.12)", borderRadius:12, padding:"18px 14px", textAlign:"center"}}>
+            <div style={{fontSize:11, opacity:0.35}}>Nenhum filme em {p.titulo.toLowerCase()}</div>
+            <div style={{fontSize:11, color:"#FFD400", marginTop:4, fontWeight:700}}>Busque acima para adicionar</div>
+          </div>
+        ) : view==="grade"? <div className="grid">{p.children}</div> : <div className="list">{p.children}</div>}</div> }
 
   return (
     <div style={{minHeight:"100vh",background:"#0A0F2A",color:"#fff",paddingBottom:90}}>
       <style>{`
-      .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+     .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
         @media(min-width:480px){.grid{grid-template-columns:repeat(4,1fr)}}
         @media(min-width:768px){.grid{grid-template-columns:repeat(5,1fr);gap:14px}}
         @media(min-width:1024px){.grid{grid-template-columns:repeat(6,1fr);gap:16px}}
-      .list{display:grid;gap:8px}
-      .card{cursor:pointer;display:flex;flex-direction:column;width:100%}
-      .poster{width:100%;height:0;padding-bottom:150%;position:relative;border-radius:12px;overflow:hidden;background:#12182F;border:1px solid rgba(255,255,255,0.08)}
-      .poster img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;background:#0A0F2A}
-      .badge{position:absolute;top:6px;left:6px;background:#FFD400;color:#000;font-size:8px;font-weight:900;padding:3px 6px;border-radius:6px;z-index:2}
-      .tit{font-size:11.5px;font-weight:700;margin-top:7px;line-height:1.25;height:28px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-      .row{display:flex;gap:12px;padding:10px;background:#12182F;border:1px solid rgba(255,255,255,0.08);border-radius:12px;cursor:pointer;align-items:center}
-      .row img{width:48px;height:72px;min-width:48px;border-radius:8px;object-fit:cover;background:#000}
+     .list{display:grid;gap:8px}
+     .card{cursor:pointer;display:flex;flex-direction:column;width:100%}
+     .poster{width:100%;height:0;padding-bottom:150%;position:relative;border-radius:12px;overflow:hidden;background:#12182F;border:1px solid rgba(255,255,255,0.08)}
+     .poster img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;background:#0A0F2A}
+     .badge{position:absolute;top:6px;left:6px;background:#FFD400;color:#000;font-size:8px;font-weight:900;padding:3px 6px;border-radius:6px;z-index:2}
+     .tit{font-size:11.5px;font-weight:700;margin-top:7px;line-height:1.25;height:28px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+     .row{display:flex;gap:12px;padding:10px;background:#12182F;border:1px solid rgba(255,255,255,0.08);border-radius:12px;cursor:pointer;align-items:center}
+     .row img{width:48px;height:72px;min-width:48px;border-radius:8px;object-fit:cover;background:#000}
       `}</style>
 
-      {/* HEADER COM LOGO */}
       <header style={{height:62,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 14px",borderBottom:"1px solid rgba(255,255,255,0.06)",position:"sticky",top:0,background:"rgba(10,15,42,0.92)",backdropFilter:"blur(12px)",zIndex:20}}>
         <div style={{display:"flex",gap:10,alignItems:"center"}}>
           <img src="/icon-192.png" alt="maratonei" style={{width:32,height:32,borderRadius:8,objectFit:"contain"}}/>
