@@ -3,12 +3,10 @@ import { useEffect, useState, useMemo } from "react"
 import { createClient } from "@supabase/supabase-js"
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_KEY)
-
-const MAPA_CORRECAO = { "101":"45582", "102":"71268", "103":"73", "104":"73", "201":"46487", "301":"2993", "302":"61167" }
+const TMDB_KEY = process.env.NEXT_PUBLIC_TMDB_KEY || "4e44d9029b1273360df0be1de39768d1"
 
 export default function DetalheSerie({ params }) {
   const id = String(params.id)
-  const idReal = MAPA_CORRECAO[id] || id
   const [userId, setUserId] = useState(null)
   const [serie, setSerie] = useState(null)
   const [status, setStatus] = useState("assistindo")
@@ -24,88 +22,109 @@ export default function DetalheSerie({ params }) {
       const uid = sess.data.session.user.id
       setUserId(uid)
 
-      let res = await supabase.from("user_series").select("*").eq("user_id", uid).eq("serie_id", idReal).single()
-      if (!res.data) {
-        const resAntigo = await supabase.from("user_series").select("*").eq("user_id", uid).eq("serie_id", id).single()
-        if (resAntigo.data) res = resAntigo
-      }
+      const res = await supabase.from("user_series").select("*").eq("user_id", uid).eq("serie_id", id).single()
       const row = res.data
 
       let s = null
-      if (row) s = { id: row.serie_id, titulo: row.titulo, ano: row.ano, img: row.img, q: row.q, status: row.status }
+      if (row) s = { id: row.serie_id, titulo: row.titulo, ano: row.ano, img: row.img, q: row.q, status: row.status, origem: row.origem || "tvmaze" }
       if (!s) { try { const raw = localStorage.getItem(uid + ":serie-atual"); if (raw) s = JSON.parse(raw) } catch (e) {} }
-      if (!s) s = { id: idReal, titulo: id, img: "" }
+      if (!s) { window.location.href = "/"; return }
+
       setSerie(s)
       if (row && row.status) setStatus(row.status)
       else if (s.status) setStatus(s.status)
+
       const epsLocal = JSON.parse(localStorage.getItem(uid + ":eps-" + id) || "[]")
-      const epsLocalReal = JSON.parse(localStorage.getItem(uid + ":eps-" + idReal) || "[]")
       if (row && row.eps_vistos) setEpsVistos(row.eps_vistos)
-      else if (epsLocalReal.length) setEpsVistos(epsLocalReal)
       else setEpsVistos(epsLocal)
 
-      let rid = idReal
-      if (!rid || Number(rid) < 100) {
-        try {
-          const q = s.q || s.titulo
-          const sr = await fetch("https://api.tvmaze.com/search/shows?q=" + encodeURIComponent(q))
-          const sj = await sr.json()
-          if (sj && sj[0] && sj[0].show) rid = String(sj[0].show.id)
-        } catch (e) {}
-      }
-
       try {
-        const a = await fetch("https://api.tvmaze.com/shows/" + rid)
-        const b = await fetch("https://api.tvmaze.com/shows/" + rid + "/seasons")
-        const c = await fetch("https://api.tvmaze.com/shows/" + rid + "/episodes")
-        const show = await a.json()
-        const seasons = await b.json()
-        const episodes = await c.json()
-        if (show && show.name) {
-          const newImg = show.image? (show.image.original || show.image.medium) : s.img
-          s = {...s, id: rid, titulo: show.name, ano: show.premiered? show.premiered.slice(0,4) : "", img: newImg, banner: newImg }
-          setSerie(s)
-        }
-        const mapa = {}
-        if (Array.isArray(seasons)) { seasons.forEach(function(se){ mapa[se.number] = { numero: se.number, eps: [] } }) }
-        if (Array.isArray(episodes)) {
-          episodes.forEach(function(ep){
-            if (!mapa[ep.season]) mapa[ep.season] = { numero: ep.season, eps: [] };
-            mapa[ep.season].eps.push({
-              id: ep.id,
-              numero: ep.number,
-              nome: ep.name,
-              resumo: ep.summary? ep.summary.replace(/<[^>]+>/g,"").trim() : "Sem resumo disponível.",
-              img: ep.image? (ep.image.medium || ep.image.original) : "",
-              runtime: ep.runtime || 0,
-              airdate: ep.airdate || ""
+        let lista = []
+
+        if (s.origem === "tmdb") {
+          const details = await fetch(`https://api.themoviedb.org/3/tv/${id}?api_key=${TMDB_KEY}&language=pt-BR`).then(r=>r.json())
+          if (details && details.name) {
+            const newImg = details.poster_path? `https://image.tmdb.org/t/p/w500${details.poster_path}` : s.img
+            s = {...s, titulo: details.name, ano: details.first_air_date? details.first_air_date.slice(0,4) : "", img: newImg, banner: newImg }
+            setSerie(s)
+          }
+          if (details && details.seasons) {
+            const seasonPromises = details.seasons.filter(se=>se.season_number>0).map(se=>
+              fetch(`https://api.themoviedb.org/3/tv/${id}/season/${se.season_number}?api_key=${TMDB_KEY}&language=pt-BR`).then(r=>r.json())
+            )
+            const seasonsData = await Promise.all(seasonPromises)
+            const mapa = {}
+            seasonsData.forEach(se=>{
+              mapa[se.season_number] = {
+                numero: se.season_number,
+                eps: se.episodes.map(ep=>({
+                  id: ep.id,
+                  numero: ep.episode_number,
+                  nome: ep.name,
+                  resumo: ep.overview? ep.overview.replace(/<[^>]+>/g,"").trim() : "Sem resumo disponível.",
+                  img: ep.still_path? `https://image.tmdb.org/t/p/w300${ep.still_path}` : "",
+                  runtime: ep.runtime || 0,
+                  airdate: ep.air_date || ""
+                }))
+              }
             })
-          })
+            lista = Object.values(mapa).sort(function(x,y){ return x.numero - y.numero })
+          }
+        } else {
+          const [a, b, c] = await Promise.all([
+            fetch("https://api.tvmaze.com/shows/" + id),
+            fetch("https://api.tvmaze.com/shows/" + id + "/seasons"),
+            fetch("https://api.tvmaze.com/shows/" + id + "/episodes")
+          ])
+          const show = await a.json()
+          const seasons = await b.json()
+          const episodes = await c.json()
+          if (show && show.name) {
+            const newImg = show.image? (show.image.original || show.image.medium) : s.img
+            s = {...s, titulo: show.name, ano: show.premiered? show.premiered.slice(0,4) : "", img: newImg, banner: newImg }
+            setSerie(s)
+          }
+          const mapa = {}
+          if (Array.isArray(seasons)) { seasons.forEach(function(se){ mapa[se.number] = { numero: se.number, eps: [] } }) }
+          if (Array.isArray(episodes)) {
+            episodes.forEach(function(ep){
+              if (!mapa[ep.season]) mapa[ep.season] = { numero: ep.season, eps: [] };
+              mapa[ep.season].eps.push({
+                id: ep.id,
+                numero: ep.number,
+                nome: ep.name,
+                resumo: ep.summary? ep.summary.replace(/<[^>]+>/g,"").trim() : "Sem resumo disponível.",
+                img: ep.image? (ep.image.medium || ep.image.original) : "",
+                runtime: ep.runtime || 0,
+                airdate: ep.airdate || ""
+              })
+            })
+          }
+          lista = Object.values(mapa).sort(function(x,y){ return x.numero - y.numero })
         }
-        const lista = Object.values(mapa).sort(function(x,y){ return x.numero - y.numero })
+
         const totalCalc = lista.reduce(function(acc,t){ return acc + t.eps.length }, 0)
         localStorage.setItem(uid + ":total-" + id, String(totalCalc))
-        localStorage.setItem(uid + ":total-" + idReal, String(totalCalc))
         if (lista.length) { setTemporadas(lista); setAberta(lista[0].numero) }
-        else { setTemporadas([{ numero:1, eps: [{ id: rid+"-1", numero:1, nome:"Episódio 1", resumo:"", img:"" }]}]); setAberta(1) }
+        else { setTemporadas([{ numero:1, eps: [{ id: id+"-1", numero:1, nome:"Episódio 1", resumo:"", img:"" }]}]); setAberta(1) }
+
       } catch (e) {
-        setTemporadas([{ numero:1, eps: Array.from({length:10}, function(_,i){ return { id: rid+"-1-"+(i+1), numero:i+1, nome:"Episódio "+(i+1), resumo:"Resumo não disponível.", img:"" } })}])
+        console.error(e)
+        setTemporadas([{ numero:1, eps: [{ id: id+"-1", numero:1, nome:"Episódio 1", resumo:"", img:"" }]}])
         setAberta(1)
-        localStorage.setItem(uid + ":total-" + idReal, "10")
       }
       setLoading(false)
     }
     run()
-  }, [id, idReal])
+  }, [id])
 
   async function toggleEp(eid){
     let novo
     if (epsVistos.includes(eid)) novo = epsVistos.filter(function(x){ return x!==eid })
     else novo = epsVistos.concat([eid])
     setEpsVistos(novo)
-    await supabase.from("user_series").update({ eps_vistos: novo, updated_at: new Date().toISOString() }).eq("user_id", userId).in("serie_id", [id, idReal])
+    await supabase.from("user_series").update({ eps_vistos: novo, updated_at: new Date().toISOString() }).eq("user_id", userId).eq("serie_id", id)
     localStorage.setItem(userId + ":eps-" + id, JSON.stringify(novo))
-    localStorage.setItem(userId + ":eps-" + idReal, JSON.stringify(novo))
   }
 
   async function maratonarTemp(temp){
@@ -115,28 +134,23 @@ export default function DetalheSerie({ params }) {
     if (todos) novo = epsVistos.filter(function(i){ return ids.indexOf(i)===-1 })
     else novo = Array.from(new Set(epsVistos.concat(ids)))
     setEpsVistos(novo)
-    await supabase.from("user_series").update({ eps_vistos: novo, updated_at: new Date().toISOString() }).eq("user_id", userId).in("serie_id", [id, idReal])
+    await supabase.from("user_series").update({ eps_vistos: novo, updated_at: new Date().toISOString() }).eq("user_id", userId).eq("serie_id", id)
     localStorage.setItem(userId + ":eps-" + id, JSON.stringify(novo))
-    localStorage.setItem(userId + ":eps-" + idReal, JSON.stringify(novo))
   }
 
   async function mudarStatus(novo){
     setStatus(novo)
-    await supabase.from("user_series").update({ status: novo, updated_at: new Date().toISOString() }).eq("user_id", userId).in("serie_id", [id, idReal])
+    await supabase.from("user_series").update({ status: novo, updated_at: new Date().toISOString() }).eq("user_id", userId).eq("serie_id", id)
     localStorage.setItem(userId + ":status-" + id, novo)
-    localStorage.setItem(userId + ":status-" + idReal, novo)
   }
 
   async function abandonar(){
     const nome = serie? serie.titulo : ""
     if (!confirm("Abandonar " + nome + "?")) return
-    await supabase.from("user_series").delete().eq("user_id", userId).in("serie_id", [id, idReal])
+    await supabase.from("user_series").delete().eq("user_id", userId).eq("serie_id", id)
     localStorage.removeItem(userId + ":status-" + id)
-    localStorage.removeItem(userId + ":status-" + idReal)
     localStorage.removeItem(userId + ":eps-" + id)
-    localStorage.removeItem(userId + ":eps-" + idReal)
     localStorage.removeItem(userId + ":total-" + id)
-    localStorage.removeItem(userId + ":total-" + idReal)
     localStorage.removeItem(userId + ":serie-atual")
     window.location.href = "/"
   }
@@ -163,7 +177,7 @@ export default function DetalheSerie({ params }) {
       </div>
 
       <div style={{ maxWidth:720, margin:"0 auto", padding:"44px 14px 20px" }}>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginBottom:16 }}>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:16 }}>
           <button onClick={function(){ mudarStatus("assistindo") }} style={{ padding:11, borderRadius:12, fontWeight:800, fontSize:12, background: status==="assistindo"?"#FFD400":"#12182F", color: status==="assistindo"?"#000":"#fff", border:"1px solid rgba(255,255,255,0.08)" }}>Assistindo</button>
           <button onClick={function(){ mudarStatus("quero_assistir") }} style={{ padding:11, borderRadius:12, fontWeight:800, fontSize:12, background: status==="quero_assistir"?"#FFD400":"#12182F", color: status==="quero_assistir"?"#000":"#fff", border:"1px solid rgba(255,255,255,0.08)" }}>Quero Assistir</button>
           <button onClick={function(){ mudarStatus("maratonei") }} style={{ padding:11, borderRadius:12, fontWeight:800, fontSize:12, background: status==="maratonei"?"#FFD400":"#12182F", color: status==="maratonei"?"#000":"#fff", border:"1px solid rgba(255,255,255,0.08)" }}>Maratonei</button>
