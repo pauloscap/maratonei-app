@@ -1,14 +1,16 @@
 "use client"
 import { useEffect, useState, useMemo } from "react"
 import { createClient } from "@supabase/supabase-js"
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_KEY)
 const TMDB_KEY = process.env.NEXT_PUBLIC_TMDB_KEY || "4e44d9029b1273360df0be1de39768d1"
 
 export default function DetalheSerie() {
   const params = useParams()
+  const router = useRouter()
   const id = String(params.id)
+  
   const [userId, setUserId] = useState(null)
   const [serie, setSerie] = useState(null)
   const [status, setStatus] = useState("assistindo")
@@ -18,18 +20,30 @@ export default function DetalheSerie() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    let isMounted = true
+
     async function run() {
-      const sess = await supabase.auth.getSession()
-      if (!sess.data.session) { window.location.href = "/login"; return }
-      const uid = sess.data.session.user.id
+      setLoading(true)
+      setSerie(null) // LIMPA TUDO ANTES
+      
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) { router.push("/login"); return }
+      const uid = session.user.id
       setUserId(uid)
 
-      // 1. PEGA SEMPRE DO BANCO - NUNCA DO LOCALSTORAGE
-      const { data: row, error } = await supabase.from("user_series").select("*").eq("user_id", uid).eq("serie_id", id).single()
+      // 1. BUSCA SEMPRE DO BANCO PELO ID DA URL - NUNCA DO CACHE
+      const { data: row, error } = await supabase
+        .from("user_series")
+        .select("*")
+        .eq("user_id", uid)
+        .eq("serie_id", id)
+        .single()
+
+      if (!isMounted) return
 
       if (error || !row) {
         console.error("Série não encontrada:", error)
-        window.location.href = "/"
+        router.push("/")
         return
       }
 
@@ -49,12 +63,12 @@ export default function DetalheSerie() {
 
       try {
         let lista = []
-        let imgAtualizada = false
-        let tituloAtualizado = false
-        let anoAtualizado = false
 
         if (s.origem === "tmdb") {
           const details = await fetch(`https://api.themoviedb.org/3/tv/${id}?api_key=${TMDB_KEY}&language=pt-BR`).then(r=>r.json())
+          
+          if (!isMounted) return
+          
           if (details && details.name) {
             const newImg = details.poster_path? `https://image.tmdb.org/t/p/w500${details.poster_path}` : s.img
             const newTitulo = details.name
@@ -68,19 +82,20 @@ export default function DetalheSerie() {
                 ano: newAno,
                 updated_at: new Date().toISOString()
               }).eq("user_id", uid).eq("serie_id", id)
-              imgAtualizada = true
-              tituloAtualizado = true
-              anoAtualizado = true
             }
 
             s = {...s, titulo: newTitulo, ano: newAno, img: newImg, banner: newImg }
-            setSerie(s)
+            if (isMounted) setSerie(s)
           }
+          
           if (details && details.seasons) {
             const seasonPromises = details.seasons.filter(se=>se.season_number>0).map(se=>
               fetch(`https://api.themoviedb.org/3/tv/${id}/season/${se.season_number}?api_key=${TMDB_KEY}&language=pt-BR`).then(r=>r.json())
             )
             const seasonsData = await Promise.all(seasonPromises)
+            
+            if (!isMounted) return
+            
             const mapa = {}
             seasonsData.forEach(se=>{
               mapa[se.season_number] = {
@@ -107,12 +122,14 @@ export default function DetalheSerie() {
           const show = await a.json()
           const seasons = await b.json()
           const episodes = await c.json()
+          
+          if (!isMounted) return
+          
           if (show && show.name) {
             const newImg = show.image? (show.image.original || show.image.medium) : s.img
             const newTitulo = show.name
             const newAno = show.premiered? show.premiered.slice(0,4) : s.ano
 
-            // ATUALIZA NO BANCO SE MUDOU
             if (newImg !== s.img || newTitulo !== s.titulo || newAno !== s.ano) {
               await supabase.from("user_series").update({
                 img: newImg,
@@ -123,7 +140,7 @@ export default function DetalheSerie() {
             }
 
             s = {...s, titulo: newTitulo, ano: newAno, img: newImg, banner: newImg }
-            setSerie(s)
+            if (isMounted) setSerie(s)
           }
           const mapa = {}
           if (Array.isArray(seasons)) { seasons.forEach(se => { mapa[se.number] = { numero: se.number, eps: [] } }) }
@@ -144,6 +161,8 @@ export default function DetalheSerie() {
           lista = Object.values(mapa).sort((x,y) => x.numero - y.numero)
         }
 
+        if (!isMounted) return
+        
         const totalCalc = lista.reduce((acc,t) => acc + t.eps.length, 0)
         localStorage.setItem(uid + ":total-" + id, String(totalCalc))
         if (lista.length) { setTemporadas(lista); setAberta(lista[0].numero) }
@@ -151,13 +170,19 @@ export default function DetalheSerie() {
 
       } catch (e) {
         console.error(e)
-        setTemporadas([{ numero:1, eps: [{ id: id+"-1", numero:1, nome:"Episódio 1", resumo:"", img:"" }]}])
-        setAberta(1)
+        if (isMounted) {
+          setTemporadas([{ numero:1, eps: [{ id: id+"-1", numero:1, nome:"Episódio 1", resumo:"", img:"" }]}])
+          setAberta(1)
+        }
       }
-      setLoading(false)
+      
+      if (isMounted) setLoading(false)
     }
+    
     run()
-  }, [id])
+    
+    return () => { isMounted = false }
+  }, [id, router])
 
   async function toggleEp(eid){
     let novo
@@ -189,7 +214,7 @@ export default function DetalheSerie() {
     localStorage.removeItem(userId + ":status-" + id)
     localStorage.removeItem(userId + ":eps-" + id)
     localStorage.removeItem(userId + ":total-" + id)
-    window.location.href = "/"
+    router.push("/")
   }
 
   const totalEps = useMemo(() => temporadas.reduce((a,t) => a + t.eps.length, 0), [temporadas])
@@ -203,7 +228,7 @@ export default function DetalheSerie() {
       <div style={{ height:300, position:"relative", overflow:"hidden" }}>
         <img src={serie.banner || serie.img} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", background:"#12182F" }} />
         <div style={{ position:"absolute", top:0, left:0, right:0, bottom:0, background:"linear-gradient(180deg, rgba(0,0,0,0.2), #080B1F 95%)" }} />
-        <button onClick={() => history.back()} style={{ position:"absolute", top:14, left:14, width:34, height:34, borderRadius:999, background:"rgba(0,0,0,0.6)", border:"1px solid rgba(255,255,255,0.2)", color:"#fff", cursor:"pointer" }}>{"<"}</button>
+        <button onClick={() => router.back()} style={{ position:"absolute", top:14, left:14, width:34, height:34, borderRadius:999, background:"rgba(0,0,0,0.6)", border:"1px solid rgba(255,255,255,0.2)", color:"#fff", cursor:"pointer" }}>{"<"}</button>
         <button onClick={abandonar} style={{ position:"absolute", top:14, right:14, padding:"7px 12px", borderRadius:999, background:"#ef4444", color:"#fff", fontSize:11, fontWeight:900, cursor:"pointer", border:"1px solid rgba(255,255,255,0.2)" }}>Abandonar</button>
         <div style={{ position:"absolute", bottom:0, left:16, right:16, display:"flex", gap:12, alignItems:"flex-end", transform:"translateY(22px)" }}>
           <img src={serie.img} alt="" style={{ width:90, height:135, borderRadius:12, objectFit:"cover", border:"2px solid rgba(255,255,255,0.15)", flexShrink:0 }} />
