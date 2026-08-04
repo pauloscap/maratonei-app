@@ -25,11 +25,9 @@ export default function Perfil(){
     const set = new Set(datas)
     const hoje = hojeISO()
     const ontem = ontemISO()
-    // se não fez hoje nem ontem, quebrou
     if(!set.has(hoje) &&!set.has(ontem)) return { atual:0, quebrado:true }
     let atual = 0
     let d = new Date()
-    // se não fez hoje, começa a contar de ontem pra mostrar que ainda pode salvar
     if(!set.has(hoje)) d.setDate(d.getDate()-1)
     while(true){
       const iso = d.toISOString().slice(0,10)
@@ -51,11 +49,23 @@ export default function Perfil(){
       if(perfil){ if(perfil.nome) setNome(perfil.nome); if(perfil.moldura) setMolduraId(perfil.moldura) }
       else { await supabase.from("perfis").insert({ user_id: u.id, nome: u.user_metadata?.full_name, moldura: "padrao" }) }
 
-      const [{ data: checkinsData }, { data: filmes }, { data: series }] = await Promise.all([
+      const [
+        { data: checkinsData },
+        { data: filmes },
+        { data: series }
+      ] = await Promise.all([
         supabase.from("checkins").select("data").eq("user_id", u.id).order("data",{ascending:true}),
-        supabase.from("user_filmes").select("status").eq("user_id", u.id),
-        supabase.from("user_series").select("status, episodios_assistidos").eq("user_id", u.id)
+        supabase.from("user_filmes").select("status, runtime").eq("user_id", u.id),
+        supabase.from("user_series").select("status, eps_vistos, total_eps, serie_id").eq("user_id", u.id)
       ])
+
+      const seriesLocal = JSON.parse(localStorage.getItem(u.id + ":minhas-series") || "[]")
+
+      const todasSeries = series?.length? series : seriesLocal.map(s=>({
+        status: localStorage.getItem(u.id + ":status-" + s.id) || "quero_assistir",
+        eps_vistos: JSON.parse(localStorage.getItem(u.id + ":eps-" + s.id) || "[]"),
+        total_eps: Number(localStorage.getItem(u.id + ":total-" + s.id) || 0)
+      }))
 
       const listaDatas = checkinsData?.map(c=>c.data) || []
       setCks(listaDatas)
@@ -64,14 +74,22 @@ export default function Perfil(){
       setStreakQuebrado(quebrado && listaDatas.length>0)
 
       const qtdFilmes = filmes?.length || 0
-      const qtdSeries = series?.length || 0
-      const maratonados = (filmes?.filter(f=>f.status==="ja_assisti").length||0) + (series?.filter(s=>s.status==="ja_assisti"||s.status==="maratonei").length||0)
+      const qtdSeries = todasSeries?.length || 0
+      const filmesVistos = filmes?.filter(f=>f.status==="ja_assisti") || []
+      const seriesMaratonadas = todasSeries?.filter(s=>s.status==="maratonei"||s.status==="ja_assisti") || []
+      const maratonados = filmesVistos.length + seriesMaratonadas.length
       const totalTitulos = qtdFilmes + qtdSeries
-      let horas = (filmes?.filter(f=>f.status==="ja_assisti").length||0)*2
-      series?.forEach(s=>{ if(s.status==="ja_assisti"||s.status==="maratonei") horas+=10; else if(s.episodios_assistidos) horas+=s.episodios_assistidos*0.7 })
+
+      let horas = 0
+      filmesVistos.forEach(f=>{ horas += (f.runtime || 120) / 60 })
+      todasSeries.forEach(s=>{
+        const epsAssistidos = Array.isArray(s.eps_vistos)? s.eps_vistos.length : 0
+        horas += epsAssistidos * 0.75
+      })
+
       const xp = (listaDatas.length*15) + (maratonados*100) + (totalTitulos*10) + (atual*5)
       const nivel = Math.max(1, Math.floor(xp/250)+1)
-      setStats({t:totalTitulos,m:maratonados,h:Math.round(horas),n:nivel,xp})
+      setStats({t:totalTitulos, m:maratonados, h:Math.round(horas), n:nivel, xp})
       setLoading(false)
     })()
   },[])
@@ -119,7 +137,6 @@ export default function Perfil(){
           <button onClick={doCheck} style={{width:44,height:44,borderRadius:999,border:0,background:fezHoje?"#22c55e":"#FFD400",color:fezHoje?"#fff":"#000",fontWeight:900, cursor:"pointer", fontSize:16}}>{fezHoje?"✓":iconeStreak}</button>
         </div>
 
-        {/* GAMIFICAÇÃO ATUALIZADA */}
         <div style={{background:"linear-gradient(135deg,#1A2142,#12182F)", border: streakQuebrado? "1px solid #38bdf833" : "1px solid #FFD40033", borderRadius:18, padding:14}}>
           <div style={{display:"flex", justifyContent:"space-between", alignItems:"center"}}><b style={{fontSize:13}}>{iconeStreak} Gamificação</b><span style={{fontSize:11, background:streakQuebrado?"#38bdf822":"#FFD40022", color:streakQuebrado?"#38bdf8":"#FFD400", padding:"3px 8px", borderRadius:99, border:"1px solid #ffffff15"}}>{streakQuebrado? "Recomeço" : `Nível ${stats.n}`}</span></div>
 
@@ -128,7 +145,7 @@ export default function Perfil(){
           <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginTop:12}}>
             <div style={{background:"#ffffff08", border:"1px solid #ffffff0f", borderRadius:12, padding:10}}>
               <div style={{fontSize:11,opacity:.5}}>Sequência atual</div>
-              <div style={{fontWeight:800, marginTop:2, fontSize:16}}>{iconeStreak} {streak} {streak===1?"dia":"dias"}</div>
+              <div style={{fontWeight:800, marginTop:2, fontSize:16}}>{iconeStreak} {streak===1?"dia":"dias"}</div>
               <div style={{fontSize:10,opacity:.45, marginTop:2}}>{fezHoje? "Volte amanhã" : streak>0? "Faça hoje ou perde!" : "Faça check-in hoje"}</div>
             </div>
             <div style={{background:"#ffffff08", border:"1px solid #ffffff0f", borderRadius:12, padding:10}}>
