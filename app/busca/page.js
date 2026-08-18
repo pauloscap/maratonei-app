@@ -1,9 +1,11 @@
 "use client"
 import { useEffect, useState } from "react"
 import { BottomNav } from "../../components/BottomNav"
+import { createClient } from "@supabase/supabase-js"
 
 const IMG = "https://image.tmdb.org/t/p/w185"
 const IMG_BIG = "https://image.tmdb.org/t/p/w342"
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_KEY)
 
 export default function BuscaPage() {
   const [userId, setUserId] = useState("anon")
@@ -20,27 +22,23 @@ export default function BuscaPage() {
       try {
         const key = process.env.NEXT_PUBLIC_TMDB_KEY
         if(!key) return
-        const [tS, lS, tF, nF, uid] = await Promise.all([
+        const [tS, lS, tF, nF, sess] = await Promise.all([
           fetch(`https://api.themoviedb.org/3/trending/tv/week?api_key=${key}&language=pt-BR`).then(r=>r.json()),
           fetch(`https://api.themoviedb.org/3/tv/on_the_air?api_key=${key}&language=pt-BR`).then(r=>r.json()),
           fetch(`https://api.themoviedb.org/3/trending/movie/week?api_key=${key}&language=pt-BR`).then(r=>r.json()),
           fetch(`https://api.themoviedb.org/3/movie/now_playing?api_key=${key}&language=pt-BR&page=1`).then(r=>r.json()),
-          import("@supabase/supabase-js").then(async m=>{
-            const c=m.createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_KEY)
-            const s=await c.auth.getSession(); return s.data.session?.user.id||"anon"
-          })
+          supabase.auth.getSession()
         ])
         setTrendSeries(tS.results?.slice(0,12) || [])
         setLancSeries(lS.results?.slice(0,12) || [])
         setTrendFilmes(tF.results?.slice(0,12) || [])
         setNovidadesFilmes(nF.results?.slice(0,12) || [])
-        setUserId(uid)
+        setUserId(sess.data.session?.user.id || "anon")
       } catch {}
     }
     load()
   }, [])
 
-  // BUSCA REAL SÉRIE + FILME
   useEffect(() => {
     if(!busca.trim()){ setResultados([]); return }
     const t = setTimeout(async () => {
@@ -57,13 +55,47 @@ export default function BuscaPage() {
     return () => clearTimeout(t)
   }, [busca])
 
-  function abrirSerie(it){
-    const s={ id:String(it.id), titulo:it.name||it.title, img:it.poster_path?`${IMG_BIG}${it.poster_path}`:`https://picsum.photos/seed/${it.id}/400/600`, status: "" // vazio = não aparece na home até escolher }
+  async function abrirSerie(it){
+    const s = {
+      id: String(it.id),
+      titulo: it.name || it.title,
+      img: it.poster_path? `${IMG_BIG}${it.poster_path}` : `https://picsum.photos/seed/${it.id}/400/600`,
+      status: ""
+    }
+    if(userId!=="anon"){
+      await supabase.from("user_series").upsert({
+        user_id: userId,
+        serie_id: s.id,
+        titulo: s.titulo,
+        img: s.img,
+        q: s.titulo,
+        status: "",
+        origem: "tmdb",
+        eps_vistos: [],
+        updated_at: new Date().toISOString()
+      }, { onConflict:"user_id,serie_id" })
+    }
     localStorage.setItem(userId+":serie-atual", JSON.stringify(s))
     window.location.href="/serie/"+s.id
   }
-  function abrirFilme(it){
-    const f={ id:String(it.id), titulo:it.title||it.name, img:it.poster_path?`${IMG_BIG}${it.poster_path}`:`https://picsum.photos/seed/${it.id}/400/600`, status: "" // vazio = não aparece na home até escolher }
+
+  async function abrirFilme(it){
+    const f = {
+      id: String(it.id),
+      titulo: it.title || it.name,
+      img: it.poster_path? `${IMG_BIG}${it.poster_path}` : `https://picsum.photos/seed/${it.id}/400/600`,
+      status: ""
+    }
+    if(userId!=="anon"){
+      await supabase.from("user_filmes").upsert({
+        user_id: userId,
+        filme_id: f.id,
+        titulo: f.titulo,
+        img: f.img,
+        status: "",
+        updated_at: new Date().toISOString()
+      }, { onConflict:"user_id,filme_id" })
+    }
     localStorage.setItem(userId+":filme-atual", JSON.stringify(f))
     window.location.href="/filme/"+f.id
   }
@@ -97,7 +129,6 @@ export default function BuscaPage() {
         <h1 style={{ fontSize:18, fontWeight:800, fontFamily:"Sora,sans-serif" }}>Busca</h1>
       </header>
       <main style={{ maxWidth:1100, margin:"0 auto", padding:"16px 12px" }}>
-        {/* BARRA FUNCIONANDO */}
         <div style={{ display:"flex", alignItems:"center", gap:10, background:"#121B3A", border:"1px solid #ffffff18", height:46, borderRadius:999, padding:"0 16px", marginBottom:20 }}>
           <span style={{ opacity:0.5 }}>🔍</span>
           <input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar série ou filme..." style={{ flex:1, background:"transparent", border:0, outline:"none", color:"#fff", fontSize:14 }} />
