@@ -12,11 +12,15 @@ export default function DetalheSerie() {
   const id = String(params.id)
   const [userId, setUserId] = useState(null)
   const [serie, setSerie] = useState(null)
-  const [status, setStatus] = useState("assistindo")
+  const [status, setStatus] = useState("") // vazio = nenhum amarelo
   const [epsVistos, setEpsVistos] = useState([])
   const [temporadas, setTemporadas] = useState([])
   const [aberta, setAberta] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [detalhes, setDetalhes] = useState({ sinopse:"", nota:0, votos:0, providers:[] })
+  const [showRating, setShowRating] = useState(false)
+  const [minhaNota, setMinhaNota] = useState(0)
+  const [hoverNota, setHoverNota] = useState(0)
 
   useEffect(() => {
     async function run() {
@@ -31,32 +35,42 @@ export default function DetalheSerie() {
       if (error ||!row) { console.error("Série não encontrada:", error); router.push("/"); return }
       let s = { id: row.serie_id, titulo: row.titulo, ano: row.ano, img: row.img, q: row.q, status: row.status, origem: row.origem || "tmdb" }
       setSerie(s)
-      setStatus(row.status || "assistindo")
+      setStatus(row.status || "") // se novo, fica vazio = tudo azul
       setEpsVistos(row.eps_vistos || [])
+      if(row.nota || row.avaliacao) setMinhaNota(row.nota || row.avaliacao)
       try {
         let lista = []
         let updates = {}
+        let sinopse = "", notaTmdb = 0, votos = 0, providers = []
         if (s.origem === "tmdb") {
           const details = await fetch(`https://api.themoviedb.org/3/tv/${id}?api_key=${TMDB_KEY}&language=pt-BR`, { cache: 'no-store' }).then(r=>r.json())
           if (details && details.name) {
             const newImg = details.poster_path? `https://image.tmdb.org/t/p/w500${details.poster_path}` : s.img
             const newTitulo = details.name
             const newAno = details.first_air_date? details.first_air_date.slice(0,4) : s.ano
+            sinopse = details.overview || ""
+            notaTmdb = details.vote_average || 0
+            votos = details.vote_count || 0
             if (newImg!== s.img) updates.img = newImg
             if (newTitulo!== s.titulo) updates.titulo = newTitulo
             if (newAno!== s.ano) updates.ano = newAno
             s = {...s, titulo: newTitulo, ano: newAno, img: newImg, banner: newImg }
             setSerie(s)
+            try{
+              const prov = await fetch(`https://api.themoviedb.org/3/tv/${id}/watch/providers?api_key=${TMDB_KEY}`, { cache:'no-store' }).then(r=>r.json())
+              const br = prov.results?.BR
+              if(br){
+                const all = [...(br.flatrate||[]), ...(br.rent||[]), ...(br.buy||[])]
+                providers = [...new Map(all.map(p=>[p.provider_id,p])).values()].slice(0,6)
+              }
+            }catch{}
           }
           if (details && details.seasons) {
             const seasonPromises = details.seasons.filter(se=>se.season_number>0).map(se=> fetch(`https://api.themoviedb.org/3/tv/${id}/season/${se.season_number}?api_key=${TMDB_KEY}&language=pt-BR`, { cache: 'no-store' }).then(r=>r.json()))
             const seasonsData = await Promise.all(seasonPromises)
             const mapa = {}
             seasonsData.forEach(se=>{
-              mapa[se.season_number] = {
-                numero: se.season_number,
-                eps: se.episodes.map(ep=>({ id: String(ep.id), numero: ep.episode_number, nome: ep.name, resumo: ep.overview? ep.overview.replace(/<[^>]+>/g,"").trim() : "Sem resumo disponível.", img: ep.still_path? `https://image.tmdb.org/t/p/w300${ep.still_path}` : "", runtime: ep.runtime || 0, airdate: ep.air_date || "" }))
-              }
+              mapa[se.season_number] = { numero: se.season_number, eps: se.episodes.map(ep=>({ id: String(ep.id), numero: ep.episode_number, nome: ep.name, resumo: ep.overview? ep.overview.replace(/<[^>]+>/g,"").trim() : "Sem resumo disponível.", img: ep.still_path? `https://image.tmdb.org/t/p/w300${ep.still_path}` : "", runtime: ep.runtime || 0, airdate: ep.air_date || "" })) }
             })
             lista = Object.values(mapa).sort((x,y) => x.numero - y.numero)
           }
@@ -73,6 +87,7 @@ export default function DetalheSerie() {
             const newImg = show.image? (show.image.original || show.image.medium) : s.img
             const newTitulo = show.name
             const newAno = show.premiered? show.premiered.slice(0,4) : s.ano
+            sinopse = show.summary? show.summary.replace(/<[^>]+>/g,"").trim() : ""
             if (newImg!== s.img) updates.img = newImg
             if (newTitulo!== s.titulo) updates.titulo = newTitulo
             if (newAno!== s.ano) updates.ano = newAno
@@ -92,9 +107,9 @@ export default function DetalheSerie() {
         if (Object.keys(updates).length > 0) {
           await supabase.from("user_series").update({...updates, updated_at: new Date().toISOString()}).eq("user_id", uid).eq("serie_id", id)
         }
+        setDetalhes({ sinopse, nota: notaTmdb, votos, providers })
         const totalCalc = lista.reduce((acc,t) => acc + t.eps.length, 0)
         localStorage.setItem(uid + ":total-" + id, String(totalCalc))
-        // AJUSTE FINO: começa tudo fechado
         if (lista.length) { setTemporadas(lista); setAberta(null) }
         else { setTemporadas([{ numero:1, eps: [{ id: id+"-1", numero:1, nome:"Episódio 1", resumo:"", img:"" }]}]); setAberta(null) }
       } catch (e) {
@@ -131,6 +146,25 @@ export default function DetalheSerie() {
     setStatus(novo)
     localStorage.setItem(userId + ":status-" + id, novo)
     await supabase.from("user_series").update({ status: novo, updated_at: new Date().toISOString() }).eq("user_id", userId).eq("serie_id", id)
+    if(novo === "maratonei"){
+      // marca tudo e abre avaliação
+      if(temporadas.length){
+        const todosIds = temporadas.flatMap(t=>t.eps.map(e=>e.id))
+        const novoEps = Array.from(new Set([...epsVistos, ...todosIds]))
+        setEpsVistos(novoEps)
+        localStorage.setItem(userId + ":eps-" + id, JSON.stringify(novoEps))
+        await supabase.from("user_series").update({ eps_vistos: novoEps }).eq("user_id", userId).eq("serie_id", id)
+      }
+      setShowRating(true)
+    }
+  }
+
+  async function salvarNota(nota){
+    setMinhaNota(nota)
+    setShowRating(false)
+    localStorage.setItem(userId + ":nota-" + id, String(nota))
+    // tenta salvar em duas colunas possíveis pra não quebrar
+    try{ await supabase.from("user_series").update({ nota: nota, avaliacao: nota, updated_at: new Date().toISOString() }).eq("user_id", userId).eq("serie_id", id) }catch{}
   }
 
   async function abandonar(){
@@ -163,19 +197,41 @@ export default function DetalheSerie() {
           <img src={serie.img} alt="" style={{ width:90, height:135, borderRadius:12, objectFit:"cover", border:"2px solid rgba(255,255,255,0.15)", flexShrink:0 }} />
           <div style={{ flex:1, paddingBottom:6, minWidth:0 }}>
             <h1 style={{ margin:0, fontSize:18, fontWeight:900, wordWrap:"break-word", overflowWrap:"break-word" }}>{serie.titulo}</h1>
-            <div style={{ fontSize:11, opacity:0.6, marginTop:4 }}>{loading? "carregando..." : temporadas.length + " temp • " + epsVistos.length + "/" + totalEps + " • " + progresso + "%"}</div>
+            <div style={{ fontSize:11, opacity:0.6, marginTop:4 }}>{temporadas.length} temp • {epsVistos.length}/{totalEps} • {progresso}% {minhaNota? `• ${minhaNota}★ sua nota` : ""}</div>
             <div style={{ height:4, background:"rgba(255,255,255,0.15)", borderRadius:99, marginTop:8 }}><div style={{ width: progresso + "%", height:"100%", background:"#FFD400", borderRadius:99 }} /></div>
           </div>
         </div>
       </div>
+
       <div style={{ maxWidth:720, margin:"0 auto", padding:"44px 14px 20px" }}>
+        {/* SINOPSE + NOTA + STREAMING */}
+        {(detalhes.sinopse || detalhes.providers.length>0) && (
+          <div style={{ background:"#12182F", border:"1px solid rgba(255,255,255,0.06)", borderRadius:16, padding:14, marginBottom:14 }}>
+            {detalhes.nota>0 && <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8, fontSize:13 }}><span style={{ color:"#FFD400" }}>★ {detalhes.nota.toFixed(1)}</span><span style={{ opacity:0.5, fontSize:11 }}>({detalhes.votos} votos TMDB)</span></div>}
+            {detalhes.sinopse && <div style={{ fontSize:12, lineHeight:1.5, opacity:0.85 }}>{detalhes.sinopse}</div>}
+            {detalhes.providers.length>0 && (
+              <div style={{ marginTop:12 }}>
+                <div style={{ fontSize:11, opacity:0.6, marginBottom:6 }}>Onde assistir:</div>
+                <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                  {detalhes.providers.map(p=>(
+                    <div key={p.provider_id} title={p.provider_name} style={{ width:36, height:36, borderRadius:8, overflow:"hidden", background:"#0E1430", border:"1px solid rgba(255,255,255,0.1)" }}>
+                      <img src={`https://image.tmdb.org/t/p/w45${p.logo_path}`} alt={p.provider_name} style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:16 }}>
           <button onClick={() => mudarStatus("assistindo")} style={{ padding:11, borderRadius:12, fontWeight:800, fontSize:12, background: status==="assistindo"?"#FFD400":"#12182F", color: status==="assistindo"?"#000":"#fff", border:"1px solid rgba(255,255,255,0.08)" }}>Assistindo</button>
           <button onClick={() => mudarStatus("quero_assistir")} style={{ padding:11, borderRadius:12, fontWeight:800, fontSize:12, background: status==="quero_assistir"?"#FFD400":"#12182F", color: status==="quero_assistir"?"#000":"#fff", border:"1px solid rgba(255,255,255,0.08)" }}>Quero Assistir</button>
-          <button onClick={() => mudarStatus("maratonei")} style={{ padding:11, borderRadius:12, fontWeight:800, fontSize:12, background: status==="maratonei"?"#FFD400":"#12182F", color: status==="maratonei"?"#000":"#fff", border:"1px solid rgba(255,255,255,0.08)", gridColumn:"span 2" }}>Maratonei</button>
+          <button onClick={() => mudarStatus("maratonei")} style={{ padding:11, borderRadius:12, fontWeight:800, fontSize:12, background: status==="maratonei"?"#FFD400":"#12182F", color: status==="maratonei"?"#000":"#fff", border:"1px solid rgba(255,255,255,0.08)", gridColumn:"span 2" }}>Maratonei {minhaNota? `• ${minhaNota}★` : ""}</button>
         </div>
+
         <div style={{ background:"#12182F", border:"1px solid rgba(255,255,255,0.06)", borderRadius:16, padding:12 }}>
-          <b style={{ fontSize:13 }}>Temporadas {loading? "" : "• " + temporadas.length}</b>
+          <b style={{ fontSize:13 }}>Temporadas • {temporadas.length}</b>
           {temporadas.map(t => {
             const vistos = t.eps.filter(e => epsVistos.includes(e.id)).length
             const aberto = aberta===t.numero
@@ -206,6 +262,25 @@ export default function DetalheSerie() {
           })}
         </div>
       </div>
+
+      {/* MODAL 5 ESTRELAS */}
+      {showRating && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", backdropFilter:"blur(6px)", display:"grid", placeItems:"center", zIndex:10000, padding:16 }}>
+          <div style={{ background:"#12182F", border:"1px solid rgba(255,255,255,0.12)", borderRadius:20, padding:20, width:"100%", maxWidth:340, textAlign:"center" }}>
+            <div style={{ fontSize:16, fontWeight:900, marginBottom:6 }}>Avalie {serie.titulo}</div>
+            <div style={{ fontSize:12, opacity:0.6, marginBottom:14 }}>Sua nota vai para a aba Maratonei</div>
+            <div style={{ display:"flex", justifyContent:"center", gap:8, marginBottom:16 }}>
+              {[1,2,3,4,5].map(n=>(
+                <button key={n} onMouseEnter={()=>setHoverNota(n)} onMouseLeave={()=>setHoverNota(0)} onClick={()=>salvarNota(n)} style={{ fontSize:36, background:"transparent", border:0, cursor:"pointer", color: (hoverNota||minhaNota)>=n ? "#FFD400" : "rgba(255,255,255,0.2)", transition:"0.15s" }}>★</button>
+              ))}
+            </div>
+            <div style={{ display:"flex", gap:8 }}>
+              <button onClick={()=>setShowRating(false)} style={{ flex:1, padding:10, borderRadius:12, background:"#0E1430", color:"#fff", border:"1px solid rgba(255,255,255,0.1)", cursor:"pointer", fontSize:12, fontWeight:700 }}>Depois</button>
+              <button onClick={()=>salvarNota(minhaNota||5)} style={{ flex:1, padding:10, borderRadius:12, background:"#FFD400", color:"#000", border:0, cursor:"pointer", fontSize:12, fontWeight:900 }}>Salvar {minhaNota||hoverNota? `${hoverNota||minhaNota}★` : ""}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
