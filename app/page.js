@@ -14,31 +14,27 @@ async function buscarSeriesPTBR(q){
   try{
     const r = await fetch(`https://api.themoviedb.org/3/search/tv?api_key=${TMDB_KEY}&language=pt-BR&query=${encodeURIComponent(termo)}`)
     const j = await r.json()
-    if(j.results && j.results.length){
-      return j.results.slice(0,8).map(function(m){
-        return {
-          id: String(m.id),
-          titulo: m.name || m.original_name,
-          tituloOriginal: m.original_name,
-          ano: m.first_air_date? m.first_air_date.slice(0,4) : "",
-          img: m.poster_path? TMDB_IMG + m.poster_path : "https://picsum.photos/seed/"+m.id+"/400/600",
-          origem: "tmdb"
-        }
-      })
+    if(j.results?.length){
+      return j.results.slice(0,8).map(m=>({
+        id: String(m.id),
+        titulo: m.name || m.original_name,
+        tituloOriginal: m.original_name,
+        ano: m.first_air_date? m.first_air_date.slice(0,4) : "",
+        img: m.poster_path? TMDB_IMG + m.poster_path : "https://picsum.photos/seed/"+m.id+"/400/600",
+        origem: "tmdb"
+      }))
     }
   }catch(e){}
   try{
     const r2 = await fetch("https://api.tvmaze.com/search/shows?q=" + encodeURIComponent(termo))
     const j2 = await r2.json()
-    return j2.slice(0,8).map(function(item){
-      return {
-        id: String(item.show.id),
-        titulo: item.show.name,
-        ano: item.show.premiered? item.show.premiered.slice(0,4) : "",
-        img: item.show.image? (item.show.image.medium || item.show.image.original) : "https://picsum.photos/seed/"+item.show.id+"/400/600",
-        origem: "tvmaze"
-      }
-    })
+    return j2.slice(0,8).map(item=>({
+      id: String(item.show.id),
+      titulo: item.show.name,
+      ano: item.show.premiered? item.show.premiered.slice(0,4) : "",
+      img: item.show.image? (item.show.image.medium || item.show.image.original) : "https://picsum.photos/seed/"+item.show.id+"/400/600",
+      origem: "tvmaze"
+    }))
   }catch(e){ return [] }
 }
 
@@ -58,9 +54,8 @@ export default function Home() {
     const localRaw = localStorage.getItem(uid + ":minhas-series")
     const doLocal = localRaw? JSON.parse(localRaw) : []
     const mapaFinal = {}
-
     if (doSupabase) {
-      doSupabase.forEach(function(r){
+      doSupabase.forEach(r=>{
         const sid = String(r.serie_id)
         if (deletadas.has(sid)) return
         mapaFinal[sid] = {
@@ -69,17 +64,16 @@ export default function Home() {
           ano: r.ano || "0000",
           img: r.img,
           q: r.q,
-          status: r.status,
+          status: r.status || "", // vazio = não mostra na home
           origem: r.origem || "tmdb",
-          eps_vistos: r.eps_vistos || [] // <-- PEGA DO BANCO
+          eps_vistos: r.eps_vistos || []
         }
       })
     }
-
     const seriesPraSubir = []
-    doLocal.forEach(function(s){
+    doLocal.forEach(s=>{
       const sid = String(s.id)
-      if (!mapaFinal[sid] && IDS_REMOVER.indexOf(sid) === -1 &&!deletadas.has(sid)) {
+      if (!mapaFinal[sid] && IDS_REMOVER.indexOf(sid)===-1 &&!deletadas.has(sid)) {
         mapaFinal[sid] = s
         seriesPraSubir.push({
           user_id: uid,
@@ -88,60 +82,36 @@ export default function Home() {
           ano: s.ano || "0000",
           img: s.img,
           q: s.q || s.tituloOriginal || s.titulo,
-          status: s.status || "quero_assistir",
+          status: s.status || "",
           origem: s.origem || "tmdb",
           updated_at: new Date().toISOString()
         })
       }
     })
-
-    if (seriesPraSubir.length > 0) {
-      await supabase.from("user_series").upsert(seriesPraSubir, { onConflict: 'user_id,serie_id' })
-    }
-
-    IDS_REMOVER.forEach(function(badId){
+    if (seriesPraSubir.length>0) await supabase.from("user_series").upsert(seriesPraSubir, { onConflict: 'user_id,serie_id' })
+    IDS_REMOVER.forEach(badId=>{
       delete mapaFinal[badId]
       localStorage.removeItem(uid + ":status-" + badId)
       localStorage.removeItem(uid + ":eps-" + badId)
       localStorage.removeItem(uid + ":total-" + badId)
     })
     await supabase.from("user_series").delete().eq("user_id", uid).in("serie_id", IDS_REMOVER)
-
     let listaBase = Object.values(mapaFinal)
-
-    const comDados = await Promise.all(listaBase.map(async function(s){
+    const comDados = await Promise.all(listaBase.map(async s=>{
       let img = s.img
-      if (!img) {
-        try {
-          const res = await buscarSeriesPTBR(s.q || s.titulo)
-          if(res[0]) img = res[0].img
-        } catch(e){}
-      }
-      const st = localStorage.getItem(uid + ":status-" + s.id) || s.status
-      // AGORA LÊ DO SUPABASE, NÃO DO LOCALSTORAGE
+      if (!img) { try { const res = await buscarSeriesPTBR(s.q || s.titulo); if(res[0]) img = res[0].img } catch(e){} }
+      const st = s.status || localStorage.getItem(uid + ":status-" + s.id) || ""
       const epsVistosArr = s.eps_vistos || JSON.parse(localStorage.getItem(uid + ":eps-" + s.id) || "[]")
       const totalSalvo = Number(localStorage.getItem(uid + ":total-" + s.id) || 0)
-
       let progresso = 0
       if (st === "maratonei") progresso = 100
-      else if (st === "quero_assistir") progresso = 0
-      else if (totalSalvo > 0) progresso = Math.round((epsVistosArr.length / totalSalvo) * 100)
-      else if (epsVistosArr.length > 0) progresso = Math.min(15 + epsVistosArr.length * 3, 90)
+      else if (st === "" || st === "quero_assistir") progresso = 0
+      else if (totalSalvo>0) progresso = Math.round((epsVistosArr.length / totalSalvo) * 100)
+      else if (epsVistosArr.length>0) progresso = Math.min(15 + epsVistosArr.length * 3, 90)
       else progresso = 5
-
-      if(progresso > 100) progresso = 100
-
-      return {
-      ...s,
-        id: String(s.id),
-        img: img || "https://picsum.photos/seed/"+s.id+"/400/600",
-        status: st,
-        progresso: progresso,
-        epsVistos: epsVistosArr.length,
-        totalEps: totalSalvo
-      }
+      if(progresso>100) progresso=100
+      return {...s, id:String(s.id), img: img || "https://picsum.photos/seed/"+s.id+"/400/600", status:st, progresso, epsVistos:epsVistosArr.length, totalEps:totalSalvo}
     }))
-
     setSeries(comDados)
     setLoading(false)
   }
@@ -160,17 +130,17 @@ export default function Home() {
       if (savedView) setView(savedView)
       await carregarSeries(uid)
       channel = supabase.channel('user_series_realtime_' + uid)
- .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` }, () => { carregarSeries(uid) })
- .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` }, () => { carregarSeries(uid) })
- .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` }, () => { carregarSeries(uid) })
- .subscribe()
-      const handleFocus = () => carregarSeries(uid)
+     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` }, ()=>carregarSeries(uid))
+     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` }, ()=>carregarSeries(uid))
+     .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` }, ()=>carregarSeries(uid))
+     .subscribe()
+      const handleFocus = ()=>carregarSeries(uid)
       window.addEventListener('focus', handleFocus)
-      window.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') handleFocus() })
-      return () => { window.removeEventListener('focus', handleFocus) }
+      window.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') handleFocus() })
+      return ()=>{ window.removeEventListener('focus', handleFocus) }
     }
     init()
-    return () => { if (channel) supabase.removeChannel(channel) }
+    return ()=>{ if(channel) supabase.removeChannel(channel) }
   }, [])
 
   useEffect(() => {
@@ -184,9 +154,21 @@ export default function Home() {
 
   function toggleView(){ const novo = view === "grade"? "lista" : "grade"; setView(novo); localStorage.setItem(userId + ":view-mode", novo) }
 
+  // AQUI ESTÁ O AJUSTE: STATUS VAZIO
   async function adicionarSerie(s){
-    const nova = { id: String(s.id), titulo: s.titulo, ano: s.ano || "0000", status: "quero_assistir", img: s.img, q: s.tituloOriginal || s.titulo, origem: s.origem || "tmdb", progresso:0, epsVistos:0, totalEps:0 }
-    const { error } = await supabase.from("user_series").upsert({ user_id: userId, serie_id: nova.id, titulo: nova.titulo, ano: nova.ano, img: nova.img, q: nova.q, status: nova.status, origem: nova.origem, eps_vistos: [], updated_at: new Date().toISOString() }, { onConflict: 'user_id,serie_id' })
+    const nova = { id: String(s.id), titulo: s.titulo, ano: s.ano || "0000", status: "", img: s.img, q: s.tituloOriginal || s.titulo, origem: s.origem || "tmdb", progresso:0, epsVistos:0, totalEps:0 }
+    const { error } = await supabase.from("user_series").upsert({
+      user_id: userId,
+      serie_id: nova.id,
+      titulo: nova.titulo,
+      ano: nova.ano,
+      img: nova.img,
+      q: nova.q,
+      status: "", // vazio = não entra em nenhuma aba ainda
+      origem: nova.origem,
+      eps_vistos: [],
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id,serie_id' })
     if (error) { alert("Erro: " + error.message); return }
     setBusca(""); setResultados([])
     setTimeout(function(){ window.location.href = "/serie/" + nova.id }, 100)
@@ -194,48 +176,44 @@ export default function Home() {
 
   function abrir(s){ localStorage.setItem(userId + ":serie-atual", JSON.stringify(s)); window.location.href = "/serie/" + s.id }
 
-  const assistindo = series.filter(function(s){ return s.status === "assistindo" })
-  const queroAssistir = series.filter(function(s){ return s.status === "quero_assistir" })
-  const maratonei = series.filter(function(s){ return s.status === "maratonei" })
+  const assistindo = series.filter(s=> s.status === "assistindo")
+  const queroAssistir = series.filter(s=> s.status === "quero_assistir")
+  const maratonei = series.filter(s=> s.status === "maratonei")
 
-  function CardGrade(props){
-    const s = props.s
+  function CardGrade({s}){
     const cor = s.status==="maratonei"? "#22c55e" : s.status==="quero_assistir"? "#8b5cf6" : "#FFD400"
     return (
-      <div className="card-grade" onClick={function(){ abrir(s) }}>
+      <div className="card-grade" onClick={()=>abrir(s)}>
         <div className="poster-wrap">
           <img src={s.img} alt="" loading="lazy" />
           <div className="badge">{s.status === "quero_assistir"? "QUERO" : s.status.toUpperCase()}</div>
-          {s.status!== "quero_assistir" && (<div className="progress-track"><div className="progress-fill" style={{ width: s.progresso + "%", background: cor }} /></div>)}
+          {s.status!== "quero_assistir" && s.status!=="" && (<div className="progress-track"><div className="progress-fill" style={{ width: s.progresso + "%", background: cor }} /></div>)}
         </div>
-        <div className="titulo">{s.titulo} {s.status==="assistindo"? `(${s.progresso}%)` : ""}</div>
+        <div className="titulo">{s.titulo}</div>
       </div>
     )
   }
-
-  function CardLista(props){
-    const s = props.s
+  function CardLista({s}){
     const cor = s.status==="maratonei"? "#22c55e" : s.status==="quero_assistir"? "#8b5cf6" : "#FFD400"
     return (
-      <div onClick={function(){ abrir(s) }} style={{ display:"flex", gap:12, padding:10, background:"#12182F", border:"1px solid rgba(255,255,255,0.08)", borderRadius:12, cursor:"pointer", alignItems:"center" }}>
+      <div onClick={()=>abrir(s)} style={{ display:"flex", gap:12, padding:10, background:"#12182F", border:"1px solid rgba(255,255,255,0.08)", borderRadius:12, cursor:"pointer", alignItems:"center" }}>
         <div style={{ width:52, height:78, minWidth:52, borderRadius:8, overflow:"hidden", position:"relative" }}>
           <img src={s.img} style={{ width:"100%", height:"100%", objectFit:"cover" }} alt="" />
-          {s.status!== "quero_assistir" && (<div style={{ position:"absolute", bottom:0, left:0, right:0, height:4, background:"rgba(255,255,255,0.25)" }}><div style={{ height:"100%", width: s.progresso + "%", background: cor }} /></div>)}
+          {s.status!== "quero_assistir" && s.status!=="" && (<div style={{ position:"absolute", bottom:0, left:0, right:0, height:4, background:"rgba(255,255,255,0.25)" }}><div style={{ height:"100%", width: s.progresso + "%", background: cor }} /></div>)}
         </div>
         <div style={{ flex:1 }}><div style={{ fontSize:13, fontWeight:800 }}>{s.titulo}</div><div style={{ fontSize:11, opacity:0.6 }}>{s.epsVistos}/{s.totalEps || "?"} • {s.progresso}%</div></div>
       </div>
     )
   }
-
-  function Secao(props){
+  function Secao({titulo, cor, qtd, children}){
     return (
       <div style={{ marginTop:24 }}>
         <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12 }}>
-          <div style={{ width:3, height:14, background:props.cor, borderRadius:99 }} />
-          <b style={{ fontSize:14, fontFamily:"Sora,sans-serif" }}>{props.titulo}</b>
-          <span style={{ fontSize:11, opacity:0.4 }}>- {props.qtd}</span>
+          <div style={{ width:3, height:14, background:cor, borderRadius:99 }} />
+          <b style={{ fontSize:14, fontFamily:"Sora,sans-serif" }}>{titulo}</b>
+          <span style={{ fontSize:11, opacity:0.4 }}>- {qtd}</span>
         </div>
-        {props.qtd===0? (<div style={{background:"#12182F", border:"1px dashed rgba(255,255,255,0.12)", borderRadius:12, padding:"18px 14px", textAlign:"center"}}><div style={{fontSize:11, opacity:0.35}}>Nenhuma série em {props.titulo.toLowerCase()}</div><div style={{fontSize:11, color:"#FFD400", marginTop:4, fontWeight:700}}>Busque acima para adicionar</div></div>) : view==="grade"? <div className="grid-responsive">{props.children}</div> : <div style={{ display:"grid", gap:8 }}>{props.children}</div>}
+        {qtd===0? (<div style={{background:"#12182F", border:"1px dashed rgba(255,255,255,0.12)", borderRadius:12, padding:"18px 14px", textAlign:"center"}}><div style={{fontSize:11, opacity:0.35}}>Nenhuma série em {titulo.toLowerCase()}</div><div style={{fontSize:11, color:"#FFD400", marginTop:4, fontWeight:700}}>Busque acima para adicionar</div></div>) : view==="grade"? <div className="grid-responsive">{children}</div> : <div style={{ display:"grid", gap:8 }}>{children}</div>}
       </div>
     )
   }
@@ -250,12 +228,12 @@ export default function Home() {
         <div style={{ display:"flex", alignItems:"center", gap:10 }}><button onClick={toggleView} style={{ background:"#121A3A", border:"1px solid rgba(255,255,255,0.12)", color:"#fff", borderRadius:8, padding:"6px 10px", fontSize:11, cursor:"pointer", height:32, fontWeight:700 }}>{view==="grade"? "Lista" : "Grade"}</button><button onClick={function(){ window.location.href="/perfil" }} style={{ width:36, height:36, borderRadius:999, overflow:"hidden", border:"1.5px solid #FFD40055", background:"#121B3A", display:"grid", placeItems:"center", cursor:"pointer", padding:0 }}>{userFoto? <img src={userFoto} style={{ width:"100%", height:"100%", objectFit:"cover" }} alt=""/> : <span style={{ fontWeight:900, fontSize:12, color:"#FFD400" }}>{userInicial}</span>}</button></div>
       </header>
       <div style={{ maxWidth:1280, margin:"0 auto", padding:14, position:"relative" }}>
-        <div style={{ background:"#121A3A", border:"1px solid rgba(255,255,255,0.08)", borderRadius:999, display:"flex", alignItems:"center", padding:"0 14px", height:42, maxWidth:420, margin:"0 auto" }}><span style={{ opacity:0.4, marginRight:8 }}>⌕</span><input value={busca} onChange={function(e){ setBusca(e.target.value) }} placeholder="Buscar série para adicionar..." style={{ flex:1, background:"transparent", border:0, outline:"none", color:"#fff", fontSize:13 }} />{busca && <span onClick={function(){ setBusca("") }} style={{ cursor:"pointer", opacity:0.5 }}>✕</span>}</div>
-        {busca && <div style={{ position:"absolute", top:62, left:14, right:14, maxWidth:420, margin:"0 auto", background:"#12182F", border:"1px solid rgba(255,255,255,0.12)", borderRadius:16, zIndex:50, overflow:"hidden" }}>{resultados.map(function(r){ return (<div key={r.id} onClick={function(){ adicionarSerie(r) }} style={{ display:"flex", gap:10, padding:10, borderBottom:"1px solid rgba(255,255,255,0.05)", cursor:"pointer" }}><img src={r.img} style={{ width:44, height:66, borderRadius:8, objectFit:"cover" }} alt="" /><div style={{ flex:1 }}><div style={{ fontSize:13, fontWeight:800 }}>{r.titulo}</div><div style={{ fontSize:10, opacity:0.4 }}>{r.ano}</div><div style={{ fontSize:10, color:"#FFD400", fontWeight:800, marginTop:4 }}>+ ADICIONAR</div></div></div>) })}</div>}
+        <div style={{ background:"#121A3A", border:"1px solid rgba(255,255,255,0.08)", borderRadius:999, display:"flex", alignItems:"center", padding:"0 14px", height:42, maxWidth:420, margin:"0 auto" }}><span style={{ opacity:0.4, marginRight:8 }}>⌕</span><input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar série para adicionar..." style={{ flex:1, background:"transparent", border:0, outline:"none", color:"#fff", fontSize:13 }} />{busca && <span onClick={()=>setBusca("")} style={{ cursor:"pointer", opacity:0.5 }}>✕</span>}</div>
+        {busca && <div style={{ position:"absolute", top:62, left:14, right:14, maxWidth:420, margin:"0 auto", background:"#12182F", border:"1px solid rgba(255,255,255,0.12)", borderRadius:16, zIndex:50, overflow:"hidden" }}>{resultados.map(r=> (<div key={r.id} onClick={()=>adicionarSerie(r)} style={{ display:"flex", gap:10, padding:10, borderBottom:"1px solid rgba(255,255,255,0.05)", cursor:"pointer" }}><img src={r.img} style={{ width:44, height:66, borderRadius:8, objectFit:"cover" }} alt="" /><div style={{ flex:1 }}><div style={{ fontSize:13, fontWeight:800 }}>{r.titulo}</div><div style={{ fontSize:10, opacity:0.4 }}>{r.ano}</div><div style={{ fontSize:10, color:"#FFD400", fontWeight:800, marginTop:4 }}>+ ADICIONAR</div></div></div>))}</div>}
         {!busca && <>
-          <Secao titulo="Assistindo" cor="#FFD400" qtd={assistindo.length}>{assistindo.map(function(s){ return view==="grade"? <CardGrade key={s.id} s={s}/> : <CardLista key={s.id} s={s}/> })}</Secao>
-          <Secao titulo="Quero Assistir" cor="#8b5cf6" qtd={queroAssistir.length}>{queroAssistir.map(function(s){ return view==="grade"? <CardGrade key={s.id} s={s}/> : <CardLista key={s.id} s={s}/> })}</Secao>
-          <Secao titulo="Maratonei" cor="#22c55e" qtd={maratonei.length}>{maratonei.map(function(s){ return view==="grade"? <CardGrade key={s.id} s={s}/> : <CardLista key={s.id} s={s}/> })}</Secao>
+          <Secao titulo="Assistindo" cor="#FFD400" qtd={assistindo.length}>{assistindo.map(s=> view==="grade"? <CardGrade key={s.id} s={s}/> : <CardLista key={s.id} s={s}/>)}</Secao>
+          <Secao titulo="Quero Assistir" cor="#8b5cf6" qtd={queroAssistir.length}>{queroAssistir.map(s=> view==="grade"? <CardGrade key={s.id} s={s}/> : <CardLista key={s.id} s={s}/>)}</Secao>
+          <Secao titulo="Maratonei" cor="#22c55e" qtd={maratonei.length}>{maratonei.map(s=> view==="grade"? <CardGrade key={s.id} s={s}/> : <CardLista key={s.id} s={s}/>)}</Secao>
         </>}
       </div><BottomNav />
     </div>
