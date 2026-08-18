@@ -38,20 +38,20 @@ const CONQUISTAS = [
   { id:9, nome:"Coroa", emoji:"👑", min:57, max:999 },
 ]
 
-// BANCO CORRIGIDO - FOTOS REAIS DE PERSONAGENS QUE CARREGAM
-const PERSONAGENS = [
-  { nome:"Wandinha", img:"https://image.tmdb.org/t/p/w185/9PFonBhy4cQy7Jz20NpMygFAPq.jpg" },
-  { nome:"Eleven", img:"https://image.tmdb.org/t/p/w185/5qHNjhtjMD4YWH3akcbNk4D4ynQ.jpg" },
-  { nome:"Harry Potter", img:"https://image.tmdb.org/t/p/w185/nRj5511mZdTl4saWEPoj9QroTI6.jpg" },
-  { nome:"Homem-Aranha", img:"https://image.tmdb.org/t/p/w185/hBkyypWN3EcOzkozatiCm5VeaG.jpg" },
-  { nome:"Barbie", img:"https://image.tmdb.org/t/p/w185/iuFNMS8U5cb6xfzi81RueB.jpg" },
-  { nome:"Homem de Ferro", img:"https://image.tmdb.org/t/p/w185/78lIgy6rHqH.jpg" },
-  { nome:"Batman", img:"https://image.tmdb.org/t/p/w185/6bFocl9Fwl3VwL0jK8a0a0a0a.jpg" },
-  { nome:"Deadpool", img:"https://image.tmdb.org/t/p/w185/9gk7adHYeDvHkCSEqAvQNLV5Uge.jpg" },
-  { nome:"Luffy", img:"https://image.tmdb.org/t/p/w185/cMD9Ygz11zj8dY6vQ9p.jpg" },
-  { nome:"Stitch", img:"https://upload.wikimedia.org/wikipedia/commons/9/92/Stitch_%28Lilo_%26_Stitch%29.png" },
-  { nome:"Naruto", img:"https://cdn.myanimelist.net/images/characters/2/284121.jpg" },
-  { nome:"Pikachu", img:"https://upload.wikimedia.org/wikipedia/en/a/a6/Pok%C3%A9mon_Pikachu_art.png" },
+// EMOJI DE PERSONAGENS - FUNCIONA 100% SEM IMAGEM EXTERNA
+const PERSONAGENS_EMOJI = [
+  { nome:"Wandinha", emoji:"🖤", cor:"#1a1a1a" },
+  { nome:"Harry Potter", emoji:"⚡", cor:"#7a0000" },
+  { nome:"Stitch", emoji:"👽", cor:"#2a7fff" },
+  { nome:"Homem-Aranha", emoji:"🕷️", cor:"#b00000" },
+  { nome:"Barbie", emoji:"💖", cor:"#ff69b4" },
+  { nome:"Naruto", emoji:"🍥", cor:"#ff8c00" },
+  { nome:"Luffy", emoji:"👒", cor:"#d00000" },
+  { nome:"Pikachu", emoji:"⚡", cor:"#ffcc00" },
+  { nome:"Batman", emoji:"🦇", cor:"#111111" },
+  { nome:"Deadpool", emoji:"🗡️", cor:"#a00000" },
+  { nome:"Grogu", emoji:"👶", cor:"#7ab000" },
+  { nome:"Eleven", emoji:"🧇", cor:"#e00000" },
 ]
 
 export default function Perfil(){
@@ -59,6 +59,7 @@ export default function Perfil(){
   const [nome,setNome]=useState("Carregando...")
   const [foto,setFoto]=useState("")
   const [fotoOriginal,setFotoOriginal]=useState("")
+  const [avatarEmoji,setAvatarEmoji]=useState(null)
   const [cks,setCks]=useState([])
   const [streak,setStreak]=useState(0)
   const [streakQuebrado,setStreakQuebrado]=useState(false)
@@ -88,8 +89,10 @@ export default function Perfil(){
       const avatarGmail = u.user_metadata?.avatar_url || ""
       setFotoOriginal(avatarGmail)
       setFoto(avatarGmail)
+      const savedEmoji = localStorage.getItem(u.id+":avatar_emoji")
+      if(savedEmoji) setAvatarEmoji(JSON.parse(savedEmoji))
       let { data: perfil } = await supabase.from("perfis").select("*").eq("user_id", u.id).single()
-      if(perfil){ if(perfil.nome) setNome(perfil.nome); if(perfil.avatar_url) setFoto(perfil.avatar_url) }
+      if(perfil){ if(perfil.nome) setNome(perfil.nome); if(perfil.avatar_url && perfil.avatar_url.startsWith("http")) setFoto(perfil.avatar_url) }
       const [ { data: checkinsData }, { data: filmes }, { data: series } ] = await Promise.all([
         supabase.from("checkins").select("data").eq("user_id", u.id).order("data",{ascending:true}),
         supabase.from("user_filmes").select("status, runtime").eq("user_id", u.id),
@@ -121,11 +124,13 @@ export default function Perfil(){
     if(!error){ const novo=[...cks,h].sort(); setCks(novo); const { atual } = calcularStreak(novo); setStreak(atual); setStreakQuebrado(false); setStats(s=>{ const xp=s.xp+20; return {...s, n:Math.floor(xp/250)+1, xp} }) }
   }
 
-  const escolherFoto = async(item)=>{
-    setFoto(item.img)
+  const escolherEmoji = async(item)=>{
+    setAvatarEmoji(item)
+    setFoto("")
     setShowFoto(false)
+    localStorage.setItem(user.id+":avatar_emoji", JSON.stringify(item))
     const { data:{session} } = await supabase.auth.getSession()
-    await supabase.from("perfis").upsert({ user_id: session.user.id, avatar_url: item.img, nome }, { onConflict:"user_id" })
+    await supabase.from("perfis").upsert({ user_id: session.user.id, avatar_url: `emoji:${item.nome}`, nome }, { onConflict:"user_id" })
   }
 
   const progresso = (stats.xp%250)/2.5
@@ -156,8 +161,8 @@ export default function Perfil(){
       <main style={{maxWidth:560, margin:"0 auto", padding:"14px", display:"flex", flexDirection:"column", gap:12}}>
         <div style={{background:"#12182F", border:"1px solid #ffffff12", borderRadius:18, padding:16, display:"flex", gap:12, alignItems:"center"}}>
           <div style={{position:"relative"}}>
-            <div onClick={()=>setShowFoto(true)} style={{width:68, height:68, borderRadius:999, overflow:"hidden", display:"grid", placeItems:"center", background:"#1a1a1a", border:`2px solid #FFD400`, cursor:"pointer"}}>
-              {foto? <img src={foto} style={{width:"100%",height:"100%",objectFit:"cover"}} /> : nome[0]}
+            <div onClick={()=>setShowFoto(true)} style={{width:68, height:68, borderRadius:999, overflow:"hidden", display:"grid", placeItems:"center", background: avatarEmoji? avatarEmoji.cor : "#1a1a1a", border:`2px solid #FFD400`, cursor:"pointer", fontSize:32}}>
+              {avatarEmoji? avatarEmoji.emoji : foto? <img src={foto} style={{width:"100%",height:"100%",objectFit:"cover"}} /> : nome[0]}
             </div>
             <div onClick={()=>setShowFoto(true)} style={{position:"absolute", bottom:-2, right:-2, width:22, height:22, borderRadius:999, background:"#FFD400", display:"grid", placeItems:"center", fontSize:10, border:"2px solid #12182F", cursor:"pointer", color:"#000"}}>✎</div>
           </div>
@@ -203,20 +208,13 @@ export default function Perfil(){
               <b>Escolha seu personagem</b>
               <button onClick={()=>setShowFoto(false)} style={{width:32,height:32,borderRadius:999,background:"#ffffff12",border:"1px solid #ffffff15",color:"#fff"}}>✕</button>
             </div>
-            
-            <button onClick={()=>{ setFoto(fotoOriginal); setShowFoto(false); localStorage.removeItem(user.id+":avatar_personagem_real"); supabase.from("perfis").upsert({ user_id:user.id, avatar_url:fotoOriginal, nome }, {onConflict:"user_id"}) }} style={{width:"100%", padding:12, borderRadius:12, background:"#ffffff10", border:"1px solid #ffffff15", color:"#fff", fontSize:13, fontWeight:700, marginBottom:14}}>Foto do Gmail</button>
+
+            <button onClick={()=>{ setAvatarEmoji(null); setFoto(fotoOriginal); setShowFoto(false); localStorage.removeItem(user.id+":avatar_emoji"); supabase.from("perfis").upsert({ user_id:user.id, avatar_url:fotoOriginal, nome }, {onConflict:"user_id"}) }} style={{width:"100%", padding:12, borderRadius:12, background:"#ffffff10", border:"1px solid #ffffff15", color:"#fff", fontSize:13, fontWeight:700, marginBottom:14}}>Foto do Gmail</button>
 
             <div style={{display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10}}>
-              {PERSONAGENS.map(p=>(
-                <div key={p.nome} onClick={()=>escolherFoto(p)} style={{cursor:"pointer", aspectRatio:"1", borderRadius:14, overflow:"hidden", background:"#0A0F2A", border:"1px solid #ffffff15"}}>
-                  <img src={p.img} alt={p.nome} style={{width:"100%",height:"100%",objectFit:"cover", background:"#fff"}} 
-                    onError={e=>{
-                      // fallback garantido - inicial do personagem com cor
-                      e.target.style.display='none';
-                      e.target.parentElement.style.background='#FFD400';
-                      e.target.parentElement.innerHTML=`<div style='width:100%;height:100%;display:grid;place-items:center;font-weight:900;font-size:20px;color:#000'>${p.nome[0]}</div>`
-                    }} 
-                  />
+              {PERSONAGENS_EMOJI.map(p=>(
+                <div key={p.nome} onClick={()=>escolherEmoji(p)} style={{cursor:"pointer", aspectRatio:"1", borderRadius:14, overflow:"hidden", background:p.cor, border:"1px solid #ffffff15", display:"grid", placeItems:"center", fontSize:36}}>
+                  {p.emoji}
                 </div>
               ))}
             </div>
