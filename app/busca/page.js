@@ -58,12 +58,12 @@ export default function BuscaPage() {
   }, [busca])
 
   function abrirSerie(it){
-    const s={ id:String(it.id), titulo:it.name||it.title, img:it.poster_path?`${IMG_BIG}${it.poster_path}`:`https://picsum.photos/seed/${it.id}/400/600`, status:"quero_assistir" }
+    const s={ id:String(it.id), titulo:it.name||it.title, img:it.poster_path?`${IMG_BIG}${it.poster_path}`:`https://picsum.photos/seed/${it.id}/400/600`, status: "" // vazio = não aparece na home até escolher }
     localStorage.setItem(userId+":serie-atual", JSON.stringify(s))
     window.location.href="/serie/"+s.id
   }
   function abrirFilme(it){
-    const f={ id:String(it.id), titulo:it.title||it.name, img:it.poster_path?`${IMG_BIG}${it.poster_path}`:`https://picsum.photos/seed/${it.id}/400/600`, status:"quero_assistir" }
+    const f={ id:String(it.id), titulo:it.title||it.name, img:it.poster_path?`${IMG_BIG}${it.poster_path}`:`https://picsum.photos/seed/${it.id}/400/600`, status: "" // vazio = não aparece na home até escolher }
     localStorage.setItem(userId+":filme-atual", JSON.stringify(f))
     window.location.href="/filme/"+f.id
   }
