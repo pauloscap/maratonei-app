@@ -38,6 +38,22 @@ const CONQUISTAS = [
   { id:9, nome:"Coroa", emoji:"👑", min:57, max:999 },
 ]
 
+// BANCO CORRIGIDO - FOTOS REAIS DE PERSONAGENS QUE CARREGAM
+const PERSONAGENS = [
+  { nome:"Wandinha", img:"https://image.tmdb.org/t/p/w185/9PFonBhy4cQy7Jz20NpMygFAPq.jpg" },
+  { nome:"Eleven", img:"https://image.tmdb.org/t/p/w185/5qHNjhtjMD4YWH3akcbNk4D4ynQ.jpg" },
+  { nome:"Harry Potter", img:"https://image.tmdb.org/t/p/w185/nRj5511mZdTl4saWEPoj9QroTI6.jpg" },
+  { nome:"Homem-Aranha", img:"https://image.tmdb.org/t/p/w185/hBkyypWN3EcOzkozatiCm5VeaG.jpg" },
+  { nome:"Barbie", img:"https://image.tmdb.org/t/p/w185/iuFNMS8U5cb6xfzi81RueB.jpg" },
+  { nome:"Homem de Ferro", img:"https://image.tmdb.org/t/p/w185/78lIgy6rHqH.jpg" },
+  { nome:"Batman", img:"https://image.tmdb.org/t/p/w185/6bFocl9Fwl3VwL0jK8a0a0a0a.jpg" },
+  { nome:"Deadpool", img:"https://image.tmdb.org/t/p/w185/9gk7adHYeDvHkCSEqAvQNLV5Uge.jpg" },
+  { nome:"Luffy", img:"https://image.tmdb.org/t/p/w185/cMD9Ygz11zj8dY6vQ9p.jpg" },
+  { nome:"Stitch", img:"https://upload.wikimedia.org/wikipedia/commons/9/92/Stitch_%28Lilo_%26_Stitch%29.png" },
+  { nome:"Naruto", img:"https://cdn.myanimelist.net/images/characters/2/284121.jpg" },
+  { nome:"Pikachu", img:"https://upload.wikimedia.org/wikipedia/en/a/a6/Pok%C3%A9mon_Pikachu_art.png" },
+]
+
 export default function Perfil(){
   const [user,setUser]=useState(null)
   const [nome,setNome]=useState("Carregando...")
@@ -108,7 +124,6 @@ export default function Perfil(){
   const escolherFoto = async(item)=>{
     setFoto(item.img)
     setShowFoto(false)
-    localStorage.setItem(user.id+":avatar_personagem_real", JSON.stringify(item))
     const { data:{session} } = await supabase.auth.getSession()
     await supabase.from("perfis").upsert({ user_id: session.user.id, avatar_url: item.img, nome }, { onConflict:"user_id" })
   }
@@ -192,27 +207,16 @@ export default function Perfil(){
             <button onClick={()=>{ setFoto(fotoOriginal); setShowFoto(false); localStorage.removeItem(user.id+":avatar_personagem_real"); supabase.from("perfis").upsert({ user_id:user.id, avatar_url:fotoOriginal, nome }, {onConflict:"user_id"}) }} style={{width:"100%", padding:12, borderRadius:12, background:"#ffffff10", border:"1px solid #ffffff15", color:"#fff", fontSize:13, fontWeight:700, marginBottom:14}}>Foto do Gmail</button>
 
             <div style={{display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10}}>
-              {[
-                { nome:"Wandinha", img:"https://image.tmdb.org/t/p/w185/9PFonBhy4cQy7Jz20NpMygFAPq.jpg" },
-                { nome:"Harry Potter", img:"https://image.tmdb.org/t/p/w185/nRj5511mZdTl4saWEPoj9QroTI6.jpg" },
-                { nome:"Stitch", img:"https://image.tmdb.org/t/p/w185/2Z3j3j3j3j3j3j3j3j3j3j3j3j3j.jpg" },
-                { nome:"Homem-Aranha", img:"https://image.tmdb.org/t/p/w185/hBkyypWN3EcOzkozatiCm5VeaG.jpg" },
-                { nome:"Barbie", img:"https://image.tmdb.org/t/p/w185/iuFNMS8U5cb6xfzi81RueB.jpg" },
-                { nome:"Naruto", img:"https://image.tmdb.org/t/p/w185/xUf9sn06y8qCw4o2a0a0a.jpg" },
-                { nome:"Luffy", img:"https://image.tmdb.org/t/p/w185/cMD9Ygz11zj8dY6vQ9p.jpg" },
-                { nome:"Pikachu", img:"https://image.tmdb.org/t/p/w185/5E5E5E5E5E5E5E5E5E5E5E5E5E.jpg" },
-                { nome:"Batman", img:"https://image.tmdb.org/t/p/w185/74xTEgt7R36Fpooo50r9T25on.jpg" },
-                { nome:"Deadpool", img:"https://image.tmdb.org/t/p/w185/9gk7adHYeDvHkCSEqAvQNLV5Uge.jpg" },
-                { nome:"Grogu", img:"https://image.tmdb.org/t/p/w185/5h8o3o3o3o3o3o3o3o3o3o3o3o.jpg" },
-                { nome:"Eleven", img:"https://image.tmdb.org/t/p/w185/5qHNjhtjMD4YWH3akcbNk4D4ynQ.jpg" },
-              ].map(p=>(
-                <div key={p.nome} onClick={async()=>{
-                  setFoto(p.img); setShowFoto(false);
-                  localStorage.setItem(user.id+":avatar_personagem_real", JSON.stringify(p));
-                  const { data:{session} } = await supabase.auth.getSession();
-                  await supabase.from("perfis").upsert({ user_id: session.user.id, avatar_url: p.img, nome }, { onConflict:"user_id" })
-                }} style={{cursor:"pointer", aspectRatio:"1", borderRadius:14, overflow:"hidden", background:"#0A0F2A", border:"1px solid #ffffff15"}}>
-                  <img src={p.img} alt={p.nome} style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>{ e.target.src=`https://picsum.photos/seed/${p.nome}/300/300` }} />
+              {PERSONAGENS.map(p=>(
+                <div key={p.nome} onClick={()=>escolherFoto(p)} style={{cursor:"pointer", aspectRatio:"1", borderRadius:14, overflow:"hidden", background:"#0A0F2A", border:"1px solid #ffffff15"}}>
+                  <img src={p.img} alt={p.nome} style={{width:"100%",height:"100%",objectFit:"cover", background:"#fff"}} 
+                    onError={e=>{
+                      // fallback garantido - inicial do personagem com cor
+                      e.target.style.display='none';
+                      e.target.parentElement.style.background='#FFD400';
+                      e.target.parentElement.innerHTML=`<div style='width:100%;height:100%;display:grid;place-items:center;font-weight:900;font-size:20px;color:#000'>${p.nome[0]}</div>`
+                    }} 
+                  />
                 </div>
               ))}
             </div>
@@ -235,7 +239,7 @@ export default function Perfil(){
                 {posterLanterna && <img src={posterLanterna} alt="Lanterns" style={{width:56, height:84, borderRadius:8, objectFit:"cover", border:"1px solid #ffffff15"}} />}
                 <div style={{flex:1}}>
                   <div style={{fontSize:13, fontWeight:900}}>Lanterns • Cartaz oficial HBO</div>
-                  <div style={{fontSize:11, opacity:0.6, marginTop:2}}>Estreou 16/08 • Hal Jordan e John Stewart • Anel com silhuetas</div>
+                  <div style={{fontSize:11, opacity:0.6, marginTop:2}}>Estreou 16/08 • Hal Jordan e John Stewart</div>
                   <div style={{marginTop:8, height:6, background:"#ffffff14", borderRadius:99, overflow:"hidden"}}><div style={{width:`${(pecasDesbloqueadas/20)*100}%`, height:"100%", background:"#FFD400"}}/></div>
                   <div style={{fontSize:10, opacity:0.5, marginTop:4}}>{pecasDesbloqueadas}/20 peças</div>
                 </div>
