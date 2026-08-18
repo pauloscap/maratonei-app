@@ -55,68 +55,31 @@ export default function Home() {
 
   async function carregarSeries(uid) {
     const { data: doSupabase } = await supabase.from("user_series").select("*").eq("user_id", uid).order("updated_at", { ascending: false })
-
     const localRaw = localStorage.getItem(uid + ":minhas-series")
     const doLocal = localRaw? JSON.parse(localRaw) : []
     const mapaFinal = {}
-
     if (doSupabase) {
       doSupabase.forEach(function(r){
         const sid = String(r.serie_id)
         if (deletadas.has(sid)) return
-        mapaFinal[sid] = {
-          id: sid,
-          titulo: r.titulo,
-          ano: r.ano || "0000",
-          img: r.img,
-          q: r.q,
-          status: r.status,
-          origem: r.origem || "tmdb"
-        }
+        mapaFinal[sid] = { id: sid, titulo: r.titulo, ano: r.ano || "0000", img: r.img, q: r.q, status: r.status, origem: r.origem || "tmdb" }
       })
     }
-
     const seriesPraSubir = []
     doLocal.forEach(function(s){
       const sid = String(s.id)
       if (!mapaFinal[sid] && IDS_REMOVER.indexOf(sid) === -1 &&!deletadas.has(sid)) {
         mapaFinal[sid] = s
-        seriesPraSubir.push({
-          user_id: uid,
-          serie_id: sid,
-          titulo: s.titulo,
-          ano: s.ano || "0000",
-          img: s.img,
-          q: s.q || s.tituloOriginal || s.titulo,
-          status: s.status || "quero_assistir",
-          origem: s.origem || "tmdb",
-          updated_at: new Date().toISOString()
-        })
+        seriesPraSubir.push({ user_id: uid, serie_id: sid, titulo: s.titulo, ano: s.ano || "0000", img: s.img, q: s.q || s.tituloOriginal || s.titulo, status: s.status || "quero_assistir", origem: s.origem || "tmdb", updated_at: new Date().toISOString() })
       }
     })
-
-    if (seriesPraSubir.length > 0) {
-      await supabase.from("user_series").upsert(seriesPraSubir, { onConflict: 'user_id,serie_id' })
-    }
-
-    IDS_REMOVER.forEach(function(badId){
-      delete mapaFinal[badId]
-      localStorage.removeItem(uid + ":status-" + badId)
-      localStorage.removeItem(uid + ":eps-" + badId)
-      localStorage.removeItem(uid + ":total-" + badId)
-    })
+    if (seriesPraSubir.length > 0) { await supabase.from("user_series").upsert(seriesPraSubir, { onConflict: 'user_id,serie_id' }) }
+    IDS_REMOVER.forEach(function(badId){ delete mapaFinal[badId]; localStorage.removeItem(uid + ":status-" + badId); localStorage.removeItem(uid + ":eps-" + badId); localStorage.removeItem(uid + ":total-" + badId) })
     await supabase.from("user_series").delete().eq("user_id", uid).in("serie_id", IDS_REMOVER)
-
     let listaBase = Object.values(mapaFinal)
-
     const comDados = await Promise.all(listaBase.map(async function(s){
       let img = s.img
-      if (!img) {
-        try {
-          const res = await buscarSeriesPTBR(s.q || s.titulo)
-          if(res[0]) img = res[0].img
-        } catch(e){}
-      }
+      if (!img) { try { const res = await buscarSeriesPTBR(s.q || s.titulo); if(res[0]) img = res[0].img } catch(e){} }
       const st = localStorage.getItem(uid + ":status-" + s.id) || s.status
       const epsVistos = JSON.parse(localStorage.getItem(uid + ":eps-" + s.id) || "[]")
       const totalSalvo = Number(localStorage.getItem(uid + ":total-" + s.id) || 0)
@@ -125,18 +88,9 @@ export default function Home() {
       else if (st === "quero_assistir") progresso = 0
       else if (totalSalvo > 0) progresso = Math.round((epsVistos.length / totalSalvo) * 100)
       else if (epsVistos.length > 0) progresso = Math.min(15 + epsVistos.length * 6, 92)
-
-      return {
-       ...s,
-        id: String(s.id),
-        img: img || "https://picsum.photos/seed/"+s.id+"/400/600",
-        status: st,
-        progresso: progresso,
-        epsVistos: epsVistos.length,
-        totalEps: totalSalvo
-      }
+      else if (st === "assistindo") progresso = 12
+      return {...s, id: String(s.id), img: img || "https://picsum.photos/seed/"+s.id+"/400/600", status: st, progresso: progresso, epsVistos: epsVistos.length, totalEps: totalSalvo }
     }))
-
     setSeries(comDados)
     setLoading(false)
   }
@@ -155,9 +109,9 @@ export default function Home() {
       if (savedView) setView(savedView)
       await carregarSeries(uid)
       channel = supabase.channel('user_series_realtime_' + uid)
-       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` }, () => { carregarSeries(uid) })
-       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` }, () => { carregarSeries(uid) })
-       .subscribe()
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` }, () => { carregarSeries(uid) })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` }, () => { carregarSeries(uid) })
+      .subscribe()
       const handleFocus = () => carregarSeries(uid)
       window.addEventListener('focus', handleFocus)
       window.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') handleFocus() })
@@ -174,7 +128,6 @@ export default function Home() {
   }, [busca])
 
   function toggleView(){ const novo = view === "grade"? "lista" : "grade"; setView(novo); localStorage.setItem(userId + ":view-mode", novo) }
-
   async function adicionarSerie(s){
     const nova = { id: String(s.id), titulo: s.titulo, ano: s.ano || "0000", status: "quero_assistir", img: s.img, q: s.tituloOriginal || s.titulo, origem: s.origem || "tmdb", progresso:0, epsVistos:0, totalEps:0 }
     const { error } = await supabase.from("user_series").upsert({ user_id: userId, serie_id: nova.id, titulo: nova.titulo, ano: nova.ano, img: nova.img, q: nova.q, status: nova.status, origem: nova.origem, updated_at: new Date().toISOString() }, { onConflict: 'user_id,serie_id' })
@@ -182,7 +135,6 @@ export default function Home() {
     setBusca(""); setResultados([])
     setTimeout(function(){ window.location.href = "/serie/" + nova.id }, 100)
   }
-
   function abrir(s){ localStorage.setItem(userId + ":serie-atual", JSON.stringify(s)); window.location.href = "/serie/" + s.id }
 
   const assistindo = series.filter(function(s){ return s.status === "assistindo" })
@@ -191,32 +143,41 @@ export default function Home() {
 
   function CardGrade(props){
     const s = props.s
+    const cor = s.status==="maratonei"? "#22c55e" : s.status==="quero_assistir"? "#8b5cf6" : "#FFD400"
+    const showBar = s.status!== "quero_assistir"
     return (
-      <div className="card-grade" onClick={function(){ abrir(s) }}>
-        <div className="poster-wrap">
-          <img src={s.img} alt="" loading="lazy" />
-          <div className="badge">{s.status === "quero_assistir"? "QUERO" : s.status.toUpperCase()}</div>
-          {/* BARRA AMARELA DE VOLTA */}
-          <div className="progress-track">
-            <div className="progress-fill" style={{ width: s.progresso + "%", background: s.status==="maratonei"? "#22c55e" : s.status==="quero_assistir"? "#8b5cf6" : "#FFD400" }} />
-          </div>
+      <div onClick={function(){ abrir(s) }} style={{ cursor:"pointer", display:"flex", flexDirection:"column", width:"100%" }}>
+        <div style={{ width:"100%", height:0, paddingBottom:"150%", position:"relative", borderRadius:12, overflow:"hidden", background:"#12182F", border:"1px solid rgba(255,255,255,0.08)" }}>
+          <img src={s.img} alt="" loading="lazy" style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover" }} />
+          <div style={{ position:"absolute", top:6, left:6, background:"#FFD400", color:"#000", fontSize:8, fontWeight:900, padding:"3px 6px", borderRadius:6 }}>{s.status === "quero_assistir"? "QUERO" : s.status.toUpperCase()}</div>
+          {showBar && (
+            <div style={{ position:"absolute", bottom:0, left:0, right:0, height:5, background:"rgba(255,255,255,0.22)", zIndex:2 }}>
+              <div style={{ height:"100%", width: s.progresso + "%", background: cor }} />
+            </div>
+          )}
         </div>
-        <div className="titulo">{s.titulo}</div>
+        <div style={{ fontSize:11.5, fontWeight:700, marginTop:7, lineHeight:1.25, height:28, overflow:"hidden", display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical" }}>{s.titulo}</div>
       </div>
     )
   }
 
   function CardLista(props){
     const s = props.s
+    const cor = s.status==="maratonei"? "#22c55e" : s.status==="quero_assistir"? "#8b5cf6" : "#FFD400"
     return (
       <div onClick={function(){ abrir(s) }} style={{ display:"flex", gap:12, padding:10, background:"#12182F", border:"1px solid rgba(255,255,255,0.08)", borderRadius:12, cursor:"pointer", alignItems:"center" }}>
-        <div style={{ width:52, height:78, minWidth:52, borderRadius:8, overflow:"hidden", position:'relative' }}>
+        <div style={{ width:52, height:78, minWidth:52, borderRadius:8, overflow:"hidden", position:"relative" }}>
           <img src={s.img} style={{ width:"100%", height:"100%", objectFit:"cover" }} alt="" />
-          <div style={{ position:'absolute', bottom:0, left:0, right:0, height:3, background:'rgba(0,0,0,0.6)' }}>
-            <div style={{ height:'100%', width: s.progresso + "%", background: s.status==="maratonei"? "#22c55e" : s.status==="quero_assistir"? "#8b5cf6" : "#FFD400" }} />
-          </div>
+          {s.status!== "quero_assistir" && (
+            <div style={{ position:"absolute", bottom:0, left:0, right:0, height:4, background:"rgba(255,255,255,0.25)" }}>
+              <div style={{ height:"100%", width: s.progresso + "%", background: cor }} />
+            </div>
+          )}
         </div>
-        <div style={{ flex:1 }}><div style={{ fontSize:13, fontWeight:800 }}>{s.titulo}</div></div>
+        <div style={{ flex:1 }}>
+          <div style={{ fontSize:13, fontWeight:800 }}>{s.titulo}</div>
+          {s.status === "assistindo" && <div style={{ fontSize:11, opacity:0.6, marginTop:2 }}>{s.progresso}% assistido</div>}
+        </div>
       </div>
     )
   }
@@ -229,7 +190,7 @@ export default function Home() {
           <b style={{ fontSize:14, fontFamily:"Sora,sans-serif" }}>{props.titulo}</b>
           <span style={{ fontSize:11, opacity:0.4 }}>- {props.qtd}</span>
         </div>
-        {props.qtd===0? (<div style={{background:"#12182F", border:"1px dashed rgba(255,255,255,0.12)", borderRadius:12, padding:"18px 14px", textAlign:"center"}}><div style={{fontSize:11, opacity:0.35}}>Nenhuma série em {props.titulo.toLowerCase()}</div><div style={{fontSize:11, color:"#FFD400", marginTop:4, fontWeight:700}}>Busque acima para adicionar</div></div>) : view==="grade"? <div className="grid-responsive">{props.children}</div> : <div style={{ display:"grid", gap:8 }}>{props.children}</div>}
+        {props.qtd===0? (<div style={{background:"#12182F", border:"1px dashed rgba(255,255,255,0.12)", borderRadius:12, padding:"18px 14px", textAlign:"center"}}><div style={{fontSize:11, opacity:0.35}}>Nenhuma série em {props.titulo.toLowerCase()}</div><div style={{fontSize:11, color:"#FFD400", marginTop:4, fontWeight:700}}>Busque acima para adicionar</div></div>) : view==="grade"? <div style={{display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12}}>{props.children}</div> : <div style={{ display:"grid", gap:8 }}>{props.children}</div>}
       </div>
     )
   }
@@ -238,7 +199,6 @@ export default function Home() {
 
   return (
     <div style={{ minHeight:"100vh", background:"#0A0F2A", color:"#fff", paddingBottom:90 }}>
-      <style>{`.grid-responsive{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}@media(min-width:480px){.grid-responsive{grid-template-columns:repeat(4,1fr)}}@media(min-width:768px){.grid-responsive{grid-template-columns:repeat(5,1fr);gap:14px}}@media(min-width:1024px){.grid-responsive{grid-template-columns:repeat(6,1fr);gap:16px}}.card-grade{cursor:pointer;display:flex;flex-direction:column;width:100%}.poster-wrap{width:100%;height:0;padding-bottom:150%;position:relative;border-radius:12px;overflow:hidden;background:#12182F;border:1px solid rgba(255,255,255,0.08)}.poster-wrap img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}.badge{position:absolute;top:6px;left:6px;background:#FFD400;color:#000;font-size:8px;font-weight:900;padding:3px 6px;border-radius:6px}.progress-track{position:absolute;bottom:0;left:0;right:0;height:4px;background:rgba(0,0,0,0.65)}.progress-fill{height:100%;transition:width 0.3s}.titulo{font-size:11.5px;font-weight:700;margin-top:7px;line-height:1.25;height:28px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}`}</style>
       <header style={{ height:62, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 14px", borderBottom:"1px solid rgba(255,255,255,0.06)", position:"sticky", top:0, background:"rgba(10,15,42,0.92)", backdropFilter:"blur(12px)", zIndex:20 }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}><img src="/icon-192.png" alt="maratonei" style={{ width:32, height:32, borderRadius:8 }} /><b style={{ fontFamily:"Sora,sans-serif", fontWeight:900, fontSize:16 }}>maratonei</b></div>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}><button onClick={toggleView} style={{ background:"#121A3A", border:"1px solid rgba(255,255,255,0.12)", color:"#fff", borderRadius:8, padding:"6px 10px", fontSize:11, cursor:"pointer", height:32, fontWeight:700 }}>{view==="grade"? "Lista" : "Grade"}</button><button onClick={function(){ window.location.href="/perfil" }} style={{ width:36, height:36, borderRadius:999, overflow:"hidden", border:"1.5px solid #FFD40055", background:"#121B3A", display:"grid", placeItems:"center", cursor:"pointer", padding:0 }}>{userFoto? <img src={userFoto} style={{ width:"100%", height:"100%", objectFit:"cover" }} alt=""/> : <span style={{ fontWeight:900, fontSize:12, color:"#FFD400" }}>{userInicial}</span>}</button></div>
