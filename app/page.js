@@ -58,6 +58,7 @@ export default function Home() {
     const localRaw = localStorage.getItem(uid + ":minhas-series")
     const doLocal = localRaw? JSON.parse(localRaw) : []
     const mapaFinal = {}
+
     if (doSupabase) {
       doSupabase.forEach(function(r){
         const sid = String(r.serie_id)
@@ -69,10 +70,12 @@ export default function Home() {
           img: r.img,
           q: r.q,
           status: r.status,
-          origem: r.origem || "tmdb"
+          origem: r.origem || "tmdb",
+          eps_vistos: r.eps_vistos || [] // <-- PEGA DO BANCO
         }
       })
     }
+
     const seriesPraSubir = []
     doLocal.forEach(function(s){
       const sid = String(s.id)
@@ -91,9 +94,11 @@ export default function Home() {
         })
       }
     })
+
     if (seriesPraSubir.length > 0) {
       await supabase.from("user_series").upsert(seriesPraSubir, { onConflict: 'user_id,serie_id' })
     }
+
     IDS_REMOVER.forEach(function(badId){
       delete mapaFinal[badId]
       localStorage.removeItem(uid + ":status-" + badId)
@@ -101,6 +106,7 @@ export default function Home() {
       localStorage.removeItem(uid + ":total-" + badId)
     })
     await supabase.from("user_series").delete().eq("user_id", uid).in("serie_id", IDS_REMOVER)
+
     let listaBase = Object.values(mapaFinal)
 
     const comDados = await Promise.all(listaBase.map(async function(s){
@@ -112,34 +118,30 @@ export default function Home() {
         } catch(e){}
       }
       const st = localStorage.getItem(uid + ":status-" + s.id) || s.status
-      const epsVistos = JSON.parse(localStorage.getItem(uid + ":eps-" + s.id) || "[]")
+      // AGORA LÊ DO SUPABASE, NÃO DO LOCALSTORAGE
+      const epsVistosArr = s.eps_vistos || JSON.parse(localStorage.getItem(uid + ":eps-" + s.id) || "[]")
       const totalSalvo = Number(localStorage.getItem(uid + ":total-" + s.id) || 0)
 
-      // AJUSTE SINCRONIZADO
       let progresso = 0
       if (st === "maratonei") progresso = 100
       else if (st === "quero_assistir") progresso = 0
-      else {
-        if (totalSalvo > 0) {
-          progresso = Math.round((epsVistos.length / totalSalvo) * 100)
-        } else if (epsVistos.length > 0) {
-          progresso = Math.min(10 + epsVistos.length * 5, 95)
-        } else {
-          progresso = 5
-        }
-      }
+      else if (totalSalvo > 0) progresso = Math.round((epsVistosArr.length / totalSalvo) * 100)
+      else if (epsVistosArr.length > 0) progresso = Math.min(15 + epsVistosArr.length * 3, 90)
+      else progresso = 5
+
       if(progresso > 100) progresso = 100
 
       return {
-       ...s,
+      ...s,
         id: String(s.id),
         img: img || "https://picsum.photos/seed/"+s.id+"/400/600",
         status: st,
         progresso: progresso,
-        epsVistos: epsVistos.length,
+        epsVistos: epsVistosArr.length,
         totalEps: totalSalvo
       }
     }))
+
     setSeries(comDados)
     setLoading(false)
   }
@@ -158,29 +160,17 @@ export default function Home() {
       if (savedView) setView(savedView)
       await carregarSeries(uid)
       channel = supabase.channel('user_series_realtime_' + uid)
-  .on('postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` },
-        () => { carregarSeries(uid) }
-      )
-  .on('postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` },
-        () => { carregarSeries(uid) }
-      )
-  .subscribe()
+ .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` }, () => { carregarSeries(uid) })
+ .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` }, () => { carregarSeries(uid) })
+ .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` }, () => { carregarSeries(uid) })
+ .subscribe()
       const handleFocus = () => carregarSeries(uid)
       window.addEventListener('focus', handleFocus)
-      window.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') handleFocus()
-      })
-      window.addEventListener('storage', handleFocus)
-      return () => {
-        window.removeEventListener('focus', handleFocus)
-      }
+      window.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') handleFocus() })
+      return () => { window.removeEventListener('focus', handleFocus) }
     }
     init()
-    return () => {
-      if (channel) supabase.removeChannel(channel)
-    }
+    return () => { if (channel) supabase.removeChannel(channel) }
   }, [])
 
   useEffect(() => {
@@ -195,41 +185,14 @@ export default function Home() {
   function toggleView(){ const novo = view === "grade"? "lista" : "grade"; setView(novo); localStorage.setItem(userId + ":view-mode", novo) }
 
   async function adicionarSerie(s){
-    const nova = {
-      id: String(s.id),
-      titulo: s.titulo,
-      ano: s.ano || "0000",
-      status: "quero_assistir",
-      img: s.img,
-      q: s.tituloOriginal || s.titulo,
-      origem: s.origem || "tmdb",
-      progresso:0,
-      epsVistos:0,
-      totalEps:0
-    }
-    const { error } = await supabase.from("user_series").upsert({
-      user_id: userId,
-      serie_id: nova.id,
-      titulo: nova.titulo,
-      ano: nova.ano,
-      img: nova.img,
-      q: nova.q,
-      status: nova.status,
-      origem: nova.origem,
-      updated_at: new Date().toISOString()
-    }, { onConflict: 'user_id,serie_id' })
-    if (error) {
-      alert("Erro: " + error.message)
-      return
-    }
+    const nova = { id: String(s.id), titulo: s.titulo, ano: s.ano || "0000", status: "quero_assistir", img: s.img, q: s.tituloOriginal || s.titulo, origem: s.origem || "tmdb", progresso:0, epsVistos:0, totalEps:0 }
+    const { error } = await supabase.from("user_series").upsert({ user_id: userId, serie_id: nova.id, titulo: nova.titulo, ano: nova.ano, img: nova.img, q: nova.q, status: nova.status, origem: nova.origem, eps_vistos: [], updated_at: new Date().toISOString() }, { onConflict: 'user_id,serie_id' })
+    if (error) { alert("Erro: " + error.message); return }
     setBusca(""); setResultados([])
     setTimeout(function(){ window.location.href = "/serie/" + nova.id }, 100)
   }
 
-  function abrir(s){
-    localStorage.setItem(userId + ":serie-atual", JSON.stringify(s));
-    window.location.href = "/serie/" + s.id
-  }
+  function abrir(s){ localStorage.setItem(userId + ":serie-atual", JSON.stringify(s)); window.location.href = "/serie/" + s.id }
 
   const assistindo = series.filter(function(s){ return s.status === "assistindo" })
   const queroAssistir = series.filter(function(s){ return s.status === "quero_assistir" })
@@ -243,11 +206,9 @@ export default function Home() {
         <div className="poster-wrap">
           <img src={s.img} alt="" loading="lazy" />
           <div className="badge">{s.status === "quero_assistir"? "QUERO" : s.status.toUpperCase()}</div>
-          {s.status!== "quero_assistir" && (
-            <div className="progress-track"><div className="progress-fill" style={{ width: s.progresso + "%", background: cor }} /></div>
-          )}
+          {s.status!== "quero_assistir" && (<div className="progress-track"><div className="progress-fill" style={{ width: s.progresso + "%", background: cor }} /></div>)}
         </div>
-        <div className="titulo">{s.titulo}</div>
+        <div className="titulo">{s.titulo} {s.status==="assistindo"? `(${s.progresso}%)` : ""}</div>
       </div>
     )
   }
@@ -259,13 +220,9 @@ export default function Home() {
       <div onClick={function(){ abrir(s) }} style={{ display:"flex", gap:12, padding:10, background:"#12182F", border:"1px solid rgba(255,255,255,0.08)", borderRadius:12, cursor:"pointer", alignItems:"center" }}>
         <div style={{ width:52, height:78, minWidth:52, borderRadius:8, overflow:"hidden", position:"relative" }}>
           <img src={s.img} style={{ width:"100%", height:"100%", objectFit:"cover" }} alt="" />
-          {s.status!== "quero_assistir" && (
-            <div style={{ position:"absolute", bottom:0, left:0, right:0, height:4, background:"rgba(255,255,255,0.25)" }}>
-              <div style={{ height:"100%", width: s.progresso + "%", background: cor }} />
-            </div>
-          )}
+          {s.status!== "quero_assistir" && (<div style={{ position:"absolute", bottom:0, left:0, right:0, height:4, background:"rgba(255,255,255,0.25)" }}><div style={{ height:"100%", width: s.progresso + "%", background: cor }} /></div>)}
         </div>
-        <div style={{ flex:1 }}><div style={{ fontSize:13, fontWeight:800 }}>{s.titulo}</div><div style={{ fontSize:11, opacity:0.5 }}>{s.status==="assistindo"? `${s.epsVistos}/${s.totalEps || "?"} • ${s.progresso}%` : ""}</div></div>
+        <div style={{ flex:1 }}><div style={{ fontSize:13, fontWeight:800 }}>{s.titulo}</div><div style={{ fontSize:11, opacity:0.6 }}>{s.epsVistos}/{s.totalEps || "?"} • {s.progresso}%</div></div>
       </div>
     )
   }
@@ -278,12 +235,7 @@ export default function Home() {
           <b style={{ fontSize:14, fontFamily:"Sora,sans-serif" }}>{props.titulo}</b>
           <span style={{ fontSize:11, opacity:0.4 }}>- {props.qtd}</span>
         </div>
-        {props.qtd===0? (
-          <div style={{background:"#12182F", border:"1px dashed rgba(255,255,255,0.12)", borderRadius:12, padding:"18px 14px", textAlign:"center"}}>
-            <div style={{fontSize:11, opacity:0.35}}>Nenhuma série em {props.titulo.toLowerCase()}</div>
-            <div style={{fontSize:11, color:"#FFD400", marginTop:4, fontWeight:700}}>Busque acima para adicionar</div>
-          </div>
-        ) : view==="grade"? <div className="grid-responsive">{props.children}</div> : <div style={{ display:"grid", gap:8 }}>{props.children}</div>}
+        {props.qtd===0? (<div style={{background:"#12182F", border:"1px dashed rgba(255,255,255,0.12)", borderRadius:12, padding:"18px 14px", textAlign:"center"}}><div style={{fontSize:11, opacity:0.35}}>Nenhuma série em {props.titulo.toLowerCase()}</div><div style={{fontSize:11, color:"#FFD400", marginTop:4, fontWeight:700}}>Busque acima para adicionar</div></div>) : view==="grade"? <div className="grid-responsive">{props.children}</div> : <div style={{ display:"grid", gap:8 }}>{props.children}</div>}
       </div>
     )
   }
