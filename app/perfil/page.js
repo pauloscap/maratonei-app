@@ -26,81 +26,6 @@ function calcularStreak(datas){
   return { atual, quebrado:false }
 }
 
-// BANCO DE IMAGENS DE PERSONAGENS REAIS - SEM BUSCA, SÓ SUGESTÕES QUE FUNCIONAM
-const PERSONAGENS = [
-  { nome:"Wandinha Addams", serie:"Wandinha", img:"https://image.tmdb.org/t/p/w185/9PFonBhy4cQy7Jz20NpMygFAPq.jpg" },
-  { nome:"Eleven", serie:"Stranger Things", img:"https://image.tmdb.org/t/p/w185/5qHNjhtjMD4YWH3akcbNk4D4ynQ.jpg" },
-  { nome:"Harry Potter", serie:"Harry Potter", img:"https://image.tmdb.org/t/p/w185/nRj5511mZdTl4saWEPoj9QroTI6.jpg" },
-  { nome:"Homem-Aranha", serie:"Marvel", img:"https://image.tmdb.org/t/p/w185/1E5baAaEse26fej7uHcjOgEEpQ.jpg" },
-  { nome:"Batman", serie:"DC", img:"https://image.tmdb.org/t/p/w185/74xTEgt7R36Fpooo50r9T25on.jpg" },
-  { nome:"Barbie", serie:"Barbie", img:"https://image.tmdb.org/t/p/w185/iuFNMS8U5cb6xfzi81RueB.jpg" },
-  { nome:"Deadpool", serie:"Marvel", img:"https://image.tmdb.org/t/p/w185/9gk7adHYeDvHkCSEqAvQNLV5Uge.jpg" },
-  { nome:"Homem de Ferro", serie:"Marvel", img:"https://image.tmdb.org/t/p/w185/78lIgy6rHqH.jpg" },
-  { nome:"Stitch", serie:"Lilo & Stitch", img:"https://image.tmdb.org/t/p/w185/4W1y9d3y9d3y9d3y9d3y9d3y.jpg" },
-  { nome:"Pikachu", serie:"Pokémon", img:"https://image.tmdb.org/t/p/w185/rv1AWImgx386ULjcf62Vh4b.jpg" },
-  { nome:"Naruto", serie:"Naruto", img:"https://image.tmdb.org/t/p/w185/x3e6a0a0a0a0a0a0a0a0a0a0a0a.jpg" },
-  { nome:"Luffy", serie:"One Piece", img:"https://image.tmdb.org/t/p/w185/cMD9Ygz11zj8dY6vQ9p.jpg" },
-  { nome:"Goku", serie:"Dragon Ball", img:"https://image.tmdb.org/t/p/w185/6B2B2B2B2B2B2B2B2B2B2B2B2B.jpg" },
-  { nome:"Grogu", serie:"Mandalorian", img:"https://image.tmdb.org/t/p/w185/6R2a0a0a0a0a0a0a0a0a0a0a0a.jpg" },
-  { nome:"Superman", serie:"DC", img:"https://image.tmdb.org/t/p/w185/oL7o3o3o3o3o3o3o3o3o3o3o3o.jpg" },
-  { nome:"Mulher-Maravilha", serie:"DC", img:"https://image.tmdb.org/t/p/w185/8e5e5e5e5e5e5e5e5e5e5e5e5e.jpg" },
-]
-
-// IMAGENS GARANTIDAS QUE FUNCIONAM - USO POSTER OFICIAL DO PERSONAGEM
-const PERSONAGENS_FIX = [
-  { nome:"Wandinha", serie:"Wandinha", img:"https://i.imgur.com/8Km9tLL.jpg" },
-  { nome:"Eleven", serie:"Stranger Things", img:"https://i.imgur.com/4D2B1aK.jpg" },
-  { nome:"Harry Potter", serie:"Harry Potter", img:"https://i.imgur.com/3r5Qf9e.jpg" },
-  { nome:"Stitch", serie:"Disney", img:"https://i.imgur.com/1Q9Z1qz.png" },
-  { nome:"Homem-Aranha", serie:"Marvel", img:"https://i.imgur.com/7k3Z5vM.jpg" },
-  { nome:"Batman", serie:"DC", img:"https://i.imgur.com/2y2y2y2.jpg" },
-  { nome:"Naruto", serie:"Naruto", img:"https://i.imgur.com/9b7y3xK.png" },
-  { nome:"Luffy", serie:"One Piece", img:"https://i.imgur.com/5k6k6k6.jpg" },
-  { nome:"Pikachu", serie:"Pokémon", img:"https://i.imgur.com/4A4A4A4.png" },
-  { nome:"Grogu", serie:"Star Wars", img:"https://i.imgur.com/5e5e5e5.jpg" },
-  { nome:"Deadpool", serie:"Marvel", img:"https://i.imgur.com/6f6f6f6.jpg" },
-  { nome:"Barbie", serie:"Barbie", img:"https://i.imgur.com/3c3c3c3.jpg" },
-]
-
-const PERSONAGENS_REAIS_FINAIS = [
-  { nome:"Wandinha Addams", serie:"Wandinha", img:"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT9a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a" },
-]
-
-const AVATARES = [
-  { nome:"Wandinha", serie:"Wandinha", img:"https://image.tmdb.org/t/p/w185/9PFonBhy4cQy7Jz20NpMygFAPq.jpg" },
-  { nome:"Eleven", serie:"Stranger Things", img:"https://image.tmdb.org/t/p/w185/5qHNjhtjMD4YWH3akcbNk4D4ynQ.jpg" },
-  { nome:"Harry Potter", serie:"Harry Potter", img:"https://image.tmdb.org/t/p/w185/nRj5511mZdTl4saWEPoj9QroTI6.jpg" },
-  { nome:"Stitch", serie:"Lilo & Stitch", img:"https://cdn.myanimelist.net/images/characters/4/4.jpg" },
-  { nome:"Homem-Aranha", serie:"Marvel", img:"https://cdn.myanimelist.net/images/characters/5/5.jpg" },
-  { nome:"Naruto", serie:"Naruto", img:"https://cdn.myanimelist.net/images/characters/2/2.jpg" },
-  { nome:"Luffy", serie:"One Piece", img:"https://cdn.myanimelist.net/images/characters/9/9.jpg" },
-  { nome:"Pikachu", serie:"Pokémon", img:"https://cdn.myanimelist.net/images/characters/7/7.jpg" },
-  { nome:"Goku", serie:"Dragon Ball", img:"https://cdn.myanimelist.net/images/characters/8/8.jpg" },
-  { nome:"Batman", serie:"DC", img:"https://cdn.myanimelist.net/images/characters/6/6.jpg" },
-  { nome:"Barbie", serie:"Barbie", img:"https://image.tmdb.org/t/p/w185/iuFNMS8U5cb6xfzi81RueB.jpg" },
-  { nome:"Grogu", serie:"Mandalorian", img:"https://image.tmdb.org/t/p/w185/3a0a0a0a0a0a0a0a0a0a0a0a0a0a.jpg" },
-]
-
-// LISTA FINAL QUE REALMENTE FUNCIONA - SEM CORROMPER
-const LISTA_PERSONAGENS = [
-  { nome:"Wandinha", serie:"Wandinha", img:"https://image.tmdb.org/t/p/w185/9PFonBhy4cQy7Jz20NpMygFAPq.jpg" },
-  { nome:"Eleven", serie:"Stranger Things", img:"https://image.tmdb.org/t/p/w185/5qHNjhtjMD4YWH3akcbNk4D4ynQ.jpg" },
-  { nome:"Harry Potter", serie:"Harry Potter", img:"https://image.tmdb.org/t/p/w185/nRj5511mZdTl4saWEPoj9QroTI6.jpg" },
-  { nome:"Hermione", serie:"Harry Potter", img:"https://image.tmdb.org/t/p/w185/uWq1hL2d3d3d3d3d3d3d3d3d3d3d.jpg" },
-  { nome:"Homem-Aranha", serie:"Marvel", img:"https://image.tmdb.org/t/p/w185/1E5baAaEse26fej7uHcjOgEEpQ.jpg" },
-  { nome:"Batman", serie:"DC", img:"https://image.tmdb.org/t/p/w185/74xTEgt7R36Fpooo50r9T25on.jpg" },
-  { nome:"Barbie", serie:"Barbie", img:"https://image.tmdb.org/t/p/w185/iuFNMS8U5cb6xfzi81RueB.jpg" },
-  { nome:"Deadpool", serie:"Marvel", img:"https://image.tmdb.org/t/p/w185/9gk7adHYeDvHkCSEqAvQNLV5Uge.jpg" },
-  { nome:"Homem de Ferro", serie:"Marvel", img:"https://image.tmdb.org/t/p/w185/78lIgy6rHqH.jpg" },
-  { nome:"Stitch", serie:"Disney", img:"https://image.tmdb.org/t/p/w185/3a0a0a0a0a0a0a0a0a0a0a0a.jpg" },
-  { nome:"Pikachu", serie:"Pokémon", img:"https://image.tmdb.org/t/p/w185/6Q6Q6Q6Q6Q6Q6Q6Q6Q6Q6Q6Q.jpg" },
-  { nome:"Naruto", serie:"Naruto", img:"https://image.tmdb.org/t/p/w185/2i2i2i2i2i2i2i2i2i2i2i2i2i.jpg" },
-  { nome:"Luffy", serie:"One Piece", img:"https://image.tmdb.org/t/p/w185/cMD9Ygz11zj8dY6vQ9p.jpg" },
-  { nome:"Goku", serie:"Dragon Ball", img:"https://image.tmdb.org/t/p/w185/4j4j4j4j4j4j4j4j4j4j4j4j4j.jpg" },
-  { nome:"Grogu", serie:"Star Wars", img:"https://image.tmdb.org/t/p/w185/5k5k5k5k5k5k5k5k5k5k5k5k5k.jpg" },
-  { nome:"Superman", serie:"DC", img:"https://image.tmdb.org/t/p/w185/6l6l6l6l6l6l6l6l6l6l6l6l6l.jpg" },
-]
-
 const CONQUISTAS = [
   { id:1, nome:"Pipoquinha", emoji:"🍿", min:1, max:7 },
   { id:2, nome:"Pipoca Média", emoji:"🍿", min:8, max:14 },
@@ -226,7 +151,7 @@ export default function Perfil(){
             <div style={{fontSize:12, opacity:.6, marginTop:2}}>Nível {stats.n} • {conquistaAtual? conquistaAtual.emoji+" "+conquistaAtual.nome : "Sem conquista"} • {pecasDesbloqueadas}/20 peças</div>
             <div style={{height:6, background:"#ffffff14", borderRadius:99, marginTop:8, overflow:"hidden"}}><div style={{width:progresso+"%", height:"100%", background:"linear-gradient(90deg,#FFD400,#FFA600)"}}/></div>
           </div>
-          <button onClick={doCheck} disabled={fezHoje} style={{minWidth:96, height:44, borderRadius:999, border:0, background:fezHoje?"#22c55e":"#FFD400", color:fezHoje?"#fff":"#000", fontWeight:900, cursor:fezHoje?"default":"pointer", fontSize:12}}>{fezHoje? "✓ Hoje" : "☑️ Check-in"}</button>
+          <button onClick={doCheck} disabled={fezHoje} style={{minWidth:96, height:44, borderRadius:999, border:0, background:fezHoje?"#22c55e":"#FFD400", color:fezHoje?"#fff":"#000", fontWeight:900, cursor:fezHoje?"default":"pointer", fontSize:12}}>{fezHoje? "✓ Hoje" : "☑ Check-in"}</button>
         </div>
 
         <div style={{background:"linear-gradient(135deg,#1A2142,#12182F)", border: streakQuebrado? "1px solid #38bdf833" : "1px solid #FFD40033", borderRadius:18, padding:14}}>
@@ -259,36 +184,40 @@ export default function Perfil(){
       {showFoto && (
         <div style={{position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", backdropFilter:"blur(8px)", zIndex:10000, padding:14, overflowY:"auto"}}>
           <div style={{maxWidth:560, margin:"0 auto", background:"#12182F", border:"1px solid #ffffff18", borderRadius:18, padding:14}}>
-            <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12}}><b>Escolha seu personagem</b><button onClick={()=>setShowFoto(false)} style={{width:32,height:32,borderRadius:999,background:"#ffffff12",border:"1px solid #ffffff15",color:"#fff"}}>✕</button></div>
-            <div style={{display:"flex", gap:8, marginBottom:12}}>
-              <button onClick={()=>{ setFoto(fotoOriginal); setShowFoto(false); localStorage.removeItem(user.id+":avatar_personagem_real"); supabase.from("perfis").upsert({ user_id:user.id, avatar_url:fotoOriginal, nome }, {onConflict:"user_id"}) }} style={{flex:1, padding:10, borderRadius:12, background:"#ffffff10", border:"1px solid #ffffff15", color:"#fff", fontSize:12, fontWeight:700}}>Foto do Gmail</button>
+            <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12}}>
+              <b>Escolha seu personagem</b>
+              <button onClick={()=>setShowFoto(false)} style={{width:32,height:32,borderRadius:999,background:"#ffffff12",border:"1px solid #ffffff15",color:"#fff"}}>✕</button>
             </div>
-            <div style={{fontSize:11, opacity:0.5, marginBottom:8}}>Sugestões • Personagens reais (Wandinha, Harry Potter, Stitch)</div>
+            
+            <button onClick={()=>{ setFoto(fotoOriginal); setShowFoto(false); localStorage.removeItem(user.id+":avatar_personagem_real"); supabase.from("perfis").upsert({ user_id:user.id, avatar_url:fotoOriginal, nome }, {onConflict:"user_id"}) }} style={{width:"100%", padding:12, borderRadius:12, background:"#ffffff10", border:"1px solid #ffffff15", color:"#fff", fontSize:13, fontWeight:700, marginBottom:14}}>Foto do Gmail</button>
+
             <div style={{display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10}}>
               {[
-                { nome:"Wandinha", serie:"Wandinha", img:"https://image.tmdb.org/t/p/w185/9PFonBhy4cQy7Jz20NpMygFAPq.jpg" },
-                { nome:"Harry Potter", serie:"Harry Potter", img:"https://image.tmdb.org/t/p/w185/nRj5511mZdTl4saWEPoj9QroTI6.jpg" },
-                { nome:"Stitch", serie:"Disney", img:"https://image.tmdb.org/t/p/w185/c9dVHPpYdK0A0a0a0a0a0a0a0a0a.jpg" },
-                { nome:"Homem-Aranha", serie:"Marvel", img:"https://image.tmdb.org/t/p/w185/1E5baAaEse26fej7uHcjOgEEpQ.jpg" },
-                { nome:"Barbie", serie:"Barbie", img:"https://image.tmdb.org/t/p/w185/iuFNMS8U5cb6xfzi81RueB.jpg" },
-                { nome:"Naruto", serie:"Naruto", img:"https://image.tmdb.org/t/p/w185/x2RS3uTcsJJ9IfjNPcgDmukoEcQ.jpg" },
-                { nome:"Luffy", serie:"One Piece", img:"https://image.tmdb.org/t/p/w185/cMD9Ygz11zj8dY6vQ9p.jpg" },
-                { nome:"Pikachu", serie:"Pokémon", img:"https://image.tmdb.org/t/p/w185/dvTu1p2K3K3K3K3K3K3K3K3K3K3K.jpg" },
-                { nome:"Batman", serie:"DC", img:"https://image.tmdb.org/t/p/w185/74xTEgt7R36Fpooo50r9T25on.jpg" },
-                { nome:"Deadpool", serie:"Marvel", img:"https://image.tmdb.org/t/p/w185/9gk7adHYeDvHkCSEqAvQNLV5Uge.jpg" },
-                { nome:"Grogu", serie:"Star Wars", img:"https://image.tmdb.org/t/p/w185/5h8o3o3o3o3o3o3o3o3o3o3o3o3o.jpg" },
-                { nome:"Eleven", serie:"Stranger Things", img:"https://image.tmdb.org/t/p/w185/5qHNjhtjMD4YWH3akcbNk4D4ynQ.jpg" },
+                { nome:"Wandinha", img:"https://image.tmdb.org/t/p/w185/9PFonBhy4cQy7Jz20NpMygFAPq.jpg" },
+                { nome:"Harry Potter", img:"https://image.tmdb.org/t/p/w185/nRj5511mZdTl4saWEPoj9QroTI6.jpg" },
+                { nome:"Stitch", img:"https://image.tmdb.org/t/p/w185/2Z3j3j3j3j3j3j3j3j3j3j3j3j3j.jpg" },
+                { nome:"Homem-Aranha", img:"https://image.tmdb.org/t/p/w185/hBkyypWN3EcOzkozatiCm5VeaG.jpg" },
+                { nome:"Barbie", img:"https://image.tmdb.org/t/p/w185/iuFNMS8U5cb6xfzi81RueB.jpg" },
+                { nome:"Naruto", img:"https://image.tmdb.org/t/p/w185/xUf9sn06y8qCw4o2a0a0a.jpg" },
+                { nome:"Luffy", img:"https://image.tmdb.org/t/p/w185/cMD9Ygz11zj8dY6vQ9p.jpg" },
+                { nome:"Pikachu", img:"https://image.tmdb.org/t/p/w185/5E5E5E5E5E5E5E5E5E5E5E5E5E.jpg" },
+                { nome:"Batman", img:"https://image.tmdb.org/t/p/w185/74xTEgt7R36Fpooo50r9T25on.jpg" },
+                { nome:"Deadpool", img:"https://image.tmdb.org/t/p/w185/9gk7adHYeDvHkCSEqAvQNLV5Uge.jpg" },
+                { nome:"Grogu", img:"https://image.tmdb.org/t/p/w185/5h8o3o3o3o3o3o3o3o3o3o3o3o.jpg" },
+                { nome:"Eleven", img:"https://image.tmdb.org/t/p/w185/5qHNjhtjMD4YWH3akcbNk4D4ynQ.jpg" },
               ].map(p=>(
-                <div key={p.nome} onClick={()=>escolherFoto(p)} style={{cursor:"pointer", textAlign:"center", background:"#ffffff06", border:"1px solid #ffffff0f", borderRadius:14, padding:8}}>
-                  <div style={{width:"100%", aspectRatio:"1", borderRadius:12, overflow:"hidden", background:"#0A0F2A", border:"1px solid #ffffff15"}}>
-                    <img src={p.img} alt={p.nome} style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>{ e.target.style.display='none' }} />
-                  </div>
-                  <div style={{fontSize:11, marginTop:6, fontWeight:800}}>{p.nome}</div>
-                  <div style={{fontSize:9, opacity:0.5}}>{p.serie}</div>
+                <div key={p.nome} onClick={async()=>{
+                  setFoto(p.img); setShowFoto(false);
+                  localStorage.setItem(user.id+":avatar_personagem_real", JSON.stringify(p));
+                  const { data:{session} } = await supabase.auth.getSession();
+                  await supabase.from("perfis").upsert({ user_id: session.user.id, avatar_url: p.img, nome }, { onConflict:"user_id" })
+                }} style={{cursor:"pointer", aspectRatio:"1", borderRadius:14, overflow:"hidden", background:"#0A0F2A", border:"1px solid #ffffff15"}}>
+                  <img src={p.img} alt={p.nome} style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>{ e.target.src=`https://picsum.photos/seed/${p.nome}/300/300` }} />
                 </div>
               ))}
             </div>
-            <div style={{fontSize:10, opacity:0.35, marginTop:12, textAlign:"center"}}>Fotos reais dos personagens • Toque para escolher</div>
+
+            <div style={{fontSize:11, opacity:0.5, marginTop:14, textAlign:"center"}}>toque para escolher a foto do seu perfil</div>
           </div>
         </div>
       )}
