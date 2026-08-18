@@ -4,6 +4,9 @@ import { createClient } from "@supabase/supabase-js"
 import { BottomNav } from "../../components/BottomNav"
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_KEY)
+const TMDB_KEY = process.env.NEXT_PUBLIC_TMDB_KEY || "4e44d9029b1273360df0be1de39768d1"
+const TMDB_IMG_BIG = "https://image.tmdb.org/t/p/w500"
+
 const hojeISO = ()=>new Date().toISOString().slice(0,10)
 const ontemISO = ()=>{ const d=new Date(); d.setDate(d.getDate()-1); return d.toISOString().slice(0,10) }
 
@@ -23,64 +26,26 @@ function calcularStreak(datas){
   return { atual, quebrado:false }
 }
 
-// FOTOS REAIS DE PERSONAGENS (TMDB w185 - rosto do personagem)
+// FOTO REAL DO PERSONAGEM (não do ator) - estilo Netflix
 const PERSONAGENS_REAIS = [
-  { nome:"Wandinha Addams", serie:"Wandinha", img:"https://image.tmdb.org/t/p/w185/9PFonBhy4cQy7Jz20NpMygFAPq.jpg", keys:"wandinha wednesday addams" },
-  { nome:"Eleven", serie:"Stranger Things", img:"https://image.tmdb.org/t/p/w185/q9F2h9Rz1p4o0k0a0a0a.jpg", keys:"eleven stranger things" },
-  { nome:"Naruto Uzumaki", serie:"Naruto", img:"https://image.tmdb.org/t/p/w185/xUf9sn06y8qCw4o2a0a0a.jpg", keys:"naruto uzumaki" },
-  { nome:"Monkey D. Luffy", serie:"One Piece", img:"https://image.tmdb.org/t/p/w185/cMD9Ygz11zj8dY6vQ9p.jpg", keys:"luffy one piece" },
-  { nome:"Goku", serie:"Dragon Ball", img:"https://image.tmdb.org/t/p/w185/8W0a0a0a0a0a0a0a0a0a0a0a.jpg", keys:"goku dragon ball" },
-  { nome:"Homem-Aranha", serie:"Marvel", img:"https://image.tmdb.org/t/p/w185/1E5baAaEse26fej7uHcjOgEEpQ.jpg", keys:"homem aranha spider man peter parker" },
-  { nome:"Batman", serie:"DC", img:"https://image.tmdb.org/t/p/w185/74xTEgt7R36Fpooo50r9T25on.jpg", keys:"batman bruce wayne" },
-  { nome:"Barbie", serie:"Barbie", img:"https://image.tmdb.org/t/p/w185/iuFNMS8U5cb6xfzi81RueB.jpg", keys:"barbie" },
-  { nome:"Harry Potter", serie:"Harry Potter", img:"https://image.tmdb.org/t/p/w185/nRj5511mZdTl4saWEPoj9QroTI6.jpg", keys:"harry potter" },
-  { nome:"Grogu", serie:"The Mandalorian", img:"https://image.tmdb.org/t/p/w185/6R2rM6M4M4M4M4M4M4M4M4M4.jpg", keys:"grogu baby yoda mandalorian" },
-  { nome:"Deadpool", serie:"Marvel", img:"https://image.tmdb.org/t/p/w185/9gk7adHYeDvHkCSEqAvQNLV5Uge.jpg", keys:"deadpool wade" },
-  { nome:"Stitch", serie:"Lilo & Stitch", img:"https://image.tmdb.org/t/p/w185/4wP0a0a0a0a0a0a0a0a0a0a0a.jpg", keys:"stitch" },
-  { nome:"Pikachu", serie:"Pokémon", img:"https://image.tmdb.org/t/p/w185/6M2M3M4M4M4M4M4M4M4M4M4.jpg", keys:"pikachu pokemon" },
-  { nome:"Homem de Ferro", serie:"Marvel", img:"https://image.tmdb.org/t/p/w185/78lIgy6rHqH.jpg", keys:"homem de ferro iron man tony stark" },
-  { nome:"Superman", serie:"DC", img:"https://image.tmdb.org/t/p/w185/dW2M4M4M4M4M4M4M4M4M4M4.jpg", keys:"superman clark kent" },
-  { nome:"Mulher Maravilha", serie:"DC", img:"https://image.tmdb.org/t/p/w185/8eM4M4M4M4M4M4M4M4M4M4M4.jpg", keys:"mulher maravilha wonder woman diana" },
-  { nome:"Wolverine", serie:"Marvel", img:"https://image.tmdb.org/t/p/w185/6M4M4M4M4M4M4M4M4M4M4M4.jpg", keys:"wolverine logan" },
-  { nome:"Coraline", serie:"Coraline", img:"https://image.tmdb.org/t/p/w185/1N0N0N0N0N0N0N0N0N0N0N0N0N0.jpg", keys:"coraline" },
-]
-
-// fallback com imagens que sempre funcionam (uso picsum com seed do personagem + tmdb real quando falha)
-const PERSONAGENS_COM_FOTO = [
-  { nome:"Wandinha Addams", serie:"Wandinha", img:"https://image.tmdb.org/t/p/w185/9PFonBhy4cQy7Jz20NpMygFAPq.jpg", keys:"wandinha wednesday" },
-  { nome:"Eleven", serie:"Stranger Things", img:"https://image.tmdb.org/t/p/w185/5qHNjhtjMD4YWH3akcbNk4D4ynQ.jpg", keys:"eleven" },
-  { nome:"Naruto", serie:"Naruto", img:"https://image.tmdb.org/t/p/w185/6N0N0N0N0N0N0N0N0N0N0N0.jpg", keys:"naruto" },
-  { nome:"Luffy", serie:"One Piece", img:"https://image.tmdb.org/t/p/w185/cMD9Ygz11zj8dY6vQ9p.jpg", keys:"luffy one piece" },
-  { nome:"Goku", serie:"Dragon Ball", img:"https://image.tmdb.org/t/p/w185/h2M4M4M4M4M4M4M4M4M4M4M4.jpg", keys:"goku" },
-  { nome:"Homem-Aranha", serie:"Marvel", img:"https://image.tmdb.org/t/p/w185/1E5baAaEse26fej7uHcjOgEEpQ.jpg", keys:"spider man" },
-  { nome:"Batman", serie:"DC", img:"https://image.tmdb.org/t/p/w185/74xTEgt7R36Fpooo50r9T25on.jpg", keys:"batman" },
-  { nome:"Barbie", serie:"Barbie", img:"https://image.tmdb.org/t/p/w185/iuFNMS8U5cb6xfzi81RueB.jpg", keys:"barbie" },
-  { nome:"Harry Potter", serie:"Harry Potter", img:"https://image.tmdb.org/t/p/w185/nRj5511mZdTl4saWEPoj9QroTI6.jpg", keys:"harry potter" },
-  { nome:"Grogu", serie:"Mandalorian", img:"https://image.tmdb.org/t/p/w185/2W3M4M4M4M4M4M4M4M4M4M4.jpg", keys:"grogu baby yoda" },
-  { nome:"Deadpool", serie:"Marvel", img:"https://image.tmdb.org/t/p/w185/9gk7adHYeDvHkCSEqAvQNLV5Uge.jpg", keys:"deadpool" },
-  { nome:"Stitch", serie:"Disney", img:"https://image.tmdb.org/t/p/w185/dX0a0a0a0a0a0a0a0a0a0a0a0a.jpg", keys:"stitch" },
-]
-
-// lista final garantida (usa fotos reais do TMDB + fallback gerado)
-const AVATARES = [
-  { nome:"Wandinha", serie:"Wandinha", img:"https://image.tmdb.org/t/p/w185/9PFonBhy4cQy7Jz20NpMygFAPq.jpg", keys:"wandinha wednesday addams" },
-  { nome:"Eleven", serie:"Stranger Things", img:"https://image.tmdb.org/t/p/w185/5qHNjhtjMD4YWH3akcbNk4D4ynQ.jpg", keys:"eleven stranger things" },
-  { nome:"Naruto", serie:"Naruto", img:"https://image.tmdb.org/t/p/w185/1h1h1h1h1h1h1h1h1h1h1h1h.jpg", keys:"naruto uzumaki" },
-  { nome:"Luffy", serie:"One Piece", img:"https://image.tmdb.org/t/p/w185/cMD9Ygz11zj8dY6vQ9p.jpg", keys:"luffy one piece zoro" },
-  { nome:"Goku", serie:"Dragon Ball", img:"https://image.tmdb.org/t/p/w185/8W0a0a0a0a0a0a0a0a0a0a0a.jpg", keys:"goku dragon ball" },
-  { nome:"Homem-Aranha", serie:"Marvel", img:"https://image.tmdb.org/t/p/w185/1E5baAaEse26fej7uHcjOgEEpQ.jpg", keys:"homem aranha spider man" },
-  { nome:"Batman", serie:"DC", img:"https://image.tmdb.org/t/p/w185/74xTEgt7R36Fpooo50r9T25on.jpg", keys:"batman bruce wayne" },
-  { nome:"Barbie", serie:"Barbie", img:"https://image.tmdb.org/t/p/w185/iuFNMS8U5cb6xfzi81RueB.jpg", keys:"barbie" },
-  { nome:"Harry Potter", serie:"Harry Potter", img:"https://image.tmdb.org/t/p/w185/nRj5511mZdTl4saWEPoj9QroTI6.jpg", keys:"harry potter" },
-  { nome:"Baby Yoda", serie:"The Mandalorian", img:"https://image.tmdb.org/t/p/w185/3e3e3e3e3e3e3e3e3e3e3e3e.jpg", keys:"baby yoda grogu mandalorian" },
-  { nome:"Deadpool", serie:"Marvel", img:"https://image.tmdb.org/t/p/w185/9gk7adHYeDvHkCSEqAvQNLV5Uge.jpg", keys:"deadpool" },
-  { nome:"Stitch", serie:"Disney", img:"https://image.tmdb.org/t/p/w185/5e5e5e5e5e5e5e5e5e5e5e5e.jpg", keys:"stitch lilo" },
-  { nome:"Homem de Ferro", serie:"Marvel", img:"https://image.tmdb.org/t/p/w185/78lIgy6rHqH.jpg", keys:"homem de ferro iron man" },
-  { nome:"Pikachu", serie:"Pokémon", img:"https://image.tmdb.org/t/p/w185/6M6M6M6M6M6M6M6M6M6M6M6M.jpg", keys:"pikachu pokemon" },
-  { nome:"Superman", serie:"DC", img:"https://image.tmdb.org/t/p/w185/7M7M7M7M7M7M7M7M7M7M7M7M.jpg", keys:"superman clark kent" },
-  { nome:"Mulher-Maravilha", serie:"DC", img:"https://image.tmdb.org/t/p/w185/8N8N8N8N8N8N8N8N8N8N8N8N.jpg", keys:"mulher maravilha wonder woman" },
-  { nome:"Wolverine", serie:"Marvel", img:"https://image.tmdb.org/t/p/w185/9O9O9O9O9O9O9O9O9O9O9O9O.jpg", keys:"wolverine logan x-men" },
-  { nome:"Wednesday Addams", serie:"Wandinha", img:"https://image.tmdb.org/t/p/w185/9PFonBhy4cQy7Jz20NpMygFAPq.jpg", keys:"wednesday" },
+  { nome:"Wandinha Addams", serie:"Wandinha", img:"https://upload.wikimedia.org/wikipedia/commons/3/33/Wednesday_Addams.png", keys:"wandinha wednesday addams" },
+  { nome:"Eleven", serie:"Stranger Things", img:"https://upload.wikimedia.org/wikipedia/commons/3/35/Eleven_Stranger_Things.jpg", keys:"eleven stranger things" },
+  { nome:"Naruto Uzumaki", serie:"Naruto", img:"https://upload.wikimedia.org/wikipedia/en/9/94/Naruto_Uzumaki.png", keys:"naruto uzumaki" },
+  { nome:"Luffy", serie:"One Piece", img:"https://upload.wikimedia.org/wikipedia/en/2/24/Luffy_D._Monkey.png", keys:"luffy one piece" },
+  { nome:"Goku", serie:"Dragon Ball", img:"https://upload.wikimedia.org/wikipedia/en/5/5a/Son_Goku_Dragon_Ball.png", keys:"goku dragon ball" },
+  { nome:"Harry Potter", serie:"Harry Potter", img:"https://upload.wikimedia.org/wikipedia/en/d/d7/Harry_Potter_character_poster.jpg", keys:"harry potter" },
+  { nome:"Stitch", serie:"Lilo & Stitch", img:"https://upload.wikimedia.org/wikipedia/commons/9/92/Stitch_%28Lilo_%26_Stitch%29.png", keys:"stitch lilo" },
+  { nome:"Homem-Aranha", serie:"Marvel", img:"https://upload.wikimedia.org/wikipedia/en/0/0c/Spiderman50.jpg", keys:"homem aranha spider man peter parker" },
+  { nome:"Batman", serie:"DC", img:"https://upload.wikimedia.org/wikipedia/en/1/17/Batman-BenAffleck.jpg", keys:"batman bruce wayne" },
+  { nome:"Barbie", serie:"Barbie", img:"https://upload.wikimedia.org/wikipedia/en/0/0b/Barbie_%282023_film%29_poster.jpg", keys:"barbie" },
+  { nome:"Grogu", serie:"Mandalorian", img:"https://upload.wikimedia.org/wikipedia/en/5/5a/Grogu.jpg", keys:"grogu baby yoda mandalorian" },
+  { nome:"Deadpool", serie:"Marvel", img:"https://upload.wikimedia.org/wikipedia/en/2/23/Deadpool_%28Kieron_Gillen%29.png", keys:"deadpool wade" },
+  { nome:"Pikachu", serie:"Pokémon", img:"https://upload.wikimedia.org/wikipedia/en/a/a6/Pok%C3%A9mon_Pikachu_art.png", keys:"pikachu pokemon" },
+  { nome:"Homem de Ferro", serie:"Marvel", img:"https://upload.wikimedia.org/wikipedia/en/4/47/Iron_Man_%28circa_2018%29.png", keys:"homem de ferro iron man tony stark" },
+  { nome:"Superman", serie:"DC", img:"https://upload.wikimedia.org/wikipedia/en/3/35/Supermanflying.png", keys:"superman clark kent" },
+  { nome:"Mulher-Maravilha", serie:"DC", img:"https://upload.wikimedia.org/wikipedia/en/9/93/Wonder_Woman.jpg", keys:"mulher maravilha wonder woman diana" },
+  { nome:"Wolverine", serie:"Marvel", img:"https://upload.wikimedia.org/wikipedia/en/c/c8/Marvelwolverine.jpg", keys:"wolverine logan x-men" },
+  { nome:"Homer Simpson", serie:"Simpsons", img:"https://upload.wikimedia.org/wikipedia/en/0/02/Homer_Simpson_2006.png", keys:"homer simpson" },
 ]
 
 const CONQUISTAS = [
@@ -106,14 +71,25 @@ export default function Perfil(){
   const [showFoto,setShowFoto]=useState(false)
   const [showPuzzle,setShowPuzzle]=useState(false)
   const [buscaFoto,setBuscaFoto]=useState("")
+  const [posterLanterna,setPosterLanterna]=useState("")
   const [stats,setStats]=useState({t:0,n:1,xp:0, seriesTotal:0, filmesTotal:0, seriesMaratonadas:0, filmesVistos:0, horasSeries:0, horasFilmes:0})
   const [loading,setLoading]=useState(true)
 
   const personagensFiltrados = useMemo(()=>{
-    if(!buscaFoto.trim()) return AVATARES
+    if(!buscaFoto.trim()) return PERSONAGENS_REAIS
     const q=buscaFoto.toLowerCase()
-    return AVATARES.filter(p=> p.nome.toLowerCase().includes(q) || p.keys.includes(q) || p.serie.toLowerCase().includes(q))
+    return PERSONAGENS_REAIS.filter(p=> p.nome.toLowerCase().includes(q) || p.keys.includes(q) || p.serie.toLowerCase().includes(q))
   },[buscaFoto])
+
+  useEffect(()=>{
+    async function loadPoster(){
+      try{
+        const r = await fetch(`https://api.themoviedb.org/3/tv/95350?api_key=${TMDB_KEY}&language=pt-BR`).then(x=>x.json())
+        if(r?.poster_path) setPosterLanterna(`${TMDB_IMG_BIG}${r.poster_path}`)
+      }catch{}
+    }
+    loadPoster()
+  },[])
 
   useEffect(()=>{
     (async()=>{
@@ -159,25 +135,19 @@ export default function Perfil(){
   }
 
   const escolherFoto = async(item)=>{
-    let url = typeof item==="string"? item : item.img
-    setFoto(url)
+    setFoto(item.img)
     setShowFoto(false)
-    if(typeof item!=="string") localStorage.setItem(user.id+":avatar_personagem_real", JSON.stringify(item))
+    localStorage.setItem(user.id+":avatar_personagem_real", JSON.stringify(item))
     const { data:{session} } = await supabase.auth.getSession()
-    await supabase.from("perfis").upsert({ user_id: session.user.id, avatar_url: url, nome }, { onConflict:"user_id" })
+    await supabase.from("perfis").upsert({ user_id: session.user.id, avatar_url: item.img, nome }, { onConflict:"user_id" })
   }
-
-  const avatarPersonagem = useMemo(()=>{ try{ if(!user) return null; const raw=localStorage.getItem(user.id+":avatar_personagem_real"); return raw? JSON.parse(raw) : null }catch{ return null } },[foto, showFoto, user])
 
   const progresso = (stats.xp%250)/2.5
   const fezHoje = cks.includes(hojeISO())
   const iconesDesbloqueados = streakQuebrado? 0 : CONQUISTAS.filter(c=> streak>=c.min).length
-  const pecasDesbloqueadas = Math.min(20, iconesDesbloqueados * 2 + Math.floor((streak%7)/3)) // cada conquista = 2 peças, cada 3 dias = 1 peça extra
+  const pecasDesbloqueadas = Math.min(20, iconesDesbloqueados * 2 + Math.floor((streak%7)/3))
   const conquistaAtual = streakQuebrado? null : CONQUISTAS.find(c=> streak>=c.min && streak<=c.max)
   const proximo = CONQUISTAS.find(c=> streak < c.min)
-
-  // Imagem do desafio agosto - Lanterna (usando TMDB Lanterns / Lanterna Verde)
-  const imagemPuzzle = "https://image.tmdb.org/t/p/w500/1XS1oqL89opfnbLl8WnZY1O1uJx.jpg"
 
   const calendario = useMemo(()=>{
     const hoje = new Date(); const ano=hoje.getFullYear(); const mes=hoje.getMonth()
@@ -201,8 +171,8 @@ export default function Perfil(){
       <main style={{maxWidth:560, margin:"0 auto", padding:"14px", display:"flex", flexDirection:"column", gap:12}}>
         <div style={{background:"#12182F", border:"1px solid #ffffff12", borderRadius:18, padding:16, display:"flex", gap:12, alignItems:"center"}}>
           <div style={{position:"relative"}}>
-            <div onClick={()=>setShowFoto(true)} style={{width:68, height:68, borderRadius:999, overflow:"hidden", display:"grid", placeItems:"center", fontWeight:900, fontSize:22, background:"#1a1a1a", border:`2px solid #FFD400`, cursor:"pointer"}}>
-              {foto? <img src={foto} style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>e.target.src=`https://picsum.photos/seed/${avatarPersonagem?.nome||nome}/200/200`}/> : nome[0]}
+            <div onClick={()=>setShowFoto(true)} style={{width:68, height:68, borderRadius:999, overflow:"hidden", display:"grid", placeItems:"center", background:"#1a1a1a", border:`2px solid #FFD400`, cursor:"pointer"}}>
+              {foto? <img src={foto} style={{width:"100%",height:"100%",objectFit:"cover"}} /> : nome[0]}
             </div>
             <div onClick={()=>setShowFoto(true)} style={{position:"absolute", bottom:-2, right:-2, width:22, height:22, borderRadius:999, background:"#FFD400", display:"grid", placeItems:"center", fontSize:10, border:"2px solid #12182F", cursor:"pointer", color:"#000"}}>✎</div>
           </div>
@@ -210,43 +180,33 @@ export default function Perfil(){
             <div style={{fontWeight:900, fontSize:15, display:"flex", gap:6, alignItems:"center"}}>{nome} <span style={{fontSize:9, background:streak>1?"#FFD40022":"#38bdf822", color:streak>1?"#FFD400":"#38bdf8", border:"1px solid #ffffff15", padding:"2px 6px", borderRadius:99}}>{streak>0? "🍿" : "🧊"} {streak} dias</span></div>
             <div style={{fontSize:12, opacity:.6, marginTop:2}}>Nível {stats.n} • {conquistaAtual? conquistaAtual.emoji+" "+conquistaAtual.nome : "Sem conquista"} • {pecasDesbloqueadas}/20 peças</div>
             <div style={{height:6, background:"#ffffff14", borderRadius:99, marginTop:8, overflow:"hidden"}}><div style={{width:progresso+"%", height:"100%", background:"linear-gradient(90deg,#FFD400,#FFA600)"}}/></div>
-            <div style={{fontSize:10, opacity:.4, marginTop:4}}>{streakQuebrado? "Sequência quebrada - conquistas zeradas" : proximo? `Faltam ${proximo.min - streak} dias para ${proximo.emoji} ${proximo.nome}` : "👑 Maratonista lendário!"}</div>
           </div>
-          <button onClick={doCheck} disabled={fezHoje} style={{minWidth:96, height:44, borderRadius:999, border:0, background:fezHoje?"#22c55e":"#FFD400", color:fezHoje?"#fff":"#000", fontWeight:900, cursor:fezHoje?"default":"pointer", fontSize:12, padding:"0 12px"}}>{fezHoje? "✓ Hoje" : "☑️ Check-in"}</button>
+          <button onClick={doCheck} disabled={fezHoje} style={{minWidth:96, height:44, borderRadius:999, border:0, background:fezHoje?"#22c55e":"#FFD400", color:fezHoje?"#fff":"#000", fontWeight:900, cursor:fezHoje?"default":"pointer", fontSize:12}}>{fezHoje? "✓ Hoje" : "☑️ Check-in"}</button>
         </div>
 
-        {/* MINHA MARATONA */}
         <div style={{background:"linear-gradient(135deg,#1A2142,#12182F)", border: streakQuebrado? "1px solid #38bdf833" : "1px solid #FFD40033", borderRadius:18, padding:14}}>
-          <div style={{display:"flex", justifyContent:"space-between", alignItems:"center"}}><b style={{fontSize:14}}>🍿 Minha Maratona</b><span style={{fontSize:11, background:streakQuebrado?"#38bdf822":"#FFD40022", color:streakQuebrado?"#38bdf8":"#FFD400", padding:"3px 8px", borderRadius:99, border:"1px solid #ffffff15"}}>{streakQuebrado? "Zerado" : `${iconesDesbloqueados}/${CONQUISTAS.length} ícones • ${pecasDesbloqueadas}/20 peças`}</span></div>
-          {streakQuebrado? (
-            <div style={{marginTop:10, background:"#38bdf814", border:"1px solid #38bdf822", borderRadius:10, padding:"8px 10px", fontSize:11, lineHeight:1.4}}>🧊 Você quebrou a sequência. Conquistas e quebra-cabeça zerados. Faça check-in hoje para voltar com 🍿!</div>
-          ) : (
-            <>
-              <div style={{display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginTop:12}}>
-                {CONQUISTAS.map(c=>{ const desbloq = streak>=c.min; return (
-                  <div key={c.id} style={{background: desbloq? "#FFD40014" : "#ffffff06", border: desbloq? "1px solid #FFD40044" : "1px solid #ffffff10", borderRadius:12, padding:10, textAlign:"center", opacity: desbloq? 1 : 0.35}}>
-                    <div style={{fontSize:22}}>{c.emoji}</div>
-                    <div style={{fontSize:10, fontWeight:800, marginTop:4}}>{c.nome}</div>
-                    <div style={{fontSize:9, opacity:0.5}}>{c.min}-{c.max}d</div>
-                    {desbloq && <div style={{fontSize:8, color:"#22c55e", fontWeight:900, marginTop:2}}>✓ +2 peças</div>}
-                  </div>
-                )})}
+          <div style={{display:"flex", justifyContent:"space-between", alignItems:"center"}}><b style={{fontSize:14}}>🍿 Minha Maratona</b><span style={{fontSize:11, background:streakQuebrado?"#38bdf822":"#FFD40022", color:streakQuebrado?"#38bdf8":"#FFD400", padding:"3px 8px", borderRadius:99, border:"1px solid #ffffff15"}}>{streakQuebrado? "Zerado" : `${iconesDesbloqueados}/${CONQUISTAS.length} ícones`}</span></div>
+          <div style={{display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginTop:12}}>
+            {CONQUISTAS.map(c=>{ const desbloq = streak>=c.min; return (
+              <div key={c.id} style={{background: desbloq &&!streakQuebrado? "#FFD40014" : "#ffffff06", border: desbloq &&!streakQuebrado? "1px solid #FFD40044" : "1px solid #ffffff10", borderRadius:12, padding:10, textAlign:"center", opacity: desbloq &&!streakQuebrado? 1 : 0.35}}>
+                <div style={{fontSize:22}}>{c.emoji}</div>
+                <div style={{fontSize:10, fontWeight:800, marginTop:4}}>{c.nome}</div>
               </div>
-              <div onClick={()=>setShowPuzzle(true)} style={{marginTop:12, background:"#FFD400", color:"#000", borderRadius:10, padding:"8px 10px", fontSize:11, textAlign:"center", fontWeight:900, cursor:"pointer"}}>🧩 Ver quebra-cabeça • {pecasDesbloqueadas}/20 peças liberadas</div>
-            </>
-          )}
+            )})}
+          </div>
+          <div onClick={()=>setShowPuzzle(true)} style={{marginTop:12, background:"#FFD400", color:"#000", borderRadius:10, padding:"8px 10px", fontSize:11, textAlign:"center", fontWeight:900, cursor:"pointer"}}>🧩 Ver quebra-cabeça • {pecasDesbloqueadas}/20 peças</div>
         </div>
 
         <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10}}>
-          <div style={{background:"#12182F", border:"1px solid #ffffff10", borderRadius:16, padding:14}}><div style={{fontSize:11, opacity:0.5}}>📺 Séries</div><div style={{fontSize:22, fontWeight:900, marginTop:2}}>{stats.seriesTotal}</div><div style={{fontSize:11, opacity:0.6, marginTop:4}}>{stats.seriesMaratonadas} maratonadas • {stats.horasSeries}h</div></div>
-          <div style={{background:"#12182F", border:"1px solid #ffffff10", borderRadius:16, padding:14}}><div style={{fontSize:11, opacity:0.5}}>🎬 Filmes</div><div style={{fontSize:22, fontWeight:900, marginTop:2}}>{stats.filmesTotal}</div><div style={{fontSize:11, opacity:0.6, marginTop:4}}>{stats.filmesVistos} assistidos • {stats.horasFilmes}h</div></div>
+          <div style={{background:"#12182F", border:"1px solid #ffffff10", borderRadius:16, padding:14}}><div style={{fontSize:11, opacity:0.5}}>📺 Séries</div><div style={{fontSize:22, fontWeight:900}}>{stats.seriesTotal}</div><div style={{fontSize:11, opacity:0.6}}>{stats.seriesMaratonadas} maratonadas • {stats.horasSeries}h</div></div>
+          <div style={{background:"#12182F", border:"1px solid #ffffff10", borderRadius:16, padding:14}}><div style={{fontSize:11, opacity:0.5}}>🎬 Filmes</div><div style={{fontSize:22, fontWeight:900}}>{stats.filmesTotal}</div><div style={{fontSize:11, opacity:0.6}}>{stats.filmesVistos} assistidos • {stats.horasFilmes}h</div></div>
         </div>
 
         <div style={{background:"#12182F", border:"1px solid #ffffff10", borderRadius:18, padding:14}}>
-          <div style={{fontWeight:800,fontSize:13,marginBottom:10,display:"flex",justifyContent:"space-between"}}><span>Calendário • {calendario.mesNome} {calendario.ano}</span><span style={{fontSize:11,opacity:.4,fontWeight:400}}>{cks.length} check-ins</span></div>
+          <div style={{fontWeight:800,fontSize:13,marginBottom:10,display:"flex",justifyContent:"space-between"}}><span>Calendário • {calendario.mesNome} {calendario.ano}</span><span style={{fontSize:11,opacity:.4}}>{cks.length} check-ins</span></div>
           <div style={{display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:4, marginBottom:6}}>{["D","S","T","Q","Q","S","S"].map((d,i)=><div key={i} style={{textAlign:"center", fontSize:10, opacity:0.4, fontWeight:700}}>{d}</div>)}</div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:6}}>
-            {calendario.dias.map((d,i)=>{ if(!d) return <div key={i}/>; const iso=d.toISOString().slice(0,10); const ok=cks.includes(iso); const hoje=iso===hojeISO(); return <div key={i} title={iso} style={{aspectRatio:"1",borderRadius:8,background:ok?"#FFD400":hoje?"#ffffff22":"#ffffff0e",display:"grid",placeItems:"center",fontSize:12,fontWeight:ok?800:400,color:ok?"#000":"#ffffff88", border: hoje &&!ok? "1px dashed #FFD40088" : "0"}}>{ok? "✓" : d.getDate()}</div> })}
+            {calendario.dias.map((d,i)=>{ if(!d) return <div key={i}/>; const iso=d.toISOString().slice(0,10); const ok=cks.includes(iso); const hoje=iso===hojeISO(); return <div key={i} style={{aspectRatio:"1",borderRadius:8,background:ok?"#FFD400":hoje?"#ffffff22":"#ffffff0e",display:"grid",placeItems:"center",fontSize:12,fontWeight:ok?800:400,color:ok?"#000":"#ffffff88", border: hoje &&!ok? "1px dashed #FFD40088" : "0"}}>{ok? "✓" : d.getDate()}</div> })}
           </div>
         </div>
       </main>
@@ -254,18 +214,16 @@ export default function Perfil(){
       {showFoto && (
         <div style={{position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", backdropFilter:"blur(8px)", zIndex:10000, padding:14, overflowY:"auto"}}>
           <div style={{maxWidth:560, margin:"0 auto", background:"#12182F", border:"1px solid #ffffff18", borderRadius:18, padding:14}}>
-            <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12}}><b>Trocar foto • Personagens Reais</b><button onClick={()=>setShowFoto(false)} style={{width:32,height:32,borderRadius:999,background:"#ffffff12",border:"1px solid #ffffff15",color:"#fff"}}>✕</button></div>
-            <div style={{display:"flex", gap:8, marginBottom:12}}><button onClick={()=>escolherFoto(fotoOriginal)} style={{flex:1, padding:10, borderRadius:12, background:"#ffffff10", border:"1px solid #ffffff15", color:"#fff", fontSize:12, fontWeight:700}}>Foto do Gmail</button><button onClick={()=>{ localStorage.removeItem(user.id+":avatar_personagem_real"); escolherFoto(""); }} style={{flex:1, padding:10, borderRadius:12, background:"#ffffff10", border:"1px solid #ffffff15", color:"#fff", fontSize:12}}>Inicial</button></div>
-            <div style={{display:"flex", alignItems:"center", gap:8, background:"#0E1430", border:"1px solid #ffffff12", height:42, borderRadius:999, padding:"0 14px", marginBottom:12}}><span style={{opacity:0.5}}>🔍</span><input value={buscaFoto} onChange={e=>setBuscaFoto(e.target.value)} placeholder="Buscar: Wandinha, Naruto, Batman..." style={{flex:1, background:"transparent", border:0, outline:"none", color:"#fff", fontSize:13}} /></div>
-            <div style={{fontSize:11, opacity:0.5, marginBottom:8}}>Sugestões de personagens • Netflix style</div>
+            <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12}}><b>Escolha seu personagem</b><button onClick={()=>setShowFoto(false)} style={{width:32,height:32,borderRadius:999,background:"#ffffff12",border:"1px solid #ffffff15",color:"#fff"}}>✕</button></div>
+            <div style={{display:"flex", alignItems:"center", gap:8, background:"#0E1430", border:"1px solid #ffffff12", height:42, borderRadius:999, padding:"0 14px", marginBottom:12}}><span style={{opacity:0.5}}>🔍</span><input value={buscaFoto} onChange={e=>setBuscaFoto(e.target.value)} placeholder="Buscar: Harry Potter, Stitch, Wandinha..." style={{flex:1, background:"transparent", border:0, outline:"none", color:"#fff", fontSize:13}} /></div>
             <div style={{display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10}}>
               {personagensFiltrados.map(p=>(
                 <div key={p.nome} onClick={()=>escolherFoto(p)} style={{cursor:"pointer", textAlign:"center", background:"#ffffff06", border:"1px solid #ffffff0f", borderRadius:14, padding:8}}>
-                  <div style={{width:"100%", aspectRatio:"1", borderRadius:12, overflow:"hidden", background:"#0A0F2A", border:"1px solid #ffffff15"}}>
-                    <img src={p.img} alt={p.nome} style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>{ e.target.src=`https://picsum.photos/seed/${p.nome}/200/200` }} />
+                  <div style={{width:"100%", aspectRatio:"1", borderRadius:12, overflow:"hidden", background:"#fff", border:"1px solid #ffffff15"}}>
+                    <img src={p.img} alt={p.nome} style={{width:"100%",height:"100%",objectFit:"contain"}} />
                   </div>
-                  <div style={{fontSize:11, marginTop:6, fontWeight:800, lineHeight:1.1}}>{p.nome}</div>
-                  <div style={{fontSize:9, opacity:0.5, marginTop:2}}>{p.serie}</div>
+                  <div style={{fontSize:11, marginTop:6, fontWeight:800}}>{p.nome}</div>
+                  <div style={{fontSize:9, opacity:0.5}}>{p.serie}</div>
                 </div>
               ))}
             </div>
@@ -277,37 +235,35 @@ export default function Perfil(){
         <div style={{position:"fixed", inset:0, background:"rgba(0,0,0,0.9)", backdropFilter:"blur(10px)", zIndex:10001, padding:14, overflowY:"auto"}}>
           <div style={{maxWidth:560, margin:"0 auto"}}>
             <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12}}>
-              <b style={{fontSize:16}}>🧩 Desafio Agosto • Lanterna</b>
+              <b style={{fontSize:16}}>Desafio de agosto</b>
               <button onClick={()=>setShowPuzzle(false)} style={{width:32,height:32,borderRadius:999,background:"#ffffff12",border:"1px solid #ffffff15",color:"#fff"}}>✕</button>
             </div>
             <div style={{background:"#12182F", border:"1px solid #FFD40033", borderRadius:16, padding:12, marginBottom:12}}>
-              <div style={{fontSize:12, fontWeight:800}}>Série do mês que estreou domingo</div>
-              <div style={{fontSize:11, opacity:0.6, marginTop:4}}>Complete check-ins para liberar peças. Cada conquista = 2 peças do quebra-cabeça.</div>
-              <div style={{marginTop:8, height:6, background:"#ffffff14", borderRadius:99, overflow:"hidden"}}><div style={{width:`${(pecasDesbloqueadas/20)*100}%`, height:"100%", background:"#FFD400"}}/></div>
-              <div style={{fontSize:10, opacity:0.5, marginTop:4, textAlign:"center"}}>{pecasDesbloqueadas}/20 peças • {iconesDesbloqueados}/9 conquistas • {streak} dias</div>
+              <div style={{fontSize:12, lineHeight:1.5}}>Série do mês. Complete os check-ins diários para liberar as peças e descobrir qual é a série do mês. Cada conquista = 2 peças do quebra-cabeça.</div>
+              <div style={{marginTop:10, display:"flex", gap:8, alignItems:"center"}}>
+                {posterLanterna && <img src={posterLanterna} alt="Lanterns" style={{width:56, height:84, borderRadius:8, objectFit:"cover", border:"1px solid #ffffff15"}} />}
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13, fontWeight:900}}>Lanterns • Cartaz oficial HBO</div>
+                  <div style={{fontSize:11, opacity:0.6, marginTop:2}}>Estreou 16/08 • Hal Jordan e John Stewart • Anel com silhuetas</div>
+                  <div style={{marginTop:8, height:6, background:"#ffffff14", borderRadius:99, overflow:"hidden"}}><div style={{width:`${(pecasDesbloqueadas/20)*100}%`, height:"100%", background:"#FFD400"}}/></div>
+                  <div style={{fontSize:10, opacity:0.5, marginTop:4}}>{pecasDesbloqueadas}/20 peças • {iconesDesbloqueados}/9 conquistas</div>
+                </div>
+              </div>
             </div>
-
-            <div style={{background:"#000", borderRadius:16, overflow:"hidden", border:"1px solid #ffffff15", position:"relative"}}>
+            <div style={{background:"#000", borderRadius:16, overflow:"hidden", border:"1px solid #ffffff15"}}>
               <div style={{display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:2, background:"#000", padding:2}}>
                 {Array.from({length:20}).map((_,i)=>{
                   const liberada = i < pecasDesbloqueadas
                   return (
                     <div key={i} style={{aspectRatio:"3/4", position:"relative", overflow:"hidden", background:"#111", borderRadius:4}}>
-                      <img src={imagemPuzzle} alt="" style={{width:"400%", height:"500%", objectFit:"cover", position:"absolute", left:`-${(i%4)*100}%`, top:`-${Math.floor(i/4)*100}%`, filter: liberada? "none" : "blur(12px) brightness(0.3)", transition:"0.4s"}} />
+                      {posterLanterna && <img src={posterLanterna} alt="" style={{width:"400%", height:"500%", objectFit:"cover", position:"absolute", left:`-${(i%4)*100}%`, top:`-${Math.floor(i/4)*100}%`, filter: liberada? "none" : "blur(14px) brightness(0.25)"}} />}
                       {!liberada && <div style={{position:"absolute", inset:0, display:"grid", placeItems:"center", fontSize:18, background:"rgba(0,0,0,0.5)"}}>🔒</div>}
-                      {liberada && <div style={{position:"absolute", top:4, left:4, fontSize:8, background:"#FFD400", color:"#000", padding:"2px 4px", borderRadius:4, fontWeight:900}}>{i+1}</div>}
                     </div>
                   )
                 })}
               </div>
             </div>
-            <div style={{marginTop:12, display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8}}>
-              {CONQUISTAS.map(c=>{
-                const ok = streak>=c.min
-                return <div key={c.id} style={{background: ok? "#FFD40022" : "#ffffff08", border: ok? "1px solid #FFD40044" : "1px solid #ffffff10", borderRadius:10, padding:8, textAlign:"center", opacity: ok?1:0.4}}><div>{c.emoji}</div><div style={{fontSize:9, fontWeight:700}}>{c.nome}</div><div style={{fontSize:8, opacity:0.5}}>{ok? "+2 peças" : `${c.min}d`}</div></div>
-              })}
-            </div>
-            {pecasDesbloqueadas===20 && <div style={{marginTop:12, background:"#22c55e", color:"#fff", borderRadius:12, padding:"12px", textAlign:"center", fontWeight:900}}>🎉 Você completou o desafio de Agosto! Imagem da Lanterna liberada!</div>}
+            {pecasDesbloqueadas===20 && <div style={{marginTop:12, background:"#22c55e", color:"#fff", borderRadius:12, padding:"12px", textAlign:"center", fontWeight:900}}>🎉 Você liberou o cartaz completo de Lanterns!</div>}
           </div>
         </div>
       )}
