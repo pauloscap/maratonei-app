@@ -23,75 +23,39 @@ export default function DetalheSerie() {
       setLoading(true)
       setSerie(null)
       setTemporadas([])
-
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) { router.push("/login"); return }
       const uid = session.user.id
       setUserId(uid)
-
-      const { data: row, error } = await supabase
-     .from("user_series")
-     .select("*")
-     .eq("user_id", uid)
-     .eq("serie_id", id)
-     .maybeSingle()
-
-      if (error ||!row) {
-        console.error("Série não encontrada:", error)
-        router.push("/")
-        return
-      }
-
-      let s = {
-        id: row.serie_id,
-        titulo: row.titulo,
-        ano: row.ano,
-        img: row.img,
-        q: row.q,
-        status: row.status,
-        origem: row.origem || "tmdb"
-      }
-
+      const { data: row, error } = await supabase.from("user_series").select("*").eq("user_id", uid).eq("serie_id", id).maybeSingle()
+      if (error ||!row) { console.error("Série não encontrada:", error); router.push("/"); return }
+      let s = { id: row.serie_id, titulo: row.titulo, ano: row.ano, img: row.img, q: row.q, status: row.status, origem: row.origem || "tmdb" }
       setSerie(s)
       setStatus(row.status || "assistindo")
       setEpsVistos(row.eps_vistos || [])
-
       try {
         let lista = []
         let updates = {}
-
         if (s.origem === "tmdb") {
           const details = await fetch(`https://api.themoviedb.org/3/tv/${id}?api_key=${TMDB_KEY}&language=pt-BR`, { cache: 'no-store' }).then(r=>r.json())
           if (details && details.name) {
             const newImg = details.poster_path? `https://image.tmdb.org/t/p/w500${details.poster_path}` : s.img
             const newTitulo = details.name
             const newAno = details.first_air_date? details.first_air_date.slice(0,4) : s.ano
-
             if (newImg!== s.img) updates.img = newImg
             if (newTitulo!== s.titulo) updates.titulo = newTitulo
             if (newAno!== s.ano) updates.ano = newAno
-
             s = {...s, titulo: newTitulo, ano: newAno, img: newImg, banner: newImg }
             setSerie(s)
           }
           if (details && details.seasons) {
-            const seasonPromises = details.seasons.filter(se=>se.season_number>0).map(se=>
-              fetch(`https://api.themoviedb.org/3/tv/${id}/season/${se.season_number}?api_key=${TMDB_KEY}&language=pt-BR`, { cache: 'no-store' }).then(r=>r.json())
-            )
+            const seasonPromises = details.seasons.filter(se=>se.season_number>0).map(se=> fetch(`https://api.themoviedb.org/3/tv/${id}/season/${se.season_number}?api_key=${TMDB_KEY}&language=pt-BR`, { cache: 'no-store' }).then(r=>r.json()))
             const seasonsData = await Promise.all(seasonPromises)
             const mapa = {}
             seasonsData.forEach(se=>{
               mapa[se.season_number] = {
                 numero: se.season_number,
-                eps: se.episodes.map(ep=>({
-                  id: String(ep.id),
-                  numero: ep.episode_number,
-                  nome: ep.name,
-                  resumo: ep.overview? ep.overview.replace(/<[^>]+>/g,"").trim() : "Sem resumo disponível.",
-                  img: ep.still_path? `https://image.tmdb.org/t/p/w300${ep.still_path}` : "",
-                  runtime: ep.runtime || 0,
-                  airdate: ep.air_date || ""
-                }))
+                eps: se.episodes.map(ep=>({ id: String(ep.id), numero: ep.episode_number, nome: ep.name, resumo: ep.overview? ep.overview.replace(/<[^>]+>/g,"").trim() : "Sem resumo disponível.", img: ep.still_path? `https://image.tmdb.org/t/p/w300${ep.still_path}` : "", runtime: ep.runtime || 0, airdate: ep.air_date || "" }))
               }
             })
             lista = Object.values(mapa).sort((x,y) => x.numero - y.numero)
@@ -109,11 +73,9 @@ export default function DetalheSerie() {
             const newImg = show.image? (show.image.original || show.image.medium) : s.img
             const newTitulo = show.name
             const newAno = show.premiered? show.premiered.slice(0,4) : s.ano
-
             if (newImg!== s.img) updates.img = newImg
             if (newTitulo!== s.titulo) updates.titulo = newTitulo
             if (newAno!== s.ano) updates.ano = newAno
-
             s = {...s, titulo: newTitulo, ano: newAno, img: newImg, banner: newImg }
             setSerie(s)
           }
@@ -122,36 +84,23 @@ export default function DetalheSerie() {
           if (Array.isArray(episodes)) {
             episodes.forEach(ep => {
               if (!mapa[ep.season]) mapa[ep.season] = { numero: ep.season, eps: [] };
-              mapa[ep.season].eps.push({
-                id: String(ep.id),
-                numero: ep.number,
-                nome: ep.name,
-                resumo: ep.summary? ep.summary.replace(/<[^>]+>/g,"").trim() : "Sem resumo disponível.",
-                img: ep.image? (ep.image.medium || ep.image.original) : "",
-                runtime: ep.runtime || 0,
-                airdate: ep.airdate || ""
-              })
+              mapa[ep.season].eps.push({ id: String(ep.id), numero: ep.number, nome: ep.name, resumo: ep.summary? ep.summary.replace(/<[^>]+>/g,"").trim() : "Sem resumo disponível.", img: ep.image? (ep.image.medium || ep.image.original) : "", runtime: ep.runtime || 0, airdate: ep.airdate || "" })
             })
           }
           lista = Object.values(mapa).sort((x,y) => x.numero - y.numero)
         }
-
         if (Object.keys(updates).length > 0) {
-          await supabase.from("user_series").update({
-        ...updates,
-            updated_at: new Date().toISOString()
-          }).eq("user_id", uid).eq("serie_id", id)
+          await supabase.from("user_series").update({...updates, updated_at: new Date().toISOString()}).eq("user_id", uid).eq("serie_id", id)
         }
-
         const totalCalc = lista.reduce((acc,t) => acc + t.eps.length, 0)
         localStorage.setItem(uid + ":total-" + id, String(totalCalc))
-        if (lista.length) { setTemporadas(lista); setAberta(lista[0].numero) }
-        else { setTemporadas([{ numero:1, eps: [{ id: id+"-1", numero:1, nome:"Episódio 1", resumo:"", img:"" }]}]); setAberta(1) }
-
+        // AJUSTE FINO: começa tudo fechado
+        if (lista.length) { setTemporadas(lista); setAberta(null) }
+        else { setTemporadas([{ numero:1, eps: [{ id: id+"-1", numero:1, nome:"Episódio 1", resumo:"", img:"" }]}]); setAberta(null) }
       } catch (e) {
         console.error(e)
         setTemporadas([{ numero:1, eps: [{ id: id+"-1", numero:1, nome:"Episódio 1", resumo:"", img:"" }]}])
-        setAberta(1)
+        setAberta(null)
       }
       setLoading(false)
     }
@@ -163,6 +112,7 @@ export default function DetalheSerie() {
     if (epsVistos.includes(eid)) novo = epsVistos.filter(x => x!==eid)
     else novo = [...epsVistos, eid]
     setEpsVistos(novo)
+    localStorage.setItem(userId + ":eps-" + id, JSON.stringify(novo))
     await supabase.from("user_series").update({ eps_vistos: novo, updated_at: new Date().toISOString() }).eq("user_id", userId).eq("serie_id", id)
   }
 
@@ -173,48 +123,25 @@ export default function DetalheSerie() {
     if (todos) novo = epsVistos.filter(i =>!ids.includes(i))
     else novo = Array.from(new Set([...epsVistos,...ids]))
     setEpsVistos(novo)
+    localStorage.setItem(userId + ":eps-" + id, JSON.stringify(novo))
     await supabase.from("user_series").update({ eps_vistos: novo, updated_at: new Date().toISOString() }).eq("user_id", userId).eq("serie_id", id)
   }
 
   async function mudarStatus(novo){
     setStatus(novo)
+    localStorage.setItem(userId + ":status-" + id, novo)
     await supabase.from("user_series").update({ status: novo, updated_at: new Date().toISOString() }).eq("user_id", userId).eq("serie_id", id)
   }
 
   async function abandonar(){
     const nome = serie? serie.titulo : ""
     if (!confirm("Abandonar " + nome + "?")) return
-
     setLoading(true)
-
     const { data: { session } } = await supabase.auth.getSession()
-    
-    if (!session) {
-      alert("Sessão expirada. Faz login de novo.")
-      router.push("/login")
-      return
-    }
-
-    const { data, error } = await supabase
-   .from("user_series")
-   .delete()
-   .eq("user_id", session.user.id)
-   .eq("serie_id", serie.id)
-   .select()
-
-    if (error) {
-      console.error("Erro delete:", error)
-      alert("Erro ao abandonar: " + error.message)
-      setLoading(false)
-      return
-    }
-
-    if (!data || data.length === 0) {
-      alert("Série não encontrada. ID: " + serie.id)
-      setLoading(false)
-      return
-    }
-
+    if (!session) { alert("Sessão expirada. Faz login de novo."); router.push("/login"); return }
+    const { data, error } = await supabase.from("user_series").delete().eq("user_id", session.user.id).eq("serie_id", serie.id).select()
+    if (error) { console.error("Erro delete:", error); alert("Erro ao abandonar: " + error.message); setLoading(false); return }
+    if (!data || data.length === 0) { alert("Série não encontrada. ID: " + serie.id); setLoading(false); return }
     router.push("/")
     router.refresh()
   }
@@ -231,25 +158,7 @@ export default function DetalheSerie() {
         <img src={serie.banner || serie.img} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", background:"#12182F" }} />
         <div style={{ position:"absolute", top:0, left:0, right:0, bottom:0, background:"linear-gradient(180deg, rgba(0,0,0,0.2), #080B1F 95%)" }} />
         <button onClick={() => router.back()} style={{ position:"absolute", top:14, left:14, width:34, height:34, borderRadius:999, background:"rgba(0,0,0,0.6)", border:"1px solid rgba(255,255,255,0.2)", color:"#fff", cursor:"pointer" }}>{"<"}</button>
-        <button 
-          onClick={abandonar} 
-          style={{ 
-            position:"absolute", 
-            top:14, 
-            right:14, 
-            padding:"7px 12px", 
-            borderRadius:999, 
-            background:"#ef4444", 
-            color:"#fff", 
-            fontSize:11, 
-            fontWeight:900, 
-            cursor:"pointer", 
-            border:"1px solid rgba(255,255,255,0.2)",
-            zIndex: 9999
-          }}
-        >
-          Abandonar
-        </button>
+        <button onClick={abandonar} style={{ position:"absolute", top:14, right:14, padding:"7px 12px", borderRadius:999, background:"#ef4444", color:"#fff", fontSize:11, fontWeight:900, cursor:"pointer", border:"1px solid rgba(255,255,255,0.2)", zIndex: 9999 }}>Abandonar</button>
         <div style={{ position:"absolute", bottom:0, left:16, right:16, display:"flex", gap:12, alignItems:"flex-end", transform:"translateY(22px)" }}>
           <img src={serie.img} alt="" style={{ width:90, height:135, borderRadius:12, objectFit:"cover", border:"2px solid rgba(255,255,255,0.15)", flexShrink:0 }} />
           <div style={{ flex:1, paddingBottom:6, minWidth:0 }}>
@@ -259,14 +168,12 @@ export default function DetalheSerie() {
           </div>
         </div>
       </div>
-
       <div style={{ maxWidth:720, margin:"0 auto", padding:"44px 14px 20px" }}>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:16 }}>
           <button onClick={() => mudarStatus("assistindo")} style={{ padding:11, borderRadius:12, fontWeight:800, fontSize:12, background: status==="assistindo"?"#FFD400":"#12182F", color: status==="assistindo"?"#000":"#fff", border:"1px solid rgba(255,255,255,0.08)" }}>Assistindo</button>
           <button onClick={() => mudarStatus("quero_assistir")} style={{ padding:11, borderRadius:12, fontWeight:800, fontSize:12, background: status==="quero_assistir"?"#FFD400":"#12182F", color: status==="quero_assistir"?"#000":"#fff", border:"1px solid rgba(255,255,255,0.08)" }}>Quero Assistir</button>
           <button onClick={() => mudarStatus("maratonei")} style={{ padding:11, borderRadius:12, fontWeight:800, fontSize:12, background: status==="maratonei"?"#FFD400":"#12182F", color: status==="maratonei"?"#000":"#fff", border:"1px solid rgba(255,255,255,0.08)", gridColumn:"span 2" }}>Maratonei</button>
         </div>
-
         <div style={{ background:"#12182F", border:"1px solid rgba(255,255,255,0.06)", borderRadius:16, padding:12 }}>
           <b style={{ fontSize:13 }}>Temporadas {loading? "" : "• " + temporadas.length}</b>
           {temporadas.map(t => {
@@ -290,9 +197,7 @@ export default function DetalheSerie() {
                         {ep.airdate && <div style={{ fontSize:10, opacity:0.4, marginTop:2 }}>{ep.airdate}{ep.runtime? ` • ${ep.runtime}min`:""}</div>}
                         <div style={{ fontSize:11, opacity:0.55, marginTop:5, lineHeight:1.35, wordWrap:"break-word", overflowWrap:"break-word" }}>{ep.resumo}</div>
                       </div>
-                      <button onClick={() => toggleEp(ep.id)} title={ok?"Desmarcar":"Marcar assistido"} style={{ width:36, height:36, minWidth:36, borderRadius:999, border: ok? "0" : "1.5px solid rgba(255,255,255,0.2)", background: ok? "#22c55e" : "transparent", color:"#fff", display:"grid", placeItems:"center", cursor:"pointer", fontSize:14, fontWeight:900, flexShrink:0, marginTop:6 }}>
-                        {ok? "✓" : ""}
-                      </button>
+                      <button onClick={() => toggleEp(ep.id)} title={ok?"Desmarcar":"Marcar assistido"} style={{ width:36, height:36, minWidth:36, borderRadius:999, border: ok? "0" : "1.5px solid rgba(255,255,255,0.2)", background: ok? "#22c55e" : "transparent", color:"#fff", display:"grid", placeItems:"center", cursor:"pointer", fontSize:14, fontWeight:900, flexShrink:0, marginTop:6 }}>{ok? "✓" : ""}</button>
                     </div>
                   )
                 })}</div>}
