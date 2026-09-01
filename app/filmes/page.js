@@ -16,6 +16,7 @@ export default function FilmesPage() {
   const [msg, setMsg] = useState("")
   const [userFoto, setUserFoto] = useState("")
   const [userInicial, setUserInicial] = useState("M")
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function init() {
@@ -29,7 +30,7 @@ export default function FilmesPage() {
       const v = localStorage.getItem(uid + ":view-filmes")
       if (v) setView(v)
 
-      const { data: doSupabase } = await supabase.from("user_filmes").select("*").eq("user_id", uid)
+      const { data: doSupabase } = await supabase.from("user_filmes").select("*").eq("user_id", uid).order("updated_at", {ascending:false})
       let listaBase = []
       if (doSupabase && doSupabase.length > 0) {
         listaBase = doSupabase.map(r=>({
@@ -38,7 +39,7 @@ export default function FilmesPage() {
           img: r.img,
           status: r.status,
           ano: r.ano || "0000",
-          data_lancamento: r.data_lancamento || r.ano || "0000-01-01",
+          data_lancamento: r.data_lancamento || (r.ano? r.ano+"-01-01" : "0000-01-01"),
           updated_at: r.updated_at
         }))
       } else {
@@ -46,17 +47,22 @@ export default function FilmesPage() {
         listaBase = raw? JSON.parse(raw) : []
       }
 
-      // Corrige quem não tem data exata buscando na TMDB
-      const precisaCorrigir = listaBase.filter(f=>!f.data_lancamento || f.data_lancamento.length<10 || f.data_lancamento==="0000-01-01")
+      // MOSTRA NA HORA - SEM ESPERAR TMDB
+      setFilmes(listaBase)
+      setLoading(false)
+      localStorage.setItem(uid + ":meus-filmes", JSON.stringify(listaBase))
+
+      // CORREÇÃO EM SEGUNDO PLANO (não trava a home)
+      const precisaCorrigir = listaBase.filter(f=>!f.data_lancamento || f.data_lancamento==="0000-01-01" || f.data_lancamento.length<10)
       if(precisaCorrigir.length>0){
-        for(let f of precisaCorrigir){
+        // faz em paralelo, 5 por vez pra não tomar rate limit
+        const corrigirUm = async (f)=>{
           try{
             const isImdb = f.id.startsWith("tt")
             let dataFull = null
             if(isImdb){
               const r = await fetch(`https://api.themoviedb.org/3/find/${f.id}?api_key=${TMDB_KEY}&external_source=imdb_id&language=pt-BR`).then(x=>x.json())
-              const movie = r.movie_results?.[0]
-              dataFull = movie?.release_date
+              dataFull = r.movie_results?.[0]?.release_date
             } else {
               const r = await fetch(`https://api.themoviedb.org/3/movie/${f.id}?api_key=${TMDB_KEY}&language=pt-BR`).then(x=>x.json())
               dataFull = r?.release_date
@@ -64,37 +70,35 @@ export default function FilmesPage() {
             if(dataFull){
               f.data_lancamento = dataFull
               f.ano = dataFull.slice(0,4)
-              // tenta salvar se a coluna existir, se não ignora
               await supabase.from("user_filmes").update({ano: f.ano, data_lancamento: dataFull}).eq("user_id", uid).eq("filme_id", f.id)
+              // atualiza o estado sem recarregar tudo
+              setFilmes(prev=> prev.map(p=> p.id===f.id? {...p, data_lancamento: dataFull, ano: dataFull.slice(0,4)} : p))
             }
           }catch{}
         }
-        localStorage.setItem(uid + ":meus-filmes", JSON.stringify(listaBase))
+        // roda em background sem await no init
+        Promise.allSettled(precisaCorrigir.map(corrigirUm)).then(()=>{
+          const finalList = listaBase
+          localStorage.setItem(uid + ":meus-filmes", JSON.stringify(finalList))
+        })
       }
-
-      setFilmes(listaBase)
     }
     init()
   }, [])
 
   async function buscarFilmes(q){
     const termo = q.trim()
-    const urls = [
-      `https://api.themoviedb.org/3/search/movie?api_key=${TMDB_KEY}&language=pt-BR&query=${encodeURIComponent(termo)}`,
-    ]
-    for(let url of urls){
-      try{
-        const r = await fetch(url)
-        const j = await r.json()
-        if(j.results?.length) return j.results.slice(0,10).map(m=>({
-          id:String(m.id),
-          titulo: m.title || m.original_title,
-          ano: m.release_date? m.release_date.slice(0,4) : "0000",
-          data_lancamento: m.release_date || "0000-01-01",
-          img: m.poster_path? TMDB_IMG+m.poster_path : "https://picsum.photos/seed/"+m.id+"/400/600"
-        }))
-      }catch{ continue }
-    }
+    try{
+      const r = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${TMDB_KEY}&language=pt-BR&query=${encodeURIComponent(termo)}`)
+      const j = await r.json()
+      if(j.results?.length) return j.results.slice(0,10).map(m=>({
+        id:String(m.id),
+        titulo: m.title || m.original_title,
+        ano: m.release_date? m.release_date.slice(0,4) : "0000",
+        data_lancamento: m.release_date || "0000-01-01",
+        img: m.poster_path? TMDB_IMG+m.poster_path : "https://picsum.photos/seed/"+m.id+"/400/600"
+      }))
+    }catch{}
     return []
   }
 
@@ -110,18 +114,16 @@ export default function FilmesPage() {
   },[busca])
 
   function toggle(){ const n=view==="grade"?"lista":"grade"; setView(n); localStorage.setItem(userId+":view-filmes",n) }
-
   function abrir(f){
     localStorage.setItem(userId+":filme-atual", JSON.stringify(f));
     window.location.href="/filme/"+f.id
   }
 
-  // ORDENA POR DATA EXATA: 2026-08-26 vem antes de 2026-07-08
   const { quero, vistos } = useMemo(()=>{
     const ordenarPorData = (a,b)=>{
-      const dataA = new Date(a.data_lancamento || a.ano || "1900-01-01")
-      const dataB = new Date(b.data_lancamento || b.ano || "1900-01-01")
-      return dataB - dataA // mais recente primeiro
+      const dataA = new Date(a.data_lancamento || "1900-01-01")
+      const dataB = new Date(b.data_lancamento || "1900-01-01")
+      return dataB - dataA
     }
     const q = [...filmes].filter(x=>x.status==="quero_assistir").sort(ordenarPorData)
     const v = [...filmes].filter(x=>x.status==="ja_assisti").sort(ordenarPorData)
@@ -129,11 +131,11 @@ export default function FilmesPage() {
   }, [filmes])
 
   function formataData(d){
-    if(!d || d==="0000-01-01") return ""
+    if(!d || d==="0000-01-01" || d.length<10) return ""
     try{
       const dt = new Date(d+"T12:00:00")
       return dt.toLocaleDateString("pt-BR")
-    }catch{ return d }
+    }catch{ return "" }
   }
 
   function Secao(p){ return <div style={{marginTop:24}}><div style={{display:"flex",gap:8,alignItems:"center",marginBottom:12}}><div style={{width:3,height:14,background:p.cor,borderRadius:99}}/><b style={{fontSize:14}}>{p.titulo}</b><span style={{fontSize:11,opacity:0.4}}> - {p.qtd}</span></div>{p.qtd===0? (
@@ -141,6 +143,8 @@ export default function FilmesPage() {
             <div style={{fontSize:11, opacity:0.35}}>Nenhum filme em {p.titulo.toLowerCase()}</div>
           </div>
         ) : view==="grade"? <div className="grid">{p.children}</div> : <div className="list">{p.children}</div>}</div> }
+
+  if(loading) return <div style={{minHeight:"100vh", background:"#0A0F2A", display:"grid", placeItems:"center", color:"#fff", fontSize:12}}>Carregando filmes...</div>
 
   return (
     <div style={{minHeight:"100vh",background:"#0A0F2A",color:"#fff",paddingBottom:90}}>
@@ -177,16 +181,16 @@ export default function FilmesPage() {
         </div>
 
         {busca&&<div style={{position:"absolute",top:62,left:14,right:14,maxWidth:420,margin:"0 auto",background:"#12182F",border:"1px solid rgba(255,255,255,0.12)",borderRadius:16,zIndex:50,overflow:"hidden",boxShadow:"0 20px 40px rgba(0,0,0,0.5)"}}>
-          {resultados.map(r=><div key={r.id} onClick={()=>abrir(r)} style={{display:"flex",gap:10,padding:10,borderBottom:"1px solid rgba(255,255,255,0.06)",cursor:"pointer"}}><img src={r.img} style={{width:40,height:60,borderRadius:6,objectFit:"cover"}} alt=""/><div style={{flex:1}}><div style={{fontSize:13,fontWeight:700}}>{r.titulo} ({formataData(r.data_lancamento)})</div><div style={{fontSize:10,color:"#FFD400",fontWeight:800,marginTop:4}}>VER DETALHES ›</div></div></div>)}
+          {resultados.map(r=><div key={r.id} onClick={()=>abrir(r)} style={{display:"flex",gap:10,padding:10,borderBottom:"1px solid rgba(255,255,255,0.06)",cursor:"pointer"}}><img src={r.img} style={{width:40,height:60,borderRadius:6,objectFit:"cover"}} alt=""/><div style={{flex:1}}><div style={{fontSize:13,fontWeight:700}}>{r.titulo} {r.data_lancamento!=="0000-01-01"? `(${formataData(r.data_lancamento)})` : ""}</div><div style={{fontSize:10,color:"#FFD400",fontWeight:800,marginTop:4}}>VER DETALHES ›</div></div></div>)}
           {msg&&<div style={{padding:12,fontSize:12,opacity:0.5}}>{msg}</div>}
         </div>}
 
         {!busca&&<div>
           <Secao titulo="Quero Assistir" cor="#8b5cf6" qtd={quero.length}>
-            {quero.map(s=><div key={s.id} onClick={()=>abrir(s)} className={view==="grade"?"card":"row"}>{view==="grade"?<><div className="poster"><img src={s.img} alt=""/><div className="badge">{formataData(s.data_lancamento) || s.ano}</div></div><div className="tit">{s.titulo}</div></>:<><img src={s.img} alt=""/><div style={{flex:1}}><div style={{fontSize:13,fontWeight:800}}>{s.titulo}</div><div style={{fontSize:11,opacity:0.5}}>{formataData(s.data_lancamento)}</div></div><span style={{opacity:0.3}}>›</span></>}</div>)}
+            {quero.map(s=><div key={s.id} onClick={()=>abrir(s)} className={view==="grade"?"card":"row"}>{view==="grade"?<><div className="poster"><img src={s.img} alt="" loading="lazy"/><div className="badge">{formataData(s.data_lancamento) || s.ano}</div></div><div className="tit">{s.titulo}</div></>:<><img src={s.img} alt="" loading="lazy"/><div style={{flex:1}}><div style={{fontSize:13,fontWeight:800}}>{s.titulo}</div><div style={{fontSize:11,opacity:0.5}}>{formataData(s.data_lancamento)}</div></div><span style={{opacity:0.3}}>›</span></>}</div>)}
           </Secao>
           <Secao titulo="Ja Assisti" cor="#22c55e" qtd={vistos.length}>
-            {vistos.map(s=><div key={s.id} onClick={()=>abrir(s)} className={view==="grade"?"card":"row"}>{view==="grade"?<><div className="poster"><img src={s.img} alt=""/><div className="badge" style={{background:"#22c55e",color:"#fff"}}>{formataData(s.data_lancamento) || s.ano}</div></div><div className="tit">{s.titulo}</div></>:<><img src={s.img} alt=""/><div style={{flex:1}}><div style={{fontSize:13,fontWeight:800}}>{s.titulo}</div><div style={{fontSize:11,opacity:0.5}}>{formataData(s.data_lancamento)}</div></div><span style={{opacity:0.3}}>›</span></>}</div>)}
+            {vistos.map(s=><div key={s.id} onClick={()=>abrir(s)} className={view==="grade"?"card":"row"}>{view==="grade"?<><div className="poster"><img src={s.img} alt="" loading="lazy"/><div className="badge" style={{background:"#22c55e",color:"#fff"}}>{formataData(s.data_lancamento) || s.ano}</div></div><div className="tit">{s.titulo}</div></>:<><img src={s.img} alt="" loading="lazy"/><div style={{flex:1}}><div style={{fontSize:13,fontWeight:800}}>{s.titulo}</div><div style={{fontSize:11,opacity:0.5}}>{formataData(s.data_lancamento)}</div></div><span style={{opacity:0.3}}>›</span></>}</div>)}
           </Secao>
         </div>}
       </div>
