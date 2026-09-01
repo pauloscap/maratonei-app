@@ -1,5 +1,5 @@
 "use client"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo } from "react"
 import { createClient } from "@supabase/supabase-js"
 import { BottomNav } from "../components/BottomNav"
 
@@ -64,9 +64,10 @@ export default function Home() {
           ano: r.ano || "0000",
           img: r.img,
           q: r.q,
-          status: r.status || "", // vazio = não mostra na home
+          status: r.status || "",
           origem: r.origem || "tmdb",
-          eps_vistos: r.eps_vistos || []
+          eps_vistos: r.eps_vistos || [],
+          updated_at: r.updated_at || new Date().toISOString()
         }
       })
     }
@@ -74,7 +75,7 @@ export default function Home() {
     doLocal.forEach(s=>{
       const sid = String(s.id)
       if (!mapaFinal[sid] && IDS_REMOVER.indexOf(sid)===-1 &&!deletadas.has(sid)) {
-        mapaFinal[sid] = s
+        mapaFinal[sid] = {...s, updated_at: s.updated_at || new Date().toISOString()}
         seriesPraSubir.push({
           user_id: uid,
           serie_id: sid,
@@ -110,8 +111,10 @@ export default function Home() {
       else if (epsVistosArr.length>0) progresso = Math.min(15 + epsVistosArr.length * 3, 90)
       else progresso = 5
       if(progresso>100) progresso=100
-      return {...s, id:String(s.id), img: img || "https://picsum.photos/seed/"+s.id+"/400/600", status:st, progresso, epsVistos:epsVistosArr.length, totalEps:totalSalvo}
+      return {...s, id:String(s.id), img: img || "https://picsum.photos/seed/"+s.id+"/400/600", status:st, progresso, epsVistos:epsVistosArr.length, totalEps:totalSalvo, updated_at: s.updated_at}
     }))
+    // ORDENA POR ÚLTIMA ATUALIZAÇÃO - MAIS RECENTE PRIMEIRO
+    comDados.sort((a,b)=> new Date(b.updated_at) - new Date(a.updated_at))
     setSeries(comDados)
     setLoading(false)
   }
@@ -130,10 +133,10 @@ export default function Home() {
       if (savedView) setView(savedView)
       await carregarSeries(uid)
       channel = supabase.channel('user_series_realtime_' + uid)
-     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` }, ()=>carregarSeries(uid))
-     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` }, ()=>carregarSeries(uid))
-     .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` }, ()=>carregarSeries(uid))
-     .subscribe()
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` }, ()=>carregarSeries(uid))
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` }, ()=>carregarSeries(uid))
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` }, ()=>carregarSeries(uid))
+    .subscribe()
       const handleFocus = ()=>carregarSeries(uid)
       window.addEventListener('focus', handleFocus)
       window.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') handleFocus() })
@@ -154,9 +157,8 @@ export default function Home() {
 
   function toggleView(){ const novo = view === "grade"? "lista" : "grade"; setView(novo); localStorage.setItem(userId + ":view-mode", novo) }
 
-  // AQUI ESTÁ O AJUSTE: STATUS VAZIO
   async function adicionarSerie(s){
-    const nova = { id: String(s.id), titulo: s.titulo, ano: s.ano || "0000", status: "", img: s.img, q: s.tituloOriginal || s.titulo, origem: s.origem || "tmdb", progresso:0, epsVistos:0, totalEps:0 }
+    const nova = { id: String(s.id), titulo: s.titulo, ano: s.ano || "0000", status: "", img: s.img, q: s.tituloOriginal || s.titulo, origem: s.origem || "tmdb", progresso:0, epsVistos:0, totalEps:0, updated_at: new Date().toISOString() }
     const { error } = await supabase.from("user_series").upsert({
       user_id: userId,
       serie_id: nova.id,
@@ -164,7 +166,7 @@ export default function Home() {
       ano: nova.ano,
       img: nova.img,
       q: nova.q,
-      status: "", // vazio = não entra em nenhuma aba ainda
+      status: "",
       origem: nova.origem,
       eps_vistos: [],
       updated_at: new Date().toISOString()
@@ -176,9 +178,12 @@ export default function Home() {
 
   function abrir(s){ localStorage.setItem(userId + ":serie-atual", JSON.stringify(s)); window.location.href = "/serie/" + s.id }
 
-  const assistindo = series.filter(s=> s.status === "assistindo")
-  const queroAssistir = series.filter(s=> s.status === "quero_assistir")
-  const maratonei = series.filter(s=> s.status === "maratonei")
+  // ORGANIZAÇÃO POR MAIS ATUALIZADA PRIMEIRO
+  const ordenarRecente = (a,b)=> new Date(b.updated_at) - new Date(a.updated_at)
+
+  const assistindo = useMemo(()=> series.filter(s=> s.status === "assistindo").sort(ordenarRecente), [series])
+  const queroAssistir = useMemo(()=> series.filter(s=> s.status === "quero_assistir").sort(ordenarRecente), [series])
+  const maratonei = useMemo(()=> series.filter(s=> s.status === "maratonei").sort(ordenarRecente), [series])
 
   function CardGrade({s}){
     const cor = s.status==="maratonei"? "#22c55e" : s.status==="quero_assistir"? "#8b5cf6" : "#FFD400"
