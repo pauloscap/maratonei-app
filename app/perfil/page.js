@@ -4,7 +4,6 @@ import { createClient } from "@supabase/supabase-js"
 import { BottomNav } from "../../components/BottomNav"
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_KEY)
-const TMDB_KEY = process.env.NEXT_PUBLIC_TMDB_KEY || "4e44d9029b1273360df0be1de39768d1"
 const TMDB_IMG_BIG = "https://image.tmdb.org/t/p/w500"
 
 const hojeISO = ()=>new Date().toISOString().slice(0,10)
@@ -64,18 +63,13 @@ export default function Perfil(){
   const [streakQuebrado,setStreakQuebrado]=useState(false)
   const [showFoto,setShowFoto]=useState(false)
   const [showPuzzle,setShowPuzzle]=useState(false)
-  const [posterReacher,setPosterReacher]=useState("")
+  const [posterReacher,setPosterReacher]=useState("https://image.tmdb.org/t/p/w500/bQnnKBe3VsvXKMoNCaYmRzs1Dup.jpg")
   const [stats,setStats]=useState({t:0,n:1,xp:0, seriesTotal:0, filmesTotal:0, seriesMaratonadas:0, filmesVistos:0, horasSeries:0, horasFilmes:0})
   const [loading,setLoading]=useState(true)
 
   useEffect(()=>{
-    async function loadPoster(){
-      try{
-        const r = await fetch(`https://api.themoviedb.org/3/tv/89844?api_key=${TMDB_KEY}&language=pt-BR`).then(x=>x.json())
-        if(r?.poster_path) setPosterReacher(`${TMDB_IMG_BIG}${r.poster_path}`)
-      }catch{}
-    }
-    loadPoster()
+    // Cartaz oficial de Reacher - fixo
+    setPosterReacher("https://image.tmdb.org/t/p/w500/bQnnKBe3VsvXKMoNCaYmRzs1Dup.jpg")
   },[])
 
   useEffect(()=>{
@@ -136,8 +130,21 @@ export default function Perfil(){
   const progresso = (stats.xp%250)/2.5
   const fezHoje = cks.includes(hojeISO())
   const iconesDesbloqueados = streakQuebrado? 0 : CONQUISTAS.filter(c=> streak>=c.min).length
-  const pecasDesbloqueadas = Math.min(30, cks.length)
   const conquistaAtual = streakQuebrado? null : CONQUISTAS.find(c=> streak>=c.min && streak<=c.max)
+
+  // GAMIFICAÇÃO CORRIGIDA: 1 check-in = 1 peça, apenas do mês atual (setembro)
+  // Se fez 1 check-in hoje, libera apenas 1 peça das 30
+  const pecasDesbloqueadas = useMemo(()=>{
+    const hoje = new Date()
+    const mesAtual = hoje.getMonth()
+    const anoAtual = hoje.getFullYear()
+    // Conta apenas check-ins do mês atual
+    const checkinsDoMes = cks.filter(dataStr=>{
+      const d = new Date(dataStr+"T12:00:00")
+      return d.getMonth()===mesAtual && d.getFullYear()===anoAtual
+    })
+    return Math.min(30, checkinsDoMes.length)
+  },[cks])
 
   const calendario = useMemo(()=>{
     const hoje = new Date(); const ano=hoje.getFullYear(); const mes=hoje.getMonth()
@@ -230,14 +237,14 @@ export default function Perfil(){
             </div>
             <div style={{background:"#12182F", border:"1px solid #FFD40033", borderRadius:16, padding:12, marginBottom:12}}>
               <div style={{fontSize:12, lineHeight:1.5, fontWeight:700}}>Desafio de setembro</div>
-              <div style={{fontSize:12, lineHeight:1.5, marginTop:4}}>Série do mês. Complete os check-ins diários para liberar as peças e descobrir qual é a série do mês. Cada check-in = 1 peça do quebra-cabeça.</div>
+              <div style={{fontSize:12, lineHeight:1.5, marginTop:4}}>Série do mês. Complete os check-ins diários para liberar as peças. Cada check-in = 1 peça do quebra-cabeça.</div>
               <div style={{marginTop:10, display:"flex", gap:8, alignItems:"center"}}>
-                {posterReacher && <img src={posterReacher} alt="Reacher" style={{width:56, height:84, borderRadius:8, objectFit:"cover", border:"1px solid #ffffff15"}} />}
+                <img src={posterReacher} alt="Reacher" style={{width:56, height:84, borderRadius:8, objectFit:"cover", border:"1px solid #ffffff15"}} />
                 <div style={{flex:1}}>
                   <div style={{fontSize:13, fontWeight:900}}>Reacher • Cartaz oficial Prime Video</div>
                   <div style={{fontSize:11, opacity:0.6, marginTop:2}}>Série do mês de setembro • 30 peças para liberar</div>
                   <div style={{marginTop:8, height:6, background:"#ffffff14", borderRadius:99, overflow:"hidden"}}><div style={{width:`${(pecasDesbloqueadas/30)*100}%`, height:"100%", background:"#FFD400"}}/></div>
-                  <div style={{fontSize:10, opacity:0.5, marginTop:4}}>{pecasDesbloqueadas}/30 peças • {cks.length} check-ins</div>
+                  <div style={{fontSize:10, opacity:0.5, marginTop:4}}>{pecasDesbloqueadas}/30 peças</div>
                 </div>
               </div>
             </div>
@@ -245,10 +252,21 @@ export default function Perfil(){
               <div style={{display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:2, background:"#000", padding:2}}>
                 {Array.from({length:30}).map((_,i)=>{
                   const liberada = i < pecasDesbloqueadas
+                  const col = i % 5
+                  const row = Math.floor(i / 5)
                   return (
-                    <div key={i} style={{aspectRatio:"3/4", position:"relative", overflow:"hidden", background:"#111", borderRadius:4}}>
-                      {posterReacher && <img src={posterReacher} alt="" style={{width:"500%", height:"600%", objectFit:"cover", position:"absolute", left:`-${(i%5)*100}%`, top:`-${Math.floor(i/5)*100}%`, filter: liberada? "none" : "blur(14px) brightness(0.25)"}} />}
-                      {!liberada && <div style={{position:"absolute", inset:0, display:"grid", placeItems:"center", fontSize:16, background:"rgba(0,0,0,0.5)"}}>🔒</div>}
+                    <div key={i} style={{
+                      aspectRatio:"3/4",
+                      position:"relative",
+                      overflow:"hidden",
+                      background:"#111",
+                      borderRadius:4,
+                      backgroundImage:`url(${posterReacher})`,
+                      backgroundSize:"500% 600%",
+                      backgroundPosition:`${col * 25}% ${row * 20}%`,
+                      filter: liberada? "none" : "blur(12px) brightness(0.25)"
+                    }}>
+                      {!liberada && <div style={{position:"absolute", inset:0, display:"grid", placeItems:"center", fontSize:16, background:"rgba(0,0,0,0.45)"}}>🔒</div>}
                     </div>
                   )
                 })}
