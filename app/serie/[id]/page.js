@@ -12,7 +12,7 @@ export default function DetalheSerie() {
   const id = String(params.id)
   const [userId, setUserId] = useState(null)
   const [serie, setSerie] = useState(null)
-  const [status, setStatus] = useState("") // vazio = tudo azul
+  const [status, setStatus] = useState("")
   const [epsVistos, setEpsVistos] = useState([])
   const [temporadas, setTemporadas] = useState([])
   const [aberta, setAberta] = useState(null)
@@ -35,7 +35,7 @@ export default function DetalheSerie() {
       if (!row) { router.push("/"); return }
       let s = { id: row.serie_id, titulo: row.titulo, ano: row.ano, img: row.img, q: row.q, status: row.status, origem: row.origem || "tmdb" }
       setSerie(s)
-      setStatus(row.status || "") // SE VAZIO, NENHUM AMARELO
+      setStatus(row.status || "")
       setEpsVistos(row.eps_vistos || [])
       if(row.nota || row.avaliacao) setMinhaNota(row.nota || row.avaliacao)
       try {
@@ -89,7 +89,8 @@ export default function DetalheSerie() {
     if(novo==="maratonei"){
       const todosIds=temporadas.flatMap(t=>t.eps.map(e=>e.id)); const novoEps=Array.from(new Set([...epsVistos,...todosIds]))
       setEpsVistos(novoEps); localStorage.setItem(userId+":eps-"+id, JSON.stringify(novoEps))
-      await supabase.from("user_series").update({ eps_vistos:novoEps }).eq("user_id",userId).eq("serie_id",id)
+      // CORRIGIDO: segundo update agora também manda updated_at pra subir pro topo
+      await supabase.from("user_series").update({ eps_vistos:novoEps, updated_at:new Date().toISOString() }).eq("user_id",userId).eq("serie_id",id)
       setShowRating(true)
     }
   }
@@ -128,7 +129,6 @@ export default function DetalheSerie() {
           </div>
         )}
 
-        {/* AVISO SE NENHUM SELECIONADO */}
         {status==="" && <div style={{ background:"rgba(255,212,0,0.1)", border:"1px solid rgba(255,212,0,0.25)", borderRadius:12, padding:"10px 12px", marginBottom:12, fontSize:12, textAlign:"center", color:"#FFD400", fontWeight:700 }}>👀 Essa série ainda não está na sua home. Escolha abaixo onde colocar:</div>}
 
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:16 }}>
