@@ -101,10 +101,14 @@ export default function FilmesPage() {
     window.location.href="/filme/"+f.id
   }
 
-  // ORDENA DO MAIS RECENTE PRO MAIS ANTIGO
+  // ORGANIZADO POR ORDEM DE LANÇAMENTO - MAIS RECENTE PRIMEIRO
   const ordenarPorAno = function(a,b){
-    const anoA = Number(a.ano) || 0
-    const anoB = Number(b.ano) || 0
+    const anoA = parseInt(a.ano) || 0
+    const anoB = parseInt(b.ano) || 0
+    // Sem ano vai pro final
+    if(anoA===0 && anoB!==0) return 1
+    if(anoB===0 && anoA!==0) return -1
+    // Mais recente primeiro (2024, 2023...)
     return anoB - anoA
   }
 
@@ -121,18 +125,18 @@ export default function FilmesPage() {
   return (
     <div style={{minHeight:"100vh",background:"#0A0F2A",color:"#fff",paddingBottom:90}}>
       <style>{`
-    .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+   .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
         @media(min-width:480px){.grid{grid-template-columns:repeat(4,1fr)}}
         @media(min-width:768px){.grid{grid-template-columns:repeat(5,1fr);gap:14px}}
         @media(min-width:1024px){.grid{grid-template-columns:repeat(6,1fr);gap:16px}}
-    .list{display:grid;gap:8px}
-    .card{cursor:pointer;display:flex;flex-direction:column;width:100%}
-    .poster{width:100%;height:0;padding-bottom:150%;position:relative;border-radius:12px;overflow:hidden;background:#12182F;border:1px solid rgba(255,255,255,0.08)}
-    .poster img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;background:#0A0F2A}
-    .badge{position:absolute;top:6px;left:6px;background:#FFD400;color:#000;font-size:8px;font-weight:900;padding:3px 6px;border-radius:6px;z-index:2}
-    .tit{font-size:11.5px;font-weight:700;margin-top:7px;line-height:1.25;height:28px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-    .row{display:flex;gap:12px;padding:10px;background:#12182F;border:1px solid rgba(255,255,255,0.08);border-radius:12px;cursor:pointer;align-items:center}
-    .row img{width:48px;height:72px;min-width:48px;border-radius:8px;object-fit:cover;background:#000}
+   .list{display:grid;gap:8px}
+   .card{cursor:pointer;display:flex;flex-direction:column;width:100%}
+   .poster{width:100%;height:0;padding-bottom:150%;position:relative;border-radius:12px;overflow:hidden;background:#12182F;border:1px solid rgba(255,255,255,0.08)}
+   .poster img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;background:#0A0F2A}
+   .badge{position:absolute;top:6px;left:6px;background:#FFD400;color:#000;font-size:8px;font-weight:900;padding:3px 6px;border-radius:6px;z-index:2}
+   .tit{font-size:11.5px;font-weight:700;margin-top:7px;line-height:1.25;height:28px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+   .row{display:flex;gap:12px;padding:10px;background:#12182F;border:1px solid rgba(255,255,255,0.08);border-radius:12px;cursor:pointer;align-items:center}
+   .row img{width:48px;height:72px;min-width:48px;border-radius:8px;object-fit:cover;background:#000}
       `}</style>
 
       <header style={{height:62,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 14px",borderBottom:"1px solid rgba(255,255,255,0.06)",position:"sticky",top:0,background:"rgba(10,15,42,0.92)",backdropFilter:"blur(12px)",zIndex:20}}>
@@ -156,16 +160,16 @@ export default function FilmesPage() {
         </div>
 
         {busca&&<div style={{position:"absolute",top:62,left:14,right:14,maxWidth:420,margin:"0 auto",background:"#12182F",border:"1px solid rgba(255,255,255,0.12)",borderRadius:16,zIndex:50,overflow:"hidden",boxShadow:"0 20px 40px rgba(0,0,0,0.5)"}}>
-          {resultados.map(function(r){return <div key={r.id} onClick={function(){ abrir(r) }} style={{display:"flex",gap:10,padding:10,borderBottom:"1px solid rgba(255,255,255,0.06)",cursor:"pointer"}}><img src={r.img} style={{width:40,height:60,borderRadius:6,objectFit:"cover",background:"#000"}} alt=""/><div style={{flex:1}}><div style={{fontSize:13,fontWeight:700,lineHeight:1.2}}>{r.titulo}</div><div style={{fontSize:10,color:"#FFD400",fontWeight:800,marginTop:4}}>VER DETALHES ›</div></div></div>})}
+          {resultados.map(function(r){return <div key={r.id} onClick={function(){ abrir(r) }} style={{display:"flex",gap:10,padding:10,borderBottom:"1px solid rgba(255,255,255,0.06)",cursor:"pointer"}}><img src={r.img} style={{width:40,height:60,borderRadius:6,objectFit:"cover",background:"#000"}} alt=""/><div style={{flex:1}}><div style={{fontSize:13,fontWeight:700,lineHeight:1.2}}>{r.titulo} {r.ano!=="0000"? `(${r.ano})` : ""}</div><div style={{fontSize:10,color:"#FFD400",fontWeight:800,marginTop:4}}>VER DETALHES ›</div></div></div>})}
           {msg&&<div style={{padding:12,fontSize:12,opacity:0.5}}>{msg}</div>}
         </div>}
 
         {!busca&&<div>
           <Secao titulo="Quero Assistir" cor="#8b5cf6" qtd={quero.length}>
-            {quero.map(function(s){return view==="grade"?<div key={s.id} onClick={function(){abrir(s)}} className="card"><div className="poster"><img src={s.img} alt="" loading="lazy"/><div className="badge">QUERO</div></div><div className="tit">{s.titulo}</div></div>:<div key={s.id} onClick={function(){abrir(s)}} className="row"><img src={s.img} alt="" loading="lazy"/><div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{s.titulo}</div></div><span style={{opacity:0.3}}>›</span></div>})}
+            {quero.map(function(s){return view==="grade"?<div key={s.id} onClick={function(){abrir(s)}} className="card"><div className="poster"><img src={s.img} alt="" loading="lazy"/><div className="badge">QUERO {s.ano!=="0000"? s.ano : ""}</div></div><div className="tit">{s.titulo}</div></div>:<div key={s.id} onClick={function(){abrir(s)}} className="row"><img src={s.img} alt="" loading="lazy"/><div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{s.titulo}</div><div style={{fontSize:11,opacity:0.5}}>{s.ano!=="0000"? s.ano : ""}</div></div><span style={{opacity:0.3}}>›</span></div>})}
           </Secao>
           <Secao titulo="Ja Assisti" cor="#22c55e" qtd={vistos.length}>
-            {vistos.map(function(s){return view==="grade"?<div key={s.id} onClick={function(){abrir(s)}} className="card"><div className="poster"><img src={s.img} alt="" loading="lazy"/><div className="badge" style={{background:"#22c55e",color:"#fff"}}>VISTO</div></div><div className="tit">{s.titulo}</div></div>:<div key={s.id} onClick={function(){abrir(s)}} className="row"><img src={s.img} alt="" loading="lazy"/><div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{s.titulo}</div></div><span style={{opacity:0.3}}>›</span></div>})}
+            {vistos.map(function(s){return view==="grade"?<div key={s.id} onClick={function(){abrir(s)}} className="card"><div className="poster"><img src={s.img} alt="" loading="lazy"/><div className="badge" style={{background:"#22c55e",color:"#fff"}}>VISTO {s.ano!=="0000"? s.ano : ""}</div></div><div className="tit">{s.titulo}</div></div>:<div key={s.id} onClick={function(){abrir(s)}} className="row"><img src={s.img} alt="" loading="lazy"/><div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{s.titulo}</div><div style={{fontSize:11,opacity:0.5}}>{s.ano!=="0000"? s.ano : ""}</div></div><span style={{opacity:0.3}}>›</span></div>})}
           </Secao>
         </div>}
       </div>
