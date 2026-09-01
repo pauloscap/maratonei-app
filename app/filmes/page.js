@@ -40,22 +40,19 @@ export default function FilmesPage() {
           status: r.status,
           ano: r.ano || "0000",
           data_lancamento: r.data_lancamento || (r.ano? r.ano+"-01-01" : "0000-01-01"),
-          updated_at: r.updated_at
+          updated_at: r.updated_at,
+          data_assistido: r.data_assistido || r.updated_at
         }))
       } else {
         const raw = localStorage.getItem(uid + ":meus-filmes")
         listaBase = raw? JSON.parse(raw) : []
       }
 
-      // MOSTRA NA HORA - SEM ESPERAR TMDB
       setFilmes(listaBase)
       setLoading(false)
-      localStorage.setItem(uid + ":meus-filmes", JSON.stringify(listaBase))
 
-      // CORREÇÃO EM SEGUNDO PLANO (não trava a home)
-      const precisaCorrigir = listaBase.filter(f=>!f.data_lancamento || f.data_lancamento==="0000-01-01" || f.data_lancamento.length<10)
+      const precisaCorrigir = listaBase.filter(f=>!f.data_lancamento || f.data_lancamento==="0000-01-01")
       if(precisaCorrigir.length>0){
-        // faz em paralelo, 5 por vez pra não tomar rate limit
         const corrigirUm = async (f)=>{
           try{
             const isImdb = f.id.startsWith("tt")
@@ -68,19 +65,12 @@ export default function FilmesPage() {
               dataFull = r?.release_date
             }
             if(dataFull){
-              f.data_lancamento = dataFull
-              f.ano = dataFull.slice(0,4)
-              await supabase.from("user_filmes").update({ano: f.ano, data_lancamento: dataFull}).eq("user_id", uid).eq("filme_id", f.id)
-              // atualiza o estado sem recarregar tudo
+              await supabase.from("user_filmes").update({ano: dataFull.slice(0,4), data_lancamento: dataFull}).eq("user_id", uid).eq("filme_id", f.id)
               setFilmes(prev=> prev.map(p=> p.id===f.id? {...p, data_lancamento: dataFull, ano: dataFull.slice(0,4)} : p))
             }
           }catch{}
         }
-        // roda em background sem await no init
-        Promise.allSettled(precisaCorrigir.map(corrigirUm)).then(()=>{
-          const finalList = listaBase
-          localStorage.setItem(uid + ":meus-filmes", JSON.stringify(finalList))
-        })
+        Promise.allSettled(precisaCorrigir.map(corrigirUm))
       }
     }
     init()
@@ -114,31 +104,24 @@ export default function FilmesPage() {
   },[busca])
 
   function toggle(){ const n=view==="grade"?"lista":"grade"; setView(n); localStorage.setItem(userId+":view-filmes",n) }
-  function abrir(f){
-    localStorage.setItem(userId+":filme-atual", JSON.stringify(f));
-    window.location.href="/filme/"+f.id
-  }
+  function abrir(f){ localStorage.setItem(userId+":filme-atual", JSON.stringify(f)); window.location.href="/filme/"+f.id }
 
+  // REGRA NOVA:
+  // Quero Assistir = ordem de lançamento (mais novo lançado primeiro)
+  // Já Assisti = ordem que assistiu (último que marcou como visto no topo)
   const { quero, vistos } = useMemo(()=>{
-    const ordenarPorData = (a,b)=>{
-      const dataA = new Date(a.data_lancamento || "1900-01-01")
-      const dataB = new Date(b.data_lancamento || "1900-01-01")
-      return dataB - dataA
-    }
-    const q = [...filmes].filter(x=>x.status==="quero_assistir").sort(ordenarPorData)
-    const v = [...filmes].filter(x=>x.status==="ja_assisti").sort(ordenarPorData)
+    const ordenarPorLancamento = (a,b)=> new Date(b.data_lancamento) - new Date(a.data_lancamento)
+    const ordenarPorVisto = (a,b)=> new Date(b.data_assistido || b.updated_at) - new Date(a.data_assistido || a.updated_at)
+
+    const q = [...filmes].filter(x=>x.status==="quero_assistir").sort(ordenarPorLancamento)
+    const v = [...filmes].filter(x=>x.status==="ja_assisti").sort(ordenarPorVisto)
     return { quero: q, vistos: v }
   }, [filmes])
 
-  function formataData(d){
-    if(!d || d==="0000-01-01" || d.length<10) return ""
-    try{
-      const dt = new Date(d+"T12:00:00")
-      return dt.toLocaleDateString("pt-BR")
-    }catch{ return "" }
-  }
+  function formataData(d){ if(!d || d==="0000-01-01") return ""; try{ return new Date(d+"T12:00:00").toLocaleDateString("pt-BR") }catch{ return d } }
+  function formataDataVisto(d){ if(!d) return ""; try{ const dt=new Date(d); return dt.toLocaleDateString("pt-BR") }catch{ return "" } }
 
-  function Secao(p){ return <div style={{marginTop:24}}><div style={{display:"flex",gap:8,alignItems:"center",marginBottom:12}}><div style={{width:3,height:14,background:p.cor,borderRadius:99}}/><b style={{fontSize:14}}>{p.titulo}</b><span style={{fontSize:11,opacity:0.4}}> - {p.qtd}</span></div>{p.qtd===0? (
+  function Secao(p){ return <div style={{marginTop:24}}><div style={{display:"flex",gap:8,alignItems:"center",marginBottom:12}}><div style={{width:3,height:14,background:p.cor,borderRadius:99}}/><b style={{fontSize:14}}>{p.titulo}</b><span style={{fontSize:11,opacity:0.4}}> - {p.qtd}</span>{p.subtitulo && <span style={{fontSize:10, opacity:0.35, marginLeft:6}}>{p.subtitulo}</span>}</div>{p.qtd===0? (
           <div style={{background:"#12182F", border:"1px dashed rgba(255,255,255,0.12)", borderRadius:12, padding:"18px 14px", textAlign:"center"}}>
             <div style={{fontSize:11, opacity:0.35}}>Nenhum filme em {p.titulo.toLowerCase()}</div>
           </div>
@@ -161,15 +144,10 @@ export default function FilmesPage() {
       `}</style>
 
       <header style={{height:62,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 14px",borderBottom:"1px solid rgba(255,255,255,0.06)",position:"sticky",top:0,background:"rgba(10,15,42,0.92)",backdropFilter:"blur(12px)",zIndex:20}}>
-        <div style={{display:"flex",gap:10,alignItems:"center"}}>
-          <img src="/icon-192.png" alt="maratonei" style={{width:32,height:32,borderRadius:8}}/>
-          <b style={{fontWeight:900,fontSize:16}}>maratonei</b>
-        </div>
+        <div style={{display:"flex",gap:10,alignItems:"center"}}><img src="/icon-192.png" alt="maratonei" style={{width:32,height:32,borderRadius:8}}/><b style={{fontWeight:900,fontSize:16}}>maratonei</b></div>
         <div style={{display:"flex",gap:10,alignItems:"center"}}>
           <button onClick={toggle} style={{background:"#121A3A",border:"1px solid rgba(255,255,255,0.12)",color:"#fff",borderRadius:8,padding:"6px 10px",fontSize:11,height:32,fontWeight:700}}>{view==="grade"?"Lista":"Grade"}</button>
-          <button onClick={()=>window.location.href="/perfil"} style={{width:36,height:36,borderRadius:999,overflow:"hidden",border:"1.5px solid #FFD40055",background:"#121B3A",display:"grid",placeItems:"center",cursor:"pointer",padding:0}}>
-            {userFoto? <img src={userFoto} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/> : <span style={{fontWeight:900,fontSize:12,color:"#FFD400"}}>{userInicial}</span>}
-          </button>
+          <button onClick={()=>window.location.href="/perfil"} style={{width:36,height:36,borderRadius:999,overflow:"hidden",border:"1.5px solid #FFD40055",background:"#121B3A",display:"grid",placeItems:"center",cursor:"pointer",padding:0}}>{userFoto? <img src={userFoto} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/> : <span style={{fontWeight:900,fontSize:12,color:"#FFD400"}}>{userInicial}</span>}</button>
         </div>
       </header>
 
@@ -181,16 +159,16 @@ export default function FilmesPage() {
         </div>
 
         {busca&&<div style={{position:"absolute",top:62,left:14,right:14,maxWidth:420,margin:"0 auto",background:"#12182F",border:"1px solid rgba(255,255,255,0.12)",borderRadius:16,zIndex:50,overflow:"hidden",boxShadow:"0 20px 40px rgba(0,0,0,0.5)"}}>
-          {resultados.map(r=><div key={r.id} onClick={()=>abrir(r)} style={{display:"flex",gap:10,padding:10,borderBottom:"1px solid rgba(255,255,255,0.06)",cursor:"pointer"}}><img src={r.img} style={{width:40,height:60,borderRadius:6,objectFit:"cover"}} alt=""/><div style={{flex:1}}><div style={{fontSize:13,fontWeight:700}}>{r.titulo} {r.data_lancamento!=="0000-01-01"? `(${formataData(r.data_lancamento)})` : ""}</div><div style={{fontSize:10,color:"#FFD400",fontWeight:800,marginTop:4}}>VER DETALHES ›</div></div></div>)}
+          {resultados.map(r=><div key={r.id} onClick={()=>abrir(r)} style={{display:"flex",gap:10,padding:10,borderBottom:"1px solid rgba(255,255,255,0.06)",cursor:"pointer"}}><img src={r.img} style={{width:40,height:60,borderRadius:6,objectFit:"cover"}} alt=""/><div style={{flex:1}}><div style={{fontSize:13,fontWeight:700}}>{r.titulo} ({formataData(r.data_lancamento)})</div><div style={{fontSize:10,color:"#FFD400",fontWeight:800,marginTop:4}}>VER DETALHES ›</div></div></div>)}
           {msg&&<div style={{padding:12,fontSize:12,opacity:0.5}}>{msg}</div>}
         </div>}
 
         {!busca&&<div>
-          <Secao titulo="Quero Assistir" cor="#8b5cf6" qtd={quero.length}>
-            {quero.map(s=><div key={s.id} onClick={()=>abrir(s)} className={view==="grade"?"card":"row"}>{view==="grade"?<><div className="poster"><img src={s.img} alt="" loading="lazy"/><div className="badge">{formataData(s.data_lancamento) || s.ano}</div></div><div className="tit">{s.titulo}</div></>:<><img src={s.img} alt="" loading="lazy"/><div style={{flex:1}}><div style={{fontSize:13,fontWeight:800}}>{s.titulo}</div><div style={{fontSize:11,opacity:0.5}}>{formataData(s.data_lancamento)}</div></div><span style={{opacity:0.3}}>›</span></>}</div>)}
+          <Secao titulo="Quero Assistir" cor="#8b5cf6" qtd={quero.length} subtitulo="• por lançamento">
+            {quero.map(s=><div key={s.id} onClick={()=>abrir(s)} className={view==="grade"?"card":"row"}>{view==="grade"?<><div className="poster"><img src={s.img} alt=""/><div className="badge">{formataData(s.data_lancamento) || s.ano}</div></div><div className="tit">{s.titulo}</div></>:<><img src={s.img} alt=""/><div style={{flex:1}}><div style={{fontSize:13,fontWeight:800}}>{s.titulo}</div><div style={{fontSize:11,opacity:0.5}}>Lançado em {formataData(s.data_lancamento)}</div></div><span style={{opacity:0.3}}>›</span></>}</div>)}
           </Secao>
-          <Secao titulo="Ja Assisti" cor="#22c55e" qtd={vistos.length}>
-            {vistos.map(s=><div key={s.id} onClick={()=>abrir(s)} className={view==="grade"?"card":"row"}>{view==="grade"?<><div className="poster"><img src={s.img} alt="" loading="lazy"/><div className="badge" style={{background:"#22c55e",color:"#fff"}}>{formataData(s.data_lancamento) || s.ano}</div></div><div className="tit">{s.titulo}</div></>:<><img src={s.img} alt="" loading="lazy"/><div style={{flex:1}}><div style={{fontSize:13,fontWeight:800}}>{s.titulo}</div><div style={{fontSize:11,opacity:0.5}}>{formataData(s.data_lancamento)}</div></div><span style={{opacity:0.3}}>›</span></>}</div>)}
+          <Secao titulo="Ja Assisti" cor="#22c55e" qtd={vistos.length} subtitulo="• por data que assistiu">
+            {vistos.map(s=><div key={s.id} onClick={()=>abrir(s)} className={view==="grade"?"card":"row"}>{view==="grade"?<><div className="poster"><img src={s.img} alt=""/><div className="badge" style={{background:"#22c55e",color:"#fff"}}>{formataDataVisto(s.data_assistido || s.updated_at)}</div></div><div className="tit">{s.titulo}</div></>:<><img src={s.img} alt=""/><div style={{flex:1}}><div style={{fontSize:13,fontWeight:800}}>{s.titulo}</div><div style={{fontSize:11,opacity:0.5}}>Visto em {formataDataVisto(s.data_assistido || s.updated_at)} • Lançado {formataData(s.data_lancamento)}</div></div><span style={{opacity:0.3}}>›</span></>}</div>)}
           </Secao>
         </div>}
       </div>
