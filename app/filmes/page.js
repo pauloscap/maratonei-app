@@ -106,13 +106,9 @@ export default function FilmesPage() {
   function toggle(){ const n=view==="grade"?"lista":"grade"; setView(n); localStorage.setItem(userId+":view-filmes",n) }
   function abrir(f){ localStorage.setItem(userId+":filme-atual", JSON.stringify(f)); window.location.href="/filme/"+f.id }
 
-  // REGRA NOVA:
-  // Quero Assistir = ordem de lançamento (mais novo lançado primeiro)
-  // Já Assisti = ordem que assistiu (último que marcou como visto no topo)
   const { quero, vistos } = useMemo(()=>{
     const ordenarPorLancamento = (a,b)=> new Date(b.data_lancamento) - new Date(a.data_lancamento)
     const ordenarPorVisto = (a,b)=> new Date(b.data_assistido || b.updated_at) - new Date(a.data_assistido || a.updated_at)
-
     const q = [...filmes].filter(x=>x.status==="quero_assistir").sort(ordenarPorLancamento)
     const v = [...filmes].filter(x=>x.status==="ja_assisti").sort(ordenarPorVisto)
     return { quero: q, vistos: v }
@@ -165,10 +161,20 @@ export default function FilmesPage() {
 
         {!busca&&<div>
           <Secao titulo="Quero Assistir" cor="#8b5cf6" qtd={quero.length} subtitulo="• por lançamento">
-            {quero.map(s=><div key={s.id} onClick={()=>abrir(s)} className={view==="grade"?"card":"row"}>{view==="grade"?<><div className="poster"><img src={s.img} alt=""/><div className="badge">{formataData(s.data_lancamento) || s.ano}</div></div><div className="tit">{s.titulo}</div></>:<><img src={s.img} alt=""/><div style={{flex:1}}><div style={{fontSize:13,fontWeight:800}}>{s.titulo}</div><div style={{fontSize:11,opacity:0.5}}>Lançado em {formataData(s.data_lancamento)}</div></div><span style={{opacity:0.3}}>›</span></>}</div>)}
+            {quero.map(s=><div key={s.id} onClick={()=>abrir(s)} className={view==="grade"?"card":"row"}>{view==="grade"?<><div className="poster"><img src={s.img} alt="" loading="lazy"/><div className="badge">{formataData(s.data_lancamento) || s.ano}</div></div><div className="tit">{s.titulo}</div></>:<><img src={s.img} alt="" loading="lazy"/><div style={{flex:1}}><div style={{fontSize:13,fontWeight:800}}>{s.titulo}</div><div style={{fontSize:11,opacity:0.5}}>Lançado em {formataData(s.data_lancamento)}</div></div><span style={{opacity:0.3}}>›</span></>}</div>)}
           </Secao>
           <Secao titulo="Ja Assisti" cor="#22c55e" qtd={vistos.length} subtitulo="• por data que assistiu">
-            {vistos.map(s=><div key={s.id} onClick={()=>abrir(s)} className={view==="grade"?"card":"row"}>{view==="grade"?<><div className="poster"><img src={s.img} alt=""/><div className="badge" style={{background:"#22c55e",color:"#fff"}}>{formataDataVisto(s.data_assistido || s.updated_at)}</div></div><div className="tit">{s.titulo}</div></>:<><img src={s.img} alt=""/><div style={{flex:1}}><div style={{fontSize:13,fontWeight:800}}>{s.titulo}</div><div style={{fontSize:11,opacity:0.5}}>Visto em {formataDataVisto(s.data_assistido || s.updated_at)} • Lançado {formataData(s.data_lancamento)}</div></div><span style={{opacity:0.3}}>›</span></>}</div>)}
+            {vistos.map(s=><div key={s.id} onClick={()=>abrir(s)} className={view==="grade"?"card":"row"}>{view==="grade"?<>
+              <div className="poster"><img src={s.img} alt="" loading="lazy"/></div>
+              <div className="tit">{s.titulo}</div>
+            </>:<>
+              <img src={s.img} alt="" loading="lazy"/>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,fontWeight:800}}>{s.titulo}</div>
+                <div style={{fontSize:11,opacity:0.5}}>Visto em {formataDataVisto(s.data_assistido || s.updated_at)}</div>
+              </div>
+              <span style={{opacity:0.3}}>›</span>
+            </>}</div>)}
           </Secao>
         </div>}
       </div>
