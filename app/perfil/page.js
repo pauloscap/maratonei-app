@@ -38,7 +38,6 @@ const CONQUISTAS = [
   { id:9, nome:"Coroa", emoji:"👑", min:57, max:999 },
 ]
 
-// EMOJI DE PERSONAGENS - FUNCIONA 100% SEM IMAGEM EXTERNA
 const PERSONAGENS_EMOJI = [
   { nome:"Wandinha", emoji:"🖤", cor:"#1a1a1a" },
   { nome:"Harry Potter", emoji:"⚡", cor:"#7a0000" },
@@ -65,15 +64,16 @@ export default function Perfil(){
   const [streakQuebrado,setStreakQuebrado]=useState(false)
   const [showFoto,setShowFoto]=useState(false)
   const [showPuzzle,setShowPuzzle]=useState(false)
-  const [posterLanterna,setPosterLanterna]=useState("")
+  const [posterReacher,setPosterReacher]=useState("")
   const [stats,setStats]=useState({t:0,n:1,xp:0, seriesTotal:0, filmesTotal:0, seriesMaratonadas:0, filmesVistos:0, horasSeries:0, horasFilmes:0})
   const [loading,setLoading]=useState(true)
 
   useEffect(()=>{
     async function loadPoster(){
       try{
-        const r = await fetch(`https://api.themoviedb.org/3/tv/95350?api_key=${TMDB_KEY}&language=pt-BR`).then(x=>x.json())
-        if(r?.poster_path) setPosterLanterna(`${TMDB_IMG_BIG}${r.poster_path}`)
+        // REACHER - TV ID 89844 - cartaz de setembro
+        const r = await fetch(`https://api.themoviedb.org/3/tv/89844?api_key=${TMDB_KEY}&language=pt-BR`).then(x=>x.json())
+        if(r?.poster_path) setPosterReacher(`${TMDB_IMG_BIG}${r.poster_path}`)
       }catch{}
     }
     loadPoster()
@@ -118,149 +118,3 @@ export default function Perfil(){
   },[])
 
   const doCheck = async()=>{
-    const h=hojeISO(); if(cks.includes(h)) return
-    const { data:{session} } = await supabase.auth.getSession()
-    const { error } = await supabase.from("checkins").insert({ user_id: session.user.id, data: h })
-    if(!error){ const novo=[...cks,h].sort(); setCks(novo); const { atual } = calcularStreak(novo); setStreak(atual); setStreakQuebrado(false); setStats(s=>{ const xp=s.xp+20; return {...s, n:Math.floor(xp/250)+1, xp} }) }
-  }
-
-  const escolherEmoji = async(item)=>{
-    setAvatarEmoji(item)
-    setFoto("")
-    setShowFoto(false)
-    localStorage.setItem(user.id+":avatar_emoji", JSON.stringify(item))
-    const { data:{session} } = await supabase.auth.getSession()
-    await supabase.from("perfis").upsert({ user_id: session.user.id, avatar_url: `emoji:${item.nome}`, nome }, { onConflict:"user_id" })
-  }
-
-  const progresso = (stats.xp%250)/2.5
-  const fezHoje = cks.includes(hojeISO())
-  const iconesDesbloqueados = streakQuebrado? 0 : CONQUISTAS.filter(c=> streak>=c.min).length
-  const pecasDesbloqueadas = Math.min(20, iconesDesbloqueados * 2 + Math.floor((streak%7)/3))
-  const conquistaAtual = streakQuebrado? null : CONQUISTAS.find(c=> streak>=c.min && streak<=c.max)
-
-  const calendario = useMemo(()=>{
-    const hoje = new Date(); const ano=hoje.getFullYear(); const mes=hoje.getMonth()
-    const primeiroDia=new Date(ano,mes,1).getDay(); const diasNoMes=new Date(ano,mes+1,0).getDate()
-    const dias=[]; for(let i=0;i<primeiroDia;i++) dias.push(null); for(let d=1; d<=diasNoMes; d++) dias.push(new Date(ano,mes,d))
-    return { dias, mesNome: hoje.toLocaleString('pt-BR',{month:'long'}), ano }
-  },[cks])
-
-  if(loading) return <div style={{minHeight:"100vh", background:"#080B1F", display:"grid", placeItems:"center", color:"#fff"}}>Carregando seu perfil...</div>
-
-  return(
-    <div style={{minHeight:"100vh", background:"#080B1F", color:"#fff", paddingBottom:90}}>
-      <header style={{height:56, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 16px", borderBottom:"1px solid #ffffff0f", background:"#080B1F", position:"sticky", top:0, zIndex:10}}>
-        <b>Perfil</b>
-        <div style={{display:"flex", gap:8}}>
-          <button onClick={()=>location.href="/configuracoes"} style={{width:32, height:32, borderRadius:999, background:"#ffffff12", border:"1px solid #ffffff15", color:"#fff"}}>⚙</button>
-          <button onClick={()=>setShowPuzzle(true)} style={{background:"#FFD400", color:"#000", border:0, borderRadius:999, padding:"6px 12px", fontWeight:900, fontSize:12}}>🧩 Desafio Agosto</button>
-        </div>
-      </header>
-
-      <main style={{maxWidth:560, margin:"0 auto", padding:"14px", display:"flex", flexDirection:"column", gap:12}}>
-        <div style={{background:"#12182F", border:"1px solid #ffffff12", borderRadius:18, padding:16, display:"flex", gap:12, alignItems:"center"}}>
-          <div style={{position:"relative"}}>
-            <div onClick={()=>setShowFoto(true)} style={{width:68, height:68, borderRadius:999, overflow:"hidden", display:"grid", placeItems:"center", background: avatarEmoji? avatarEmoji.cor : "#1a1a1a", border:`2px solid #FFD400`, cursor:"pointer", fontSize:32}}>
-              {avatarEmoji? avatarEmoji.emoji : foto? <img src={foto} style={{width:"100%",height:"100%",objectFit:"cover"}} /> : nome[0]}
-            </div>
-            <div onClick={()=>setShowFoto(true)} style={{position:"absolute", bottom:-2, right:-2, width:22, height:22, borderRadius:999, background:"#FFD400", display:"grid", placeItems:"center", fontSize:10, border:"2px solid #12182F", cursor:"pointer", color:"#000"}}>✎</div>
-          </div>
-          <div style={{flex:1}}>
-            <div style={{fontWeight:900, fontSize:15, display:"flex", gap:6, alignItems:"center"}}>{nome} <span style={{fontSize:9, background:streak>1?"#FFD40022":"#38bdf822", color:streak>1?"#FFD400":"#38bdf8", border:"1px solid #ffffff15", padding:"2px 6px", borderRadius:99}}>{streak>0? "🍿" : "🧊"} {streak} dias</span></div>
-            <div style={{fontSize:12, opacity:.6, marginTop:2}}>Nível {stats.n} • {conquistaAtual? conquistaAtual.emoji+" "+conquistaAtual.nome : "Sem conquista"} • {pecasDesbloqueadas}/20 peças</div>
-            <div style={{height:6, background:"#ffffff14", borderRadius:99, marginTop:8, overflow:"hidden"}}><div style={{width:progresso+"%", height:"100%", background:"linear-gradient(90deg,#FFD400,#FFA600)"}}/></div>
-          </div>
-          <button onClick={doCheck} disabled={fezHoje} style={{minWidth:96, height:44, borderRadius:999, border:0, background:fezHoje?"#22c55e":"#FFD400", color:fezHoje?"#fff":"#000", fontWeight:900, cursor:fezHoje?"default":"pointer", fontSize:12}}>{fezHoje? "✓ Hoje" : "☑ Check-in"}</button>
-        </div>
-
-        <div style={{background:"linear-gradient(135deg,#1A2142,#12182F)", border: streakQuebrado? "1px solid #38bdf833" : "1px solid #FFD40033", borderRadius:18, padding:14}}>
-          <div style={{display:"flex", justifyContent:"space-between", alignItems:"center"}}><b style={{fontSize:14}}>🍿 Minha Maratona</b><span style={{fontSize:11, background:streakQuebrado?"#38bdf822":"#FFD40022", color:streakQuebrado?"#38bdf8":"#FFD400", padding:"3px 8px", borderRadius:99}}>{streakQuebrado? "Zerado" : `${iconesDesbloqueados}/9 ícones`}</span></div>
-          <div style={{display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginTop:12}}>
-            {CONQUISTAS.map(c=>{ const desbloq = streak>=c.min &&!streakQuebrado; return (
-              <div key={c.id} style={{background: desbloq? "#FFD40014" : "#ffffff06", border: desbloq? "1px solid #FFD40044" : "1px solid #ffffff10", borderRadius:12, padding:10, textAlign:"center", opacity: desbloq? 1 : 0.35}}>
-                <div style={{fontSize:22}}>{c.emoji}</div>
-                <div style={{fontSize:10, fontWeight:800, marginTop:4}}>{c.nome}</div>
-              </div>
-            )})}
-          </div>
-          <div onClick={()=>setShowPuzzle(true)} style={{marginTop:12, background:"#FFD400", color:"#000", borderRadius:10, padding:"8px 10px", fontSize:11, textAlign:"center", fontWeight:900, cursor:"pointer"}}>🧩 Ver quebra-cabeça • {pecasDesbloqueadas}/20 peças</div>
-        </div>
-
-        <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10}}>
-          <div style={{background:"#12182F", border:"1px solid #ffffff10", borderRadius:16, padding:14}}><div style={{fontSize:11, opacity:0.5}}>📺 Séries</div><div style={{fontSize:22, fontWeight:900}}>{stats.seriesTotal}</div><div style={{fontSize:11, opacity:0.6}}>{stats.seriesMaratonadas} maratonadas • {stats.horasSeries}h</div></div>
-          <div style={{background:"#12182F", border:"1px solid #ffffff10", borderRadius:16, padding:14}}><div style={{fontSize:11, opacity:0.5}}>🎬 Filmes</div><div style={{fontSize:22, fontWeight:900}}>{stats.filmesTotal}</div><div style={{fontSize:11, opacity:0.6}}>{stats.filmesVistos} assistidos • {stats.horasFilmes}h</div></div>
-        </div>
-
-        <div style={{background:"#12182F", border:"1px solid #ffffff10", borderRadius:18, padding:14}}>
-          <div style={{fontWeight:800,fontSize:13,marginBottom:10,display:"flex",justifyContent:"space-between"}}><span>Calendário • {calendario.mesNome} {calendario.ano}</span><span style={{fontSize:11,opacity:.4}}>{cks.length} check-ins</span></div>
-          <div style={{display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:4, marginBottom:6}}>{["D","S","T","Q","Q","S","S"].map((d,i)=><div key={i} style={{textAlign:"center", fontSize:10, opacity:0.4, fontWeight:700}}>{d}</div>)}</div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:6}}>
-            {calendario.dias.map((d,i)=>{ if(!d) return <div key={i}/>; const iso=d.toISOString().slice(0,10); const ok=cks.includes(iso); const hoje=iso===hojeISO(); return <div key={i} style={{aspectRatio:"1",borderRadius:8,background:ok?"#FFD400":hoje?"#ffffff22":"#ffffff0e",display:"grid",placeItems:"center",fontSize:12,fontWeight:ok?800:400,color:ok?"#000":"#ffffff88", border: hoje &&!ok? "1px dashed #FFD40088" : "0"}}>{ok? "✓" : d.getDate()}</div> })}
-          </div>
-        </div>
-      </main>
-
-      {showFoto && (
-        <div style={{position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", backdropFilter:"blur(8px)", zIndex:10000, padding:14, overflowY:"auto"}}>
-          <div style={{maxWidth:560, margin:"0 auto", background:"#12182F", border:"1px solid #ffffff18", borderRadius:18, padding:14}}>
-            <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12}}>
-              <b>Escolha seu personagem</b>
-              <button onClick={()=>setShowFoto(false)} style={{width:32,height:32,borderRadius:999,background:"#ffffff12",border:"1px solid #ffffff15",color:"#fff"}}>✕</button>
-            </div>
-
-            <button onClick={()=>{ setAvatarEmoji(null); setFoto(fotoOriginal); setShowFoto(false); localStorage.removeItem(user.id+":avatar_emoji"); supabase.from("perfis").upsert({ user_id:user.id, avatar_url:fotoOriginal, nome }, {onConflict:"user_id"}) }} style={{width:"100%", padding:12, borderRadius:12, background:"#ffffff10", border:"1px solid #ffffff15", color:"#fff", fontSize:13, fontWeight:700, marginBottom:14}}>Foto do Gmail</button>
-
-            <div style={{display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10}}>
-              {PERSONAGENS_EMOJI.map(p=>(
-                <div key={p.nome} onClick={()=>escolherEmoji(p)} style={{cursor:"pointer", aspectRatio:"1", borderRadius:14, overflow:"hidden", background:p.cor, border:"1px solid #ffffff15", display:"grid", placeItems:"center", fontSize:36}}>
-                  {p.emoji}
-                </div>
-              ))}
-            </div>
-
-            <div style={{fontSize:11, opacity:0.5, marginTop:14, textAlign:"center"}}>toque para escolher a foto do seu perfil</div>
-          </div>
-        </div>
-      )}
-
-      {showPuzzle && (
-        <div style={{position:"fixed", inset:0, background:"rgba(0,0,0,0.9)", backdropFilter:"blur(10px)", zIndex:10001, padding:14, overflowY:"auto"}}>
-          <div style={{maxWidth:560, margin:"0 auto"}}>
-            <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12}}>
-              <b style={{fontSize:16}}>Desafio de agosto</b>
-              <button onClick={()=>setShowPuzzle(false)} style={{width:32,height:32,borderRadius:999,background:"#ffffff12",border:"1px solid #ffffff15",color:"#fff"}}>✕</button>
-            </div>
-            <div style={{background:"#12182F", border:"1px solid #FFD40033", borderRadius:16, padding:12, marginBottom:12}}>
-              <div style={{fontSize:12, lineHeight:1.5}}>Série do mês. Complete os check-ins diários para liberar as peças e descobrir qual é a série do mês. Cada conquista = 2 peças do quebra-cabeça.</div>
-              <div style={{marginTop:10, display:"flex", gap:8, alignItems:"center"}}>
-                {posterLanterna && <img src={posterLanterna} alt="Lanterns" style={{width:56, height:84, borderRadius:8, objectFit:"cover", border:"1px solid #ffffff15"}} />}
-                <div style={{flex:1}}>
-                  <div style={{fontSize:13, fontWeight:900}}>Lanterns • Cartaz oficial HBO</div>
-                  <div style={{fontSize:11, opacity:0.6, marginTop:2}}>Estreou 16/08 • Hal Jordan e John Stewart</div>
-                  <div style={{marginTop:8, height:6, background:"#ffffff14", borderRadius:99, overflow:"hidden"}}><div style={{width:`${(pecasDesbloqueadas/20)*100}%`, height:"100%", background:"#FFD400"}}/></div>
-                  <div style={{fontSize:10, opacity:0.5, marginTop:4}}>{pecasDesbloqueadas}/20 peças</div>
-                </div>
-              </div>
-            </div>
-            <div style={{background:"#000", borderRadius:16, overflow:"hidden", border:"1px solid #ffffff15"}}>
-              <div style={{display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:2, background:"#000", padding:2}}>
-                {Array.from({length:20}).map((_,i)=>{
-                  const liberada = i < pecasDesbloqueadas
-                  return (
-                    <div key={i} style={{aspectRatio:"3/4", position:"relative", overflow:"hidden", background:"#111", borderRadius:4}}>
-                      {posterLanterna && <img src={posterLanterna} alt="" style={{width:"400%", height:"500%", objectFit:"cover", position:"absolute", left:`-${(i%4)*100}%`, top:`-${Math.floor(i/4)*100}%`, filter: liberada? "none" : "blur(14px) brightness(0.25)"}} />}
-                      {!liberada && <div style={{position:"absolute", inset:0, display:"grid", placeItems:"center", fontSize:18, background:"rgba(0,0,0,0.5)"}}>🔒</div>}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <BottomNav/>
-    </div>
-  )
-}
