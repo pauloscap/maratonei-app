@@ -113,7 +113,6 @@ export default function Home() {
       if(progresso>100) progresso=100
       return {...s, id:String(s.id), img: img || "https://picsum.photos/seed/"+s.id+"/400/600", status:st, progresso, epsVistos:epsVistosArr.length, totalEps:totalSalvo, updated_at: s.updated_at}
     }))
-    // ORDENA POR ÚLTIMA ATUALIZAÇÃO - MAIS RECENTE PRIMEIRO
     comDados.sort((a,b)=> new Date(b.updated_at) - new Date(a.updated_at))
     setSeries(comDados)
     setLoading(false)
@@ -133,10 +132,10 @@ export default function Home() {
       if (savedView) setView(savedView)
       await carregarSeries(uid)
       channel = supabase.channel('user_series_realtime_' + uid)
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` }, ()=>carregarSeries(uid))
-    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` }, ()=>carregarSeries(uid))
-    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` }, ()=>carregarSeries(uid))
-    .subscribe()
+   .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` }, ()=>carregarSeries(uid))
+   .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` }, ()=>carregarSeries(uid))
+   .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` }, ()=>carregarSeries(uid))
+   .subscribe()
       const handleFocus = ()=>carregarSeries(uid)
       window.addEventListener('focus', handleFocus)
       window.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') handleFocus() })
@@ -178,47 +177,73 @@ export default function Home() {
 
   function abrir(s){ localStorage.setItem(userId + ":serie-atual", JSON.stringify(s)); window.location.href = "/serie/" + s.id }
 
-  // ORGANIZAÇÃO POR MAIS ATUALIZADA PRIMEIRO
-  const ordenarRecente = (a,b)=> new Date(b.updated_at) - new Date(a.updated_at)
+  async function resgatarSerie(s){
+    await supabase.from("user_series").update({ updated_at: new Date().toISOString() }).eq("user_id", userId).eq("serie_id", s.id)
+    window.location.href = "/serie/" + s.id
+  }
 
-  const assistindo = useMemo(()=> series.filter(s=> s.status === "assistindo").sort(ordenarRecente), [series])
+  // REGRAS DE ORGANIZAÇÃO
+  const ordenarRecente = (a,b)=> new Date(b.updated_at) - new Date(a.updated_at)
+  const LIMITE_DEIXOU = 7 * 24 * 60 * 60 * 1000 // 7 dias
+
+  const assistindoRaw = useMemo(()=> series.filter(s=> s.status === "assistindo"), [series])
+
+  const assistindo = useMemo(()=> {
+    const agora = Date.now()
+    return assistindoRaw.filter(s=>{
+      const diff = agora - new Date(s.updated_at).getTime()
+      return diff <= LIMITE_DEIXOU
+    }).sort(ordenarRecente)
+  }, [assistindoRaw])
+
+  const deixeiDeLado = useMemo(()=> {
+    const agora = Date.now()
+    return assistindoRaw.filter(s=>{
+      const diff = agora - new Date(s.updated_at).getTime()
+      return diff > LIMITE_DEIXOU
+    }).sort(ordenarRecente)
+  }, [assistindoRaw])
+
   const queroAssistir = useMemo(()=> series.filter(s=> s.status === "quero_assistir").sort(ordenarRecente), [series])
   const maratonei = useMemo(()=> series.filter(s=> s.status === "maratonei").sort(ordenarRecente), [series])
 
-  function CardGrade({s}){
-    const cor = s.status==="maratonei"? "#22c55e" : s.status==="quero_assistir"? "#8b5cf6" : "#FFD400"
+  function CardGrade({s, isDeixado}){
+    const cor = isDeixado? "#f97316" : s.status==="maratonei"? "#22c55e" : s.status==="quero_assistir"? "#8b5cf6" : "#FFD400"
     return (
-      <div className="card-grade" onClick={()=>abrir(s)}>
+      <div className="card-grade" onClick={()=> isDeixado? resgatarSerie(s) : abrir(s)}>
         <div className="poster-wrap">
           <img src={s.img} alt="" loading="lazy" />
-          <div className="badge">{s.status === "quero_assistir"? "QUERO" : s.status.toUpperCase()}</div>
+          <div className="badge" style={{background: isDeixado? "#f97316" : undefined, color: isDeixado? "#fff": undefined}}>{isDeixado? "RESGATAR" : s.status === "quero_assistir"? "QUERO" : s.status.toUpperCase()}</div>
           {s.status!== "quero_assistir" && s.status!=="" && (<div className="progress-track"><div className="progress-fill" style={{ width: s.progresso + "%", background: cor }} /></div>)}
         </div>
         <div className="titulo">{s.titulo}</div>
+        {isDeixado && <div style={{fontSize:10, color:"#f97316", fontWeight:800, marginTop:2}}>Há {Math.floor((Date.now()-new Date(s.updated_at).getTime())/(1000*60*60*24))} dias parado</div>}
       </div>
     )
   }
-  function CardLista({s}){
-    const cor = s.status==="maratonei"? "#22c55e" : s.status==="quero_assistir"? "#8b5cf6" : "#FFD400"
+  function CardLista({s, isDeixado}){
+    const cor = isDeixado? "#f97316" : s.status==="maratonei"? "#22c55e" : s.status==="quero_assistir"? "#8b5cf6" : "#FFD400"
     return (
-      <div onClick={()=>abrir(s)} style={{ display:"flex", gap:12, padding:10, background:"#12182F", border:"1px solid rgba(255,255,255,0.08)", borderRadius:12, cursor:"pointer", alignItems:"center" }}>
+      <div onClick={()=> isDeixado? resgatarSerie(s) : abrir(s)} style={{ display:"flex", gap:12, padding:10, background: isDeixado? "#1a140f" : "#12182F", border: isDeixado? "1px solid #f9731633" : "1px solid rgba(255,255,255,0.08)", borderRadius:12, cursor:"pointer", alignItems:"center" }}>
         <div style={{ width:52, height:78, minWidth:52, borderRadius:8, overflow:"hidden", position:"relative" }}>
           <img src={s.img} style={{ width:"100%", height:"100%", objectFit:"cover" }} alt="" />
           {s.status!== "quero_assistir" && s.status!=="" && (<div style={{ position:"absolute", bottom:0, left:0, right:0, height:4, background:"rgba(255,255,255,0.25)" }}><div style={{ height:"100%", width: s.progresso + "%", background: cor }} /></div>)}
         </div>
-        <div style={{ flex:1 }}><div style={{ fontSize:13, fontWeight:800 }}>{s.titulo}</div><div style={{ fontSize:11, opacity:0.6 }}>{s.epsVistos}/{s.totalEps || "?"} • {s.progresso}%</div></div>
+        <div style={{ flex:1 }}><div style={{ fontSize:13, fontWeight:800 }}>{s.titulo}</div><div style={{ fontSize:11, opacity:0.6 }}>{s.epsVistos}/{s.totalEps || "?"} • {s.progresso}% {isDeixado? `• parado há ${Math.floor((Date.now()-new Date(s.updated_at).getTime())/(1000*60*60*24))} dias` : ""}</div>{isDeixado && <div style={{fontSize:10, color:"#f97316", fontWeight:800, marginTop:2}}>Toque para resgatar e voltar para Assistindo</div>}</div>
+        {isDeixado && <div style={{fontSize:10, background:"#f97316", color:"#fff", padding:"4px 8px", borderRadius:99, fontWeight:900}}>RESGATAR</div>}
       </div>
     )
   }
-  function Secao({titulo, cor, qtd, children}){
+  function Secao({titulo, cor, qtd, children, destaque}){
     return (
       <div style={{ marginTop:24 }}>
         <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12 }}>
           <div style={{ width:3, height:14, background:cor, borderRadius:99 }} />
           <b style={{ fontSize:14, fontFamily:"Sora,sans-serif" }}>{titulo}</b>
           <span style={{ fontSize:11, opacity:0.4 }}>- {qtd}</span>
+          {destaque && qtd>0 && <span style={{fontSize:9, background:"#f9731622", color:"#f97316", padding:"2px 6px", borderRadius:99, fontWeight:800, border:"1px solid #f9731633"}}>PRECISA DE ATENÇÃO</span>}
         </div>
-        {qtd===0? (<div style={{background:"#12182F", border:"1px dashed rgba(255,255,255,0.12)", borderRadius:12, padding:"18px 14px", textAlign:"center"}}><div style={{fontSize:11, opacity:0.35}}>Nenhuma série em {titulo.toLowerCase()}</div><div style={{fontSize:11, color:"#FFD400", marginTop:4, fontWeight:700}}>Busque acima para adicionar</div></div>) : view==="grade"? <div className="grid-responsive">{children}</div> : <div style={{ display:"grid", gap:8 }}>{children}</div>}
+        {qtd===0? (<div style={{background:"#12182F", border:"1px dashed rgba(255,255,255,0.12)", borderRadius:12, padding:"18px 14px", textAlign:"center"}}><div style={{fontSize:11, opacity:0.35}}>{titulo==="Deixei de lado"? "Nenhuma série abandonada 🎉" : `Nenhuma série em ${titulo.toLowerCase()}`}</div><div style={{fontSize:11, color:"#FFD400", marginTop:4, fontWeight:700}}>{titulo==="Deixei de lado"? "Continue assistindo para não parar aqui" : "Busque acima para adicionar"}</div></div>) : view==="grade"? <div className="grid-responsive">{children}</div> : <div style={{ display:"grid", gap:8 }}>{children}</div>}
       </div>
     )
   }
@@ -238,6 +263,7 @@ export default function Home() {
         {!busca && <>
           <Secao titulo="Assistindo" cor="#FFD400" qtd={assistindo.length}>{assistindo.map(s=> view==="grade"? <CardGrade key={s.id} s={s}/> : <CardLista key={s.id} s={s}/>)}</Secao>
           <Secao titulo="Quero Assistir" cor="#8b5cf6" qtd={queroAssistir.length}>{queroAssistir.map(s=> view==="grade"? <CardGrade key={s.id} s={s}/> : <CardLista key={s.id} s={s}/>)}</Secao>
+          <Secao titulo="Deixei de lado" cor="#f97316" qtd={deixeiDeLado.length} destaque={true}>{deixeiDeLado.map(s=> view==="grade"? <CardGrade key={s.id} s={s} isDeixado={true}/> : <CardLista key={s.id} s={s} isDeixado={true}/>)}</Secao>
           <Secao titulo="Maratonei" cor="#22c55e" qtd={maratonei.length}>{maratonei.map(s=> view==="grade"? <CardGrade key={s.id} s={s}/> : <CardLista key={s.id} s={s}/>)}</Secao>
         </>}
       </div><BottomNav />
