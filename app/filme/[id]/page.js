@@ -27,7 +27,7 @@ export default function DetalheFilme({ params }) {
       let f = null
       try { const raw = localStorage.getItem(userId + ":filme-atual"); if (raw) f = JSON.parse(raw) } catch(e){}
       if (!f || String(f.id)!==id) {
-        try { const all = JSON.parse(localStorage.getItem(userId + ":meus-filmes") || "[]"); f = all.find(function(x){ return String(x.id)===id }) } catch(e){}
+        try { const all = JSON.parse(localStorage.getItem(userId + ":meus-filmes") || "[]"); f = all.find(x=> String(x.id)===id) } catch(e){}
       }
       if (!f) f = { id: id, titulo: "Filme " + id, img: "https://picsum.photos/seed/" + id + "/600/900" }
 
@@ -36,12 +36,17 @@ export default function DetalheFilme({ params }) {
       setStatus(stLocal)
 
       try {
-        const res = await supabase.from("user_filmes").select("status,nota,avaliacao").eq("user_id", userId).eq("filme_id", id).single()
+        const res = await supabase.from("user_filmes").select("status,nota,avaliacao,data_lancamento,data_assistido").eq("user_id", userId).eq("filme_id", id).single()
         if (res.data?.status) setStatus(res.data.status)
         if(res.data?.nota || res.data?.avaliacao) setMinhaNota(res.data.nota || res.data.avaliacao)
+        // se já tem data no banco, atualiza o objeto local
+        if(res.data?.data_lancamento){
+          f.data_lancamento = res.data.data_lancamento
+          f.ano = res.data.data_lancamento.slice(0,4)
+          setFilme(f)
+        }
       } catch(e){}
 
-      // TMDB DETALHES
       try{
         const key = TMDB_KEY
         const [det, prov] = await Promise.all([
@@ -49,25 +54,27 @@ export default function DetalheFilme({ params }) {
           fetch(`https://api.themoviedb.org/3/movie/${id}/watch/providers?api_key=${key}`, { cache:'no-store' }).then(r=>r.json())
         ])
         if(det && det.title){
-          f = {...f, titulo: det.title, img: det.poster_path? `${TMDB_IMG}${det.poster_path}` : f.img, banner: det.backdrop_path? `${TMDB_IMG}${det.backdrop_path}` : f.img }
+          const dataLanc = det.release_date || ""
+          f = {...f, titulo: det.title, img: det.poster_path? `${TMDB_IMG}${det.poster_path}` : f.img, banner: det.backdrop_path? `${TMDB_IMG}${det.backdrop_path}` : f.img, data_lancamento: dataLanc, ano: dataLanc.slice(0,4) }
           setFilme(f)
           const br = prov.results?.BR
           let providers = []
-          let emCartaz = false
           if(br){
             const all = [...(br.flatrate||[]),...(br.rent||[]),...(br.buy||[])]
             providers = [...new Map(all.map(p=>[p.provider_id,p])).values()].slice(0,8)
-            emCartaz =!!(br.flatrate || br.buy || br.rent)
           }
           setDetalhes({
             sinopse: det.overview || "",
             nota: det.vote_average || 0,
             votos: det.vote_count || 0,
             providers,
-            emCartaz: det.status? det.status : "",
+            emCartaz: det.status || "",
             lancamento: det.release_date || "",
-            cinema:!providers.length && det.release_date
           })
+          // salva data de lançamento automaticamente se não tinha
+          if(dataLanc){
+            await supabase.from("user_filmes").update({ano: dataLanc.slice(0,4), data_lancamento: dataLanc}).eq("user_id", userId).eq("filme_id", id)
+          }
         }
       }catch(e){}
     }
@@ -77,6 +84,8 @@ export default function DetalheFilme({ params }) {
   async function mudar(novoStatus) {
     if (!uid || salvando) return
     setSalvando(true)
+    const agora = new Date().toISOString()
+    const dataLanc = filme?.data_lancamento || detalhes.lancamento || ""
 
     if(novoStatus === "ja_assisti"){
       setStatus(novoStatus)
@@ -86,8 +95,8 @@ export default function DetalheFilme({ params }) {
         if (raw) {
           let lista = JSON.parse(raw)
           let achou = false
-          lista = lista.map(function(x){ if (String(x.id)===id){ achou=true; return {...x, status:novoStatus} } return x })
-          if(!achou && filme) lista.unshift({...filme, id:id, status:novoStatus})
+          lista = lista.map(x=>{ if (String(x.id)===id){ achou=true; return {...x, status:novoStatus, data_assistido: agora, updated_at: agora} } return x })
+          if(!achou && filme) lista.unshift({...filme, id:id, status:novoStatus, data_assistido: agora, updated_at: agora, data_lancamento: dataLanc})
           localStorage.setItem(uid + ":meus-filmes", JSON.stringify(lista))
         }
       }catch(e){}
@@ -98,7 +107,10 @@ export default function DetalheFilme({ params }) {
           titulo: filme?.titulo || "Filme",
           img: filme?.img || "",
           status: novoStatus,
-          updated_at: new Date().toISOString()
+          ano: dataLanc? dataLanc.slice(0,4) : filme?.ano || "0000",
+          data_lancamento: dataLanc || filme?.data_lancamento || "0000-01-01",
+          data_assistido: agora,
+          updated_at: agora
         }, { onConflict:"user_id,filme_id" })
       }catch(e){}
       setSalvando(false)
@@ -106,6 +118,7 @@ export default function DetalheFilme({ params }) {
       return
     }
 
+    // quero_assistir
     setStatus(novoStatus)
     try {
       localStorage.setItem(uid + ":filme-status-" + id, novoStatus)
@@ -113,8 +126,8 @@ export default function DetalheFilme({ params }) {
       if (raw) {
         let lista = JSON.parse(raw)
         let achou = false
-        lista = lista.map(function(x){ if (String(x.id)===id){ achou=true; return {...x, status:novoStatus} } return x })
-        if(!achou && filme) lista.unshift({...filme, id:id, status:novoStatus})
+        lista = lista.map(x=>{ if (String(x.id)===id){ achou=true; return {...x, status:novoStatus, updated_at: agora} } return x })
+        if(!achou && filme) lista.unshift({...filme, id:id, status:novoStatus, updated_at: agora, data_lancamento: dataLanc})
         localStorage.setItem(uid + ":meus-filmes", JSON.stringify(lista))
       }
     } catch(e){}
@@ -125,15 +138,18 @@ export default function DetalheFilme({ params }) {
         titulo: filme?.titulo || "Filme",
         img: filme?.img || "",
         status: novoStatus,
-        updated_at: new Date().toISOString()
+        ano: dataLanc? dataLanc.slice(0,4) : filme?.ano || "0000",
+        data_lancamento: dataLanc || filme?.data_lancamento || "0000-01-01",
+        updated_at: agora
       }, { onConflict:"user_id,filme_id" })
     } catch(e){}
-    setTimeout(function(){ window.location.href = "/filmes" }, 300)
+    setTimeout(()=>{ window.location.href = "/filmes" }, 300)
   }
 
   async function salvarNota(nota){
     setMinhaNota(nota)
     setShowRating(false)
+    const agora = new Date().toISOString()
     localStorage.setItem(uid + ":filme-nota-" + id, String(nota))
     try{
       await supabase.from("user_filmes").upsert({
@@ -144,7 +160,10 @@ export default function DetalheFilme({ params }) {
         status: "ja_assisti",
         nota: nota,
         avaliacao: nota,
-        updated_at: new Date().toISOString()
+        data_lancamento: filme?.data_lancamento || detalhes.lancamento || "0000-01-01",
+        ano: (filme?.data_lancamento || detalhes.lancamento || "").slice(0,4) || filme?.ano || "0000",
+        data_assistido: agora,
+        updated_at: agora
       }, { onConflict:"user_id,filme_id" })
     }catch{}
     setTimeout(()=>{ window.location.href="/filmes" }, 400)
@@ -157,7 +176,7 @@ export default function DetalheFilme({ params }) {
     try {
       const raw = localStorage.getItem(uid + ":meus-filmes")
       if (raw) {
-        let lista = JSON.parse(raw).filter(function(x){ return String(x.id)!==id })
+        let lista = JSON.parse(raw).filter(x=> String(x.id)!==id)
         localStorage.setItem(uid + ":meus-filmes", JSON.stringify(lista))
       }
       localStorage.removeItem(uid + ":filme-status-" + id)
@@ -174,14 +193,14 @@ export default function DetalheFilme({ params }) {
       <div style={{ height:360, position:"relative", overflow:"hidden" }}>
         <img src={filme.banner || filme.img} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
         <div style={{ position:"absolute", inset:0, background:"linear-gradient(180deg, rgba(0,0,0,0.2), #080B1F 95%)" }} />
-        <button onClick={function(){ window.location.href="/filmes" }} style={{ position:"absolute", top:14, left:14, width:34, height:34, borderRadius:999, background:"#000", border:"1px solid #333", color:"#fff", cursor:"pointer", zIndex:2 }}>{"<"}</button>
+        <button onClick={()=> window.location.href="/filmes"} style={{ position:"absolute", top:14, left:14, width:34, height:34, borderRadius:999, background:"#000", border:"1px solid #333", color:"#fff", cursor:"pointer", zIndex:2 }}>{"<"}</button>
         <button onClick={abandonar} style={{ position:"absolute", top:14, right:14, padding:"8px 14px", borderRadius:999, background:"#ef4444", color:"#fff", fontWeight:900, fontSize:12, border:0, cursor:"pointer", zIndex:5 }}>Abandonar</button>
         <div style={{ position:"absolute", bottom:0, left:16, right:16, display:"flex", gap:12, alignItems:"flex-end", transform:"translateY(18px)" }}>
           <img src={filme.img} alt="" style={{ width:96, height:144, borderRadius:12, objectFit:"cover", border:"2px solid #222", background:"#000" }} />
           <div style={{ flex:1, paddingBottom:10 }}>
             <h1 style={{ margin:0, fontSize:18, fontWeight:900, lineHeight:1.2 }}>{filme.titulo}</h1>
             <div style={{ fontSize:11, opacity:0.6, marginTop:4, display:"flex", gap:8, alignItems:"center" }}>
-              <span>{detalhes.lancamento? detalhes.lancamento.slice(0,4) : ""}</span>
+              <span>{detalhes.lancamento? detalhes.lancamento.slice(0,4) : filme.ano || ""}</span>
               {detalhes.nota>0 && <span style={{ color:"#FFD400" }}>★ {detalhes.nota.toFixed(1)}</span>}
               {status==="ja_assisti" && minhaNota>0 && <span style={{ background:"#FFD400", color:"#000", padding:"1px 6px", borderRadius:99, fontWeight:900 }}>{minhaNota}★</span>}
             </div>
@@ -190,7 +209,6 @@ export default function DetalheFilme({ params }) {
       </div>
 
       <div style={{ maxWidth:680, margin:"0 auto", padding:"44px 14px 20px" }}>
-        {/* SINOPSE + NOTA + STREAMING / CINEMA */}
         {(detalhes.sinopse || detalhes.providers.length>0) && (
           <div style={{ background:"#12182F", border:"1px solid #1e274f", borderRadius:16, padding:14, marginBottom:14 }}>
             {detalhes.nota>0 && <div style={{ display:"flex", gap:6, alignItems:"center", marginBottom:8, fontSize:13 }}><span style={{ color:"#FFD400" }}>★ {detalhes.nota.toFixed(1)}</span><span style={{ opacity:0.5, fontSize:11 }}>({detalhes.votos} votos)</span></div>}
@@ -213,13 +231,16 @@ export default function DetalheFilme({ params }) {
         )}
 
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-          <button disabled={salvando} onClick={function(){ mudar("quero_assistir") }} style={{ height:48, borderRadius:12, fontWeight:900, fontSize:13, background: status==="quero_assistir"? "#FFD400" : "#12182F", color: status==="quero_assistir"? "#000" : "#fff", border:"1px solid #222", cursor:"pointer", opacity:salvando?0.6:1 }}>{status==="quero_assistir"?"★ Quero Assistir":"Quero Assistir"}</button>
-          <button disabled={salvando} onClick={function(){ mudar("ja_assisti") }} style={{ height:48, borderRadius:12, fontWeight:900, fontSize:13, background: status==="ja_assisti"? "#22c55e" : "#12182F", color:"#fff", border:"1px solid #222", cursor:"pointer", opacity:salvando?0.6:1 }}>{status==="ja_assisti"? `✓ Já Assisti ${minhaNota? minhaNota+"★" : ""}`:"Já Assisti"}</button>
+          <button disabled={salvando} onClick={()=> mudar("quero_assistir")} style={{ height:48, borderRadius:12, fontWeight:900, fontSize:13, background: status==="quero_assistir"? "#FFD400" : "#12182F", color: status==="quero_assistir"? "#000" : "#fff", border:"1px solid #222", cursor:"pointer", opacity:salvando?0.6:1 }}>{status==="quero_assistir"?"★ Quero Assistir":"Quero Assistir"}</button>
+          <button disabled={salvando} onClick={()=> mudar("ja_assisti")} style={{ height:48, borderRadius:12, fontWeight:900, fontSize:13, background: status==="ja_assisti"? "#22c55e" : "#12182F", color:"#fff", border:"1px solid #222", cursor:"pointer", opacity:salvando?0.6:1 }}>{status==="ja_assisti"? `✓ Já Assisti ${minhaNota? minhaNota+"★" : ""}`:"Já Assisti"}</button>
         </div>
 
         <div style={{ marginTop:16, background:"#12182F", border:"1px solid #1e274f", borderRadius:16, padding:14 }}>
-          <b style={{ fontSize:13 }}>Como funciona</b>
-          <div style={{ fontSize:12, opacity:0.6, marginTop:6, lineHeight:1.5 }}>Série nova entra sem botão amarelo. Ao escolher, o filme vai pra aba correta em <b>Filmes</b>. Ao clicar em Já Assisti, avalie com estrelas.</div>
+          <b style={{ fontSize:13 }}>Como funciona agora</b>
+          <div style={{ fontSize:12, opacity:0.6, marginTop:6, lineHeight:1.5 }}>
+            <span style={{color:"#8b5cf6", fontWeight:800}}>Quero Assistir:</span> ordenado por lançamento (26/08/2026 antes de 08/07/2026)<br/>
+            <span style={{color:"#22c55e", fontWeight:800}}>Já Assisti:</span> ordenado por quando você assistiu (último que marcou vai pro topo)
+          </div>
         </div>
 
         {salvando && <div style={{ textAlign:"center", marginTop:12, fontSize:12, opacity:0.6 }}>Salvando e voltando...</div>}
