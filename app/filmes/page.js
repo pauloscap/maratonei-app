@@ -7,6 +7,29 @@ const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.
 const TMDB_KEY = process.env.NEXT_PUBLIC_TMDB_KEY || "4e44d9029b1273360df0be1de39768d1"
 const TMDB_IMG = "https://image.tmdb.org/t/p/w342"
 
+async function buscarFilmes(q){
+  const termo = q.trim()
+  try{
+    const r = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${TMDB_KEY}&language=pt-BR&query=${encodeURIComponent(termo)}`)
+    const j = await r.json()
+    if(j.results?.length) return j.results.slice(0,10).map(m=>({
+      id:String(m.id), titulo: m.title || m.original_title,
+      ano: m.release_date? m.release_date.slice(0,4) : "",
+      data_lancamento: m.release_date || "",
+      img: m.poster_path? TMDB_IMG+m.poster_path : "https://picsum.photos/seed/"+m.id+"/400/600"
+    }))
+  }catch{}
+  return []
+}
+
+async function buscarDetalheFilme(id){
+  try{
+    const r = await fetch(`https://api.themoviedb.org/3/movie/${id}?api_key=${TMDB_KEY}&language=pt-BR`)
+    const j = await r.json()
+    return { data_lancamento: j.release_date || "", ano: j.release_date? j.release_date.slice(0,4): "" }
+  }catch{ return null }
+}
+
 export default function FilmesPage() {
   const [userId, setUserId] = useState("anon")
   const [busca, setBusca] = useState("")
@@ -34,34 +57,33 @@ export default function FilmesPage() {
       if (doSupabase && doSupabase.length > 0) {
         listaBase = doSupabase.map(r=>({
           id: String(r.filme_id), titulo: r.titulo, img: r.img, status: r.status,
-          ano: r.ano || "0000",
-          data_lancamento: r.data_lancamento || (r.ano? r.ano+"-01-01" : "0000-01-01"),
+          ano: r.ano && r.ano!=="0000"? r.ano : "",
+          data_lancamento: r.data_lancamento &&!r.data_lancamento.startsWith("0000")? r.data_lancamento : "",
           updated_at: r.updated_at, data_assistido: r.data_assistido || r.updated_at
         }))
       } else {
         const raw = localStorage.getItem(uid + ":meus-filmes")
         listaBase = raw? JSON.parse(raw) : []
       }
+
+      // CORREÇÃO AUTOMÁTICA DOS 0000 - busca no TMDB e salva no Supabase
+      const precisamCorrecao = listaBase.filter(f=>!f.data_lancamento ||!f.ano)
+      if(precisamCorrecao.length>0){
+        for(const f of precisamCorrecao){
+          const detalhe = await buscarDetalheFilme(f.id)
+          if(detalhe?.data_lancamento){
+            f.data_lancamento = detalhe.data_lancamento
+            f.ano = detalhe.ano
+            await supabase.from("user_filmes").update({ data_lancamento: detalhe.data_lancamento, ano: detalhe.ano }).eq("user_id", uid).eq("filme_id", f.id)
+          }
+        }
+      }
+
       setFilmes(listaBase)
       setLoading(false)
     }
     init()
   }, [])
-
-  async function buscarFilmes(q){
-    const termo = q.trim()
-    try{
-      const r = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${TMDB_KEY}&language=pt-BR&query=${encodeURIComponent(termo)}`)
-      const j = await r.json()
-      if(j.results?.length) return j.results.slice(0,10).map(m=>({
-        id:String(m.id), titulo: m.title || m.original_title,
-        ano: m.release_date? m.release_date.slice(0,4) : "0000",
-        data_lancamento: m.release_date || "0000-01-01",
-        img: m.poster_path? TMDB_IMG+m.poster_path : "https://picsum.photos/seed/"+m.id+"/400/600"
-      }))
-    }catch{}
-    return []
-  }
 
   useEffect(function(){
     if(!busca.trim()){ setResultados([]); setMsg(""); return }
@@ -78,14 +100,19 @@ export default function FilmesPage() {
   function abrir(f){ localStorage.setItem(userId+":filme-atual", JSON.stringify(f)); window.location.href="/filme/"+f.id }
 
   const { quero, vistos } = useMemo(()=>{
-    const ordenarPorLancamento = (a,b)=> new Date(b.data_lancamento) - new Date(a.data_lancamento)
+    const ordenarPorLancamento = (a,b)=> new Date(b.data_lancamento||"1900-01-01") - new Date(a.data_lancamento||"1900-01-01")
     const ordenarPorVisto = (a,b)=> new Date(b.data_assistido || b.updated_at) - new Date(a.data_assistido || a.updated_at)
     const q = [...filmes].filter(x=>x.status==="quero_assistir").sort(ordenarPorLancamento)
     const v = [...filmes].filter(x=>x.status==="ja_assisti").sort(ordenarPorVisto)
     return { quero: q, vistos: v }
   }, [filmes])
 
-  function formataData(d){ if(!d || d==="0000-01-01") return ""; try{ return new Date(d+"T12:00:00").toLocaleDateString("pt-BR") }catch{ return d } }
+  function formataData(d){ if(!d || d.startsWith("0000")) return ""; try{ return new Date(d+"T12:00:00").toLocaleDateString("pt-BR") }catch{ return "" } }
+  function formataAno(d, ano){
+    if(d &&!d.startsWith("0000")) { try{ return new Date(d+"T12:00:00").toLocaleDateString("pt-BR") }catch{} }
+    if(ano && ano!=="0000" && ano!=="") return ano
+    return ""
+  }
   function formataDataVisto(d){ if(!d) return ""; try{ const dt=new Date(d); return dt.toLocaleDateString("pt-BR") }catch{ return "" } }
 
   function Secao({titulo, cor, qtd, subtitulo, idSecao, children}){
@@ -103,7 +130,6 @@ export default function FilmesPage() {
     const listaFlat = arr.flat().filter(Boolean)
     const visiveis = expandido? listaFlat : listaFlat.slice(0,9)
     const precisaBotao = qtd > 9
-
     return <div style={{marginTop:24}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
@@ -136,7 +162,7 @@ export default function FilmesPage() {
 .card{cursor:pointer;display:flex;flex-direction:column;width:100%}
 .poster{width:100%;height:0;padding-bottom:150%;position:relative;border-radius:12px;overflow:hidden;background:#12182F;border:1px solid rgba(255,255,255,0.08)}
 .poster img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
-.badge{position:absolute;top:6px;left:6px;background:#FFD400;color:#000;font-size:8px;font-weight:900;padding:3px 6px;border-radius:6px;z-index:2}
+.badge{position:absolute;top:6px;left:6px;background:#FFD400;color:#000;font-size:8px;font-weight:900;padding:3px 6px;border-radius:6px;z-index:2;box-shadow:0 2px 6px rgba(0,0,0,0.6)}
 .tit{font-size:11.5px;font-weight:700;margin-top:7px;line-height:1.25;height:28px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .row{display:flex;gap:12px;padding:10px;background:#12182F;border:1px solid rgba(255,255,255,0.08);border-radius:12px;cursor:pointer;align-items:center}
 .row img{width:48px;height:72px;min-width:48px;border-radius:8px;object-fit:cover;background:#000}
@@ -161,13 +187,16 @@ export default function FilmesPage() {
         </div>
 
         {busca&&<div style={{position:"absolute",top:62,left:14,right:14,maxWidth:420,margin:"0 auto",background:"#12182F",border:"1px solid rgba(255,255,255,0.12)",borderRadius:16,zIndex:50,overflow:"hidden",boxShadow:"0 20px 40px rgba(0,0,0,0.5)"}}>
-          {resultados.map(r=><div key={r.id} onClick={()=>abrir(r)} style={{display:"flex",gap:10,padding:10,borderBottom:"1px solid rgba(255,255,255,0.06)",cursor:"pointer"}}><img src={r.img} style={{width:40,height:60,borderRadius:6,objectFit:"cover"}} alt=""/><div style={{flex:1}}><div style={{fontSize:13,fontWeight:700}}>{r.titulo} ({formataData(r.data_lancamento)})</div><div style={{fontSize:10,color:"#FFD400",fontWeight:800,marginTop:4}}>VER DETALHES ›</div></div></div>)}
+          {resultados.map(r=><div key={r.id} onClick={()=>abrir(r)} style={{display:"flex",gap:10,padding:10,borderBottom:"1px solid rgba(255,255,255,0.06)",cursor:"pointer"}}><img src={r.img} style={{width:40,height:60,borderRadius:6,objectFit:"cover"}} alt=""/><div style={{flex:1}}><div style={{fontSize:13,fontWeight:700}}>{r.titulo} ({formataData(r.data_lancamento) || r.ano || ""})</div><div style={{fontSize:10,color:"#FFD400",fontWeight:800,marginTop:4}}>VER DETALHES ›</div></div></div>)}
           {msg&&<div style={{padding:12,fontSize:12,opacity:0.5}}>{msg}</div>}
         </div>}
 
         {!busca&&<div>
           <Secao titulo="Quero Assistir" cor="#8b5cf6" qtd={quero.length} subtitulo="• por lançamento" idSecao="quero">
-            {quero.map(s=><div key={s.id} onClick={()=>abrir(s)} className={view==="grade"?"card":"row"}>{view==="grade"?<><div className="poster"><img src={s.img} alt="" loading="lazy"/><div className="badge">{formataData(s.data_lancamento) || s.ano}</div></div><div className="tit">{s.titulo}</div></>:<><img src={s.img} alt="" loading="lazy"/><div style={{flex:1}}><div style={{fontSize:13,fontWeight:800}}>{s.titulo}</div><div style={{fontSize:11,opacity:0.5}}>Lançado em {formataData(s.data_lancamento)}</div></div><span style={{opacity:0.3}}>›</span></>}</div>)}
+            {quero.map(s=>{
+              const label = formataAno(s.data_lancamento, s.ano)
+              return <div key={s.id} onClick={()=>abrir(s)} className={view==="grade"?"card":"row"}>{view==="grade"?<><div className="poster"><img src={s.img} alt="" loading="lazy"/>{label && <div className="badge">{label}</div>}</div><div className="tit">{s.titulo}</div></>:<><img src={s.img} alt="" loading="lazy"/><div style={{flex:1}}><div style={{fontSize:13,fontWeight:800}}>{s.titulo}</div><div style={{fontSize:11,opacity:0.5}}>{label? `Lançado em ${label}`: "Data não encontrada"}</div></div><span style={{opacity:0.3}}>›</span></>}</div>
+            })}
           </Secao>
           <Secao titulo="Ja Assisti" cor="#22c55e" qtd={vistos.length} subtitulo="• por data que assistiu" idSecao="vistos">
             {vistos.map(s=><div key={s.id} onClick={()=>abrir(s)} className={view==="grade"?"card":"row"}>{view==="grade"?<>
