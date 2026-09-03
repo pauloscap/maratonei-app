@@ -1,12 +1,14 @@
 "use client"
 import { useEffect, useState } from "react"
 import { createClient } from "@supabase/supabase-js"
+import { useParams } from "next/navigation"
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_KEY)
 const TMDB_KEY = process.env.NEXT_PUBLIC_TMDB_KEY || "4e44d9029b1273360df0be1de39768d1"
 const TMDB_IMG = "https://image.tmdb.org/t/p/w500"
 
-export default function DetalheFilme({ params }) {
+export default function DetalheFilme() {
+  const params = useParams()
   const id = String(params.id)
   const [uid, setUid] = useState(null)
   const [filme, setFilme] = useState(null)
@@ -31,32 +33,32 @@ export default function DetalheFilme({ params }) {
       }
       if (!f) f = { id: id, titulo: "Filme " + id, img: "https://picsum.photos/seed/" + id + "/600/900" }
 
-      const stLocal = localStorage.getItem(userId + ":filme-status-" + id) || ""
       setFilme(f)
-      setStatus(stLocal)
 
       try {
-        const res = await supabase.from("user_filmes").select("status,nota,avaliacao,data_lancamento,data_assistido").eq("user_id", userId).eq("filme_id", id).single()
-        if (res.data?.status) setStatus(res.data.status)
-        if(res.data?.nota || res.data?.avaliacao) setMinhaNota(res.data.nota || res.data.avaliacao)
-        // se já tem data no banco, atualiza o objeto local
-        if(res.data?.data_lancamento){
-          f.data_lancamento = res.data.data_lancamento
-          f.ano = res.data.data_lancamento.slice(0,4)
+        const res = await supabase.from("user_filmes").select("*").eq("user_id", userId).eq("filme_id", id).single()
+        if (res.data?.status) {
+          setStatus(res.data.status)
+          f = {...f, status: res.data.status, data_lancamento: res.data.data_lancamento || f.data_lancamento}
           setFilme(f)
         }
-      } catch(e){}
+        if(res.data?.nota || res.data?.avaliacao) setMinhaNota(res.data.nota || res.data.avaliacao)
+      } catch(e){
+        const stLocal = localStorage.getItem(userId + ":filme-status-" + id) || ""
+        if(stLocal) setStatus(stLocal)
+      }
 
       try{
         const key = TMDB_KEY
         const [det, prov] = await Promise.all([
-          fetch(`https://api.themoviedb.org/3/movie/${id}?api_key=${key}&language=pt-BR`, { cache:'no-store' }).then(r=>r.json()),
-          fetch(`https://api.themoviedb.org/3/movie/${id}/watch/providers?api_key=${key}`, { cache:'no-store' }).then(r=>r.json())
+          fetch(`https://api.themoviedb.org/3/movie/${id}?api_key=${key}&language=pt-BR`).then(r=>r.json()),
+          fetch(`https://api.themoviedb.org/3/movie/${id}/watch/providers?api_key=${key}`).then(r=>r.json())
         ])
         if(det && det.title){
-          const dataLanc = det.release_date || ""
-          f = {...f, titulo: det.title, img: det.poster_path? `${TMDB_IMG}${det.poster_path}` : f.img, banner: det.backdrop_path? `${TMDB_IMG}${det.backdrop_path}` : f.img, data_lancamento: dataLanc, ano: dataLanc.slice(0,4) }
+          const dataLanc = det.release_date || f.data_lancamento || ""
+          f = {...f, titulo: det.title, img: det.poster_path? `${TMDB_IMG}${det.poster_path}` : f.img, banner: det.backdrop_path? `${TMDB_IMG}${det.backdrop_path}` : f.img, data_lancamento: dataLanc, ano: dataLanc? dataLanc.slice(0,4) : f.ano }
           setFilme(f)
+          localStorage.setItem(userId + ":filme-atual", JSON.stringify(f))
           const br = prov.results?.BR
           let providers = []
           if(br){
@@ -71,102 +73,100 @@ export default function DetalheFilme({ params }) {
             emCartaz: det.status || "",
             lancamento: det.release_date || "",
           })
-          // salva data de lançamento automaticamente se não tinha
-          if(dataLanc){
-            await supabase.from("user_filmes").update({ano: dataLanc.slice(0,4), data_lancamento: dataLanc}).eq("user_id", userId).eq("filme_id", id)
-          }
         }
       }catch(e){}
     }
     load()
   }, [id])
 
+  function salvarLocal(uidLocal, novoStatus, agora){
+    try{
+      localStorage.setItem(uidLocal + ":filme-status-" + id, novoStatus)
+      let lista = []
+      try{ lista = JSON.parse(localStorage.getItem(uidLocal + ":meus-filmes") || "[]") }catch{ lista=[] }
+      let achou = false
+      lista = lista.map(x=>{
+        if(String(x.id)===id){
+          achou=true
+          return {...x, status:novoStatus, updated_at: agora, data_assistido: novoStatus==="ja_assisti"? agora : x.data_assistido, data_lancamento: filme?.data_lancamento || x.data_lancamento, ano: filme?.ano || x.ano}
+        }
+        return x
+      })
+      if(!achou){
+        lista.unshift({
+          id: id,
+          titulo: filme?.titulo || "Filme",
+          img: filme?.img || "",
+          status: novoStatus,
+          ano: (filme?.data_lancamento||detalhes.lancamento||"").slice(0,4) || filme?.ano || "0000",
+          data_lancamento: filme?.data_lancamento || detalhes.lancamento || "0000-01-01",
+          data_assistido: novoStatus==="ja_assisti"? agora : null,
+          updated_at: agora
+        })
+      }
+      localStorage.setItem(uidLocal + ":meus-filmes", JSON.stringify(lista))
+      if(filme) localStorage.setItem(uidLocal + ":filme-atual", JSON.stringify({...filme, status: novoStatus}))
+    }catch(e){ console.log("erro local", e) }
+  }
+
   async function mudar(novoStatus) {
     if (!uid || salvando) return
     setSalvando(true)
     const agora = new Date().toISOString()
-    const dataLanc = filme?.data_lancamento || detalhes.lancamento || ""
+    const dataLanc = filme?.data_lancamento || detalhes.lancamento || "0000-01-01"
+    const ano = dataLanc.slice(0,4) || "0000"
 
-    if(novoStatus === "ja_assisti"){
-      setStatus(novoStatus)
-      try{
-        localStorage.setItem(uid + ":filme-status-" + id, novoStatus)
-        const raw = localStorage.getItem(uid + ":meus-filmes")
-        if (raw) {
-          let lista = JSON.parse(raw)
-          let achou = false
-          lista = lista.map(x=>{ if (String(x.id)===id){ achou=true; return {...x, status:novoStatus, data_assistido: agora, updated_at: agora} } return x })
-          if(!achou && filme) lista.unshift({...filme, id:id, status:novoStatus, data_assistido: agora, updated_at: agora, data_lancamento: dataLanc})
-          localStorage.setItem(uid + ":meus-filmes", JSON.stringify(lista))
-        }
-      }catch(e){}
-      try{
-        await supabase.from("user_filmes").upsert({
-          user_id: uid,
-          filme_id: id,
-          titulo: filme?.titulo || "Filme",
-          img: filme?.img || "",
-          status: novoStatus,
-          ano: dataLanc? dataLanc.slice(0,4) : filme?.ano || "0000",
-          data_lancamento: dataLanc || filme?.data_lancamento || "0000-01-01",
-          data_assistido: agora,
-          updated_at: agora
-        }, { onConflict:"user_id,filme_id" })
-      }catch(e){}
+    setStatus(novoStatus)
+    salvarLocal(uid, novoStatus, agora)
+
+    try{
+      const payload = {
+        user_id: uid,
+        filme_id: String(id),
+        titulo: filme?.titulo || "Filme",
+        img: filme?.img || "",
+        status: novoStatus,
+        ano: ano,
+        data_lancamento: dataLanc,
+        updated_at: agora,
+       ...(novoStatus==="ja_assisti"? {data_assistido: agora} : {})
+      }
+      const { error } = await supabase.from("user_filmes").upsert(payload, { onConflict:"user_id,filme_id" })
+      if(error){ console.log("SUPABASE ERRO:", error.message); alert("Erro ao salvar: "+error.message) }
+    }catch(e){ console.log("erro supabase", e) }
+
+    if(novoStatus==="ja_assisti"){
       setSalvando(false)
       setShowRating(true)
       return
     }
-
-    // quero_assistir
-    setStatus(novoStatus)
-    try {
-      localStorage.setItem(uid + ":filme-status-" + id, novoStatus)
-      const raw = localStorage.getItem(uid + ":meus-filmes")
-      if (raw) {
-        let lista = JSON.parse(raw)
-        let achou = false
-        lista = lista.map(x=>{ if (String(x.id)===id){ achou=true; return {...x, status:novoStatus, updated_at: agora} } return x })
-        if(!achou && filme) lista.unshift({...filme, id:id, status:novoStatus, updated_at: agora, data_lancamento: dataLanc})
-        localStorage.setItem(uid + ":meus-filmes", JSON.stringify(lista))
-      }
-    } catch(e){}
-    try {
-      await supabase.from("user_filmes").upsert({
-        user_id: uid,
-        filme_id: id,
-        titulo: filme?.titulo || "Filme",
-        img: filme?.img || "",
-        status: novoStatus,
-        ano: dataLanc? dataLanc.slice(0,4) : filme?.ano || "0000",
-        data_lancamento: dataLanc || filme?.data_lancamento || "0000-01-01",
-        updated_at: agora
-      }, { onConflict:"user_id,filme_id" })
-    } catch(e){}
-    setTimeout(()=>{ window.location.href = "/filmes" }, 300)
+    setTimeout(()=>{ window.location.href="/filmes" }, 400)
   }
 
   async function salvarNota(nota){
     setMinhaNota(nota)
     setShowRating(false)
     const agora = new Date().toISOString()
+    const dataLanc = filme?.data_lancamento || detalhes.lancamento || "0000-01-01"
+    const ano = dataLanc.slice(0,4) || "0000"
     localStorage.setItem(uid + ":filme-nota-" + id, String(nota))
+    salvarLocal(uid, "ja_assisti", agora)
     try{
       await supabase.from("user_filmes").upsert({
         user_id: uid,
-        filme_id: id,
+        filme_id: String(id),
         titulo: filme?.titulo || "Filme",
         img: filme?.img || "",
         status: "ja_assisti",
         nota: nota,
         avaliacao: nota,
-        data_lancamento: filme?.data_lancamento || detalhes.lancamento || "0000-01-01",
-        ano: (filme?.data_lancamento || detalhes.lancamento || "").slice(0,4) || filme?.ano || "0000",
+        ano,
+        data_lancamento: dataLanc,
         data_assistido: agora,
         updated_at: agora
       }, { onConflict:"user_id,filme_id" })
-    }catch{}
-    setTimeout(()=>{ window.location.href="/filmes" }, 400)
+    }catch(e){ console.log(e) }
+    setTimeout(()=>{ window.location.href="/filmes" }, 500)
   }
 
   async function abandonar() {
@@ -235,15 +235,7 @@ export default function DetalheFilme({ params }) {
           <button disabled={salvando} onClick={()=> mudar("ja_assisti")} style={{ height:48, borderRadius:12, fontWeight:900, fontSize:13, background: status==="ja_assisti"? "#22c55e" : "#12182F", color:"#fff", border:"1px solid #222", cursor:"pointer", opacity:salvando?0.6:1 }}>{status==="ja_assisti"? `✓ Já Assisti ${minhaNota? minhaNota+"★" : ""}`:"Já Assisti"}</button>
         </div>
 
-        <div style={{ marginTop:16, background:"#12182F", border:"1px solid #1e274f", borderRadius:16, padding:14 }}>
-          <b style={{ fontSize:13 }}>Como funciona agora</b>
-          <div style={{ fontSize:12, opacity:0.6, marginTop:6, lineHeight:1.5 }}>
-            <span style={{color:"#8b5cf6", fontWeight:800}}>Quero Assistir:</span> ordenado por lançamento (26/08/2026 antes de 08/07/2026)<br/>
-            <span style={{color:"#22c55e", fontWeight:800}}>Já Assisti:</span> ordenado por quando você assistiu (último que marcou vai pro topo)
-          </div>
-        </div>
-
-        {salvando && <div style={{ textAlign:"center", marginTop:12, fontSize:12, opacity:0.6 }}>Salvando e voltando...</div>}
+        {salvando && <div style={{ textAlign:"center", marginTop:12, fontSize:12, opacity:0.6 }}>Salvando...</div>}
       </div>
 
       {showRating && (
@@ -253,7 +245,7 @@ export default function DetalheFilme({ params }) {
             <div style={{ fontSize:12, opacity:0.6, marginBottom:14 }}>Sua nota vai para a aba Já Assisti</div>
             <div style={{ display:"flex", justifyContent:"center", gap:8, marginBottom:16 }}>
               {[1,2,3,4,5].map(n=>(
-                <button key={n} onMouseEnter={()=>setHoverNota(n)} onMouseLeave={()=>setHoverNota(0)} onClick={()=>salvarNota(n)} style={{ fontSize:36, background:"transparent", border:0, cursor:"pointer", color: (hoverNota||minhaNota)>=n? "#FFD400" : "rgba(255,255,255,0.2)", transition:"0.15s" }}>★</button>
+                <button key={n} onMouseEnter={()=>setHoverNota(n)} onMouseLeave={()=>setHoverNota(0)} onClick={()=>salvarNota(n)} style={{ fontSize:36, background:"transparent", border:0, cursor:"pointer", color: (hoverNota||minhaNota)>=n? "#FFD400" : "rgba(255,255,255,0.2)" }}>★</button>
               ))}
             </div>
             <div style={{ display:"flex", gap:8 }}>
