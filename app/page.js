@@ -59,15 +59,9 @@ export default function Home() {
         const sid = String(r.serie_id)
         if (deletadas.has(sid)) return
         mapaFinal[sid] = {
-          id: sid,
-          titulo: r.titulo,
-          ano: r.ano || "0000",
-          img: r.img,
-          q: r.q,
-          status: r.status || "",
-          origem: r.origem || "tmdb",
-          eps_vistos: r.eps_vistos || [],
-          updated_at: r.updated_at || new Date().toISOString()
+          id: sid, titulo: r.titulo, ano: r.ano || "0000", img: r.img, q: r.q,
+          status: r.status || "", origem: r.origem || "tmdb",
+          eps_vistos: r.eps_vistos || [], updated_at: r.updated_at || new Date().toISOString()
         }
       })
     }
@@ -77,15 +71,9 @@ export default function Home() {
       if (!mapaFinal[sid] && IDS_REMOVER.indexOf(sid)===-1 &&!deletadas.has(sid)) {
         mapaFinal[sid] = {...s, updated_at: s.updated_at || new Date().toISOString()}
         seriesPraSubir.push({
-          user_id: uid,
-          serie_id: sid,
-          titulo: s.titulo,
-          ano: s.ano || "0000",
-          img: s.img,
-          q: s.q || s.tituloOriginal || s.titulo,
-          status: s.status || "",
-          origem: s.origem || "tmdb",
-          updated_at: new Date().toISOString()
+          user_id: uid, serie_id: sid, titulo: s.titulo, ano: s.ano || "0000",
+          img: s.img, q: s.q || s.tituloOriginal || s.titulo, status: s.status || "",
+          origem: s.origem || "tmdb", updated_at: new Date().toISOString()
         })
       }
     })
@@ -132,10 +120,10 @@ export default function Home() {
       if (savedView) setView(savedView)
       await carregarSeries(uid)
       channel = supabase.channel('user_series_realtime_' + uid)
-   .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` }, ()=>carregarSeries(uid))
-   .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` }, ()=>carregarSeries(uid))
-   .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` }, ()=>carregarSeries(uid))
-   .subscribe()
+  .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` }, ()=>carregarSeries(uid))
+  .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` }, ()=>carregarSeries(uid))
+  .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` }, ()=>carregarSeries(uid))
+  .subscribe()
       const handleFocus = ()=>carregarSeries(uid)
       window.addEventListener('focus', handleFocus)
       window.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') handleFocus() })
@@ -159,16 +147,7 @@ export default function Home() {
   async function adicionarSerie(s){
     const nova = { id: String(s.id), titulo: s.titulo, ano: s.ano || "0000", status: "", img: s.img, q: s.tituloOriginal || s.titulo, origem: s.origem || "tmdb", progresso:0, epsVistos:0, totalEps:0, updated_at: new Date().toISOString() }
     const { error } = await supabase.from("user_series").upsert({
-      user_id: userId,
-      serie_id: nova.id,
-      titulo: nova.titulo,
-      ano: nova.ano,
-      img: nova.img,
-      q: nova.q,
-      status: "",
-      origem: nova.origem,
-      eps_vistos: [],
-      updated_at: new Date().toISOString()
+      user_id: userId, serie_id: nova.id, titulo: nova.titulo, ano: nova.ano, img: nova.img, q: nova.q, status: "", origem: nova.origem, eps_vistos: [], updated_at: new Date().toISOString()
     }, { onConflict: 'user_id,serie_id' })
     if (error) { alert("Erro: " + error.message); return }
     setBusca(""); setResultados([])
@@ -176,34 +155,22 @@ export default function Home() {
   }
 
   function abrir(s){ localStorage.setItem(userId + ":serie-atual", JSON.stringify(s)); window.location.href = "/serie/" + s.id }
-
   async function resgatarSerie(s){
     await supabase.from("user_series").update({ updated_at: new Date().toISOString() }).eq("user_id", userId).eq("serie_id", s.id)
     window.location.href = "/serie/" + s.id
   }
 
-  // REGRAS DE ORGANIZAÇÃO
   const ordenarRecente = (a,b)=> new Date(b.updated_at) - new Date(a.updated_at)
-  const LIMITE_DEIXOU = 7 * 24 * 60 * 60 * 1000 // 7 dias
+  const LIMITE_DEIXOU = 7 * 24 * 60 * 60 * 1000
 
   const assistindoRaw = useMemo(()=> series.filter(s=> s.status === "assistindo"), [series])
-
   const assistindo = useMemo(()=> {
     const agora = Date.now()
-    return assistindoRaw.filter(s=>{
-      const diff = agora - new Date(s.updated_at).getTime()
-      return diff <= LIMITE_DEIXOU
-    }).sort(ordenarRecente)
+    return assistindoRaw.filter(s=> Date.now() - new Date(s.updated_at).getTime() <= LIMITE_DEIXOU).sort(ordenarRecente)
   }, [assistindoRaw])
-
   const deixeiDeLado = useMemo(()=> {
-    const agora = Date.now()
-    return assistindoRaw.filter(s=>{
-      const diff = agora - new Date(s.updated_at).getTime()
-      return diff > LIMITE_DEIXOU
-    }).sort(ordenarRecente)
+    return assistindoRaw.filter(s=> Date.now() - new Date(s.updated_at).getTime() > LIMITE_DEIXOU).sort(ordenarRecente)
   }, [assistindoRaw])
-
   const queroAssistir = useMemo(()=> series.filter(s=> s.status === "quero_assistir").sort(ordenarRecente), [series])
   const maratonei = useMemo(()=> series.filter(s=> s.status === "maratonei").sort(ordenarRecente), [series])
 
@@ -217,7 +184,7 @@ export default function Home() {
           {s.status!== "quero_assistir" && s.status!=="" && (<div className="progress-track"><div className="progress-fill" style={{ width: s.progresso + "%", background: cor }} /></div>)}
         </div>
         <div className="titulo">{s.titulo}</div>
-        {isDeixado && <div style={{fontSize:10, color:"#f97316", fontWeight:800, marginTop:2}}>Há {Math.floor((Date.now()-new Date(s.updated_at).getTime())/(1000*60*60*24))} dias parado</div>}
+        {isDeixado && <div style={{fontSize:10, color:"#f97316", fontWeight:800, marginTop:2}}>Há {Math.floor((Date.now()-new Date(s.updated_at).getTime())/(1000*60*60*24))}d parado</div>}
       </div>
     )
   }
@@ -229,21 +196,49 @@ export default function Home() {
           <img src={s.img} style={{ width:"100%", height:"100%", objectFit:"cover" }} alt="" />
           {s.status!== "quero_assistir" && s.status!=="" && (<div style={{ position:"absolute", bottom:0, left:0, right:0, height:4, background:"rgba(255,255,255,0.25)" }}><div style={{ height:"100%", width: s.progresso + "%", background: cor }} /></div>)}
         </div>
-        <div style={{ flex:1 }}><div style={{ fontSize:13, fontWeight:800 }}>{s.titulo}</div><div style={{ fontSize:11, opacity:0.6 }}>{s.epsVistos}/{s.totalEps || "?"} • {s.progresso}% {isDeixado? `• parado há ${Math.floor((Date.now()-new Date(s.updated_at).getTime())/(1000*60*60*24))} dias` : ""}</div>{isDeixado && <div style={{fontSize:10, color:"#f97316", fontWeight:800, marginTop:2}}>Toque para resgatar e voltar para Assistindo</div>}</div>
+        <div style={{ flex:1 }}><div style={{ fontSize:13, fontWeight:800 }}>{s.titulo}</div><div style={{ fontSize:11, opacity:0.6 }}>{s.epsVistos}/{s.totalEps || "?"} • {s.progresso}% {isDeixado? `• parado há ${Math.floor((Date.now()-new Date(s.updated_at).getTime())/(1000*60*60*24))} dias` : ""}</div>{isDeixado && <div style={{fontSize:10, color:"#f97316", fontWeight:800, marginTop:2}}>Toque para resgatar</div>}</div>
         {isDeixado && <div style={{fontSize:10, background:"#f97316", color:"#fff", padding:"4px 8px", borderRadius:99, fontWeight:900}}>RESGATAR</div>}
       </div>
     )
   }
-  function Secao({titulo, cor, qtd, children, destaque}){
+
+  function Secao({titulo, cor, qtd, children, destaque, idSecao}){
+    const [expandido, setExpandido] = useState(false)
+    useEffect(()=>{
+      const saved = localStorage.getItem(userId+":sec-serie-"+idSecao)
+      if(saved==="1") setExpandido(true)
+    },[userId])
+    function toggleExpand(){
+      const novo=!expandido
+      setExpandido(novo)
+      localStorage.setItem(userId+":sec-serie-"+idSecao, novo?"1":"0")
+    }
+    const arr = Array.isArray(children)? children : [children].filter(Boolean)
+    const listaFlat = arr.flat().filter(Boolean)
+    const visiveis = expandido? listaFlat : listaFlat.slice(0,6)
+    const precisaBotao = qtd > 6
+
     return (
       <div style={{ marginTop:24 }}>
-        <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12 }}>
-          <div style={{ width:3, height:14, background:cor, borderRadius:99 }} />
-          <b style={{ fontSize:14, fontFamily:"Sora,sans-serif" }}>{titulo}</b>
-          <span style={{ fontSize:11, opacity:0.4 }}>- {qtd}</span>
-          {destaque && qtd>0 && <span style={{fontSize:9, background:"#f9731622", color:"#f97316", padding:"2px 6px", borderRadius:99, fontWeight:800, border:"1px solid #f9731633"}}>PRECISA DE ATENÇÃO</span>}
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <div style={{ width:3, height:14, background:cor, borderRadius:99 }} />
+            <b style={{ fontSize:14, fontFamily:"Sora,sans-serif" }}>{titulo}</b>
+            <span style={{ fontSize:11, opacity:0.4 }}>- {qtd}</span>
+            {destaque && qtd>0 && <span style={{fontSize:9, background:"#f9731622", color:"#f97316", padding:"2px 6px", borderRadius:99, fontWeight:800, border:"1px solid #f9731633"}}>PRECISA DE ATENÇÃO</span>}
+          </div>
+          {precisaBotao && (
+            <button onClick={toggleExpand} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.14)",color:"#fff",borderRadius:999,padding:"5px 12px",fontSize:11,fontWeight:800,cursor:"pointer"}}>
+              {expandido? "Recolher" : `Ver todos (${qtd}) ›`}
+            </button>
+          )}
         </div>
-        {qtd===0? (<div style={{background:"#12182F", border:"1px dashed rgba(255,255,255,0.12)", borderRadius:12, padding:"18px 14px", textAlign:"center"}}><div style={{fontSize:11, opacity:0.35}}>{titulo==="Deixei de lado"? "Nenhuma série abandonada 🎉" : `Nenhuma série em ${titulo.toLowerCase()}`}</div><div style={{fontSize:11, color:"#FFD400", marginTop:4, fontWeight:700}}>{titulo==="Deixei de lado"? "Continue assistindo para não parar aqui" : "Busque acima para adicionar"}</div></div>) : view==="grade"? <div className="grid-responsive">{children}</div> : <div style={{ display:"grid", gap:8 }}>{children}</div>}
+        {qtd===0? (
+          <div style={{background:"#12182F", border:"1px dashed rgba(255,255,255,0.12)", borderRadius:12, padding:"18px 14px", textAlign:"center"}}>
+            <div style={{fontSize:11, opacity:0.35}}>{titulo==="Deixei de lado"? "Nenhuma série abandonada 🎉" : `Nenhuma série em ${titulo.toLowerCase()}`}</div>
+            <div style={{fontSize:11, color:"#FFD400", marginTop:4, fontWeight:700}}>{titulo==="Deixei de lado"? "Continue assistindo para não parar aqui" : "Busque acima para adicionar"}</div>
+          </div>
+        ) : view==="grade"? <div className="grid-responsive">{visiveis}</div> : <div style={{ display:"grid", gap:8 }}>{expandido? listaFlat : listaFlat.slice(0,6)}</div>}
       </div>
     )
   }
@@ -261,10 +256,10 @@ export default function Home() {
         <div style={{ background:"#121A3A", border:"1px solid rgba(255,255,255,0.08)", borderRadius:999, display:"flex", alignItems:"center", padding:"0 14px", height:42, maxWidth:420, margin:"0 auto" }}><span style={{ opacity:0.4, marginRight:8 }}>⌕</span><input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar série para adicionar..." style={{ flex:1, background:"transparent", border:0, outline:"none", color:"#fff", fontSize:13 }} />{busca && <span onClick={()=>setBusca("")} style={{ cursor:"pointer", opacity:0.5 }}>✕</span>}</div>
         {busca && <div style={{ position:"absolute", top:62, left:14, right:14, maxWidth:420, margin:"0 auto", background:"#12182F", border:"1px solid rgba(255,255,255,0.12)", borderRadius:16, zIndex:50, overflow:"hidden" }}>{resultados.map(r=> (<div key={r.id} onClick={()=>adicionarSerie(r)} style={{ display:"flex", gap:10, padding:10, borderBottom:"1px solid rgba(255,255,255,0.05)", cursor:"pointer" }}><img src={r.img} style={{ width:44, height:66, borderRadius:8, objectFit:"cover" }} alt="" /><div style={{ flex:1 }}><div style={{ fontSize:13, fontWeight:800 }}>{r.titulo}</div><div style={{ fontSize:10, opacity:0.4 }}>{r.ano}</div><div style={{ fontSize:10, color:"#FFD400", fontWeight:800, marginTop:4 }}>+ ADICIONAR</div></div></div>))}</div>}
         {!busca && <>
-          <Secao titulo="Assistindo" cor="#FFD400" qtd={assistindo.length}>{assistindo.map(s=> view==="grade"? <CardGrade key={s.id} s={s}/> : <CardLista key={s.id} s={s}/>)}</Secao>
-          <Secao titulo="Quero Assistir" cor="#8b5cf6" qtd={queroAssistir.length}>{queroAssistir.map(s=> view==="grade"? <CardGrade key={s.id} s={s}/> : <CardLista key={s.id} s={s}/>)}</Secao>
-          <Secao titulo="Deixei de lado" cor="#f97316" qtd={deixeiDeLado.length} destaque={true}>{deixeiDeLado.map(s=> view==="grade"? <CardGrade key={s.id} s={s} isDeixado={true}/> : <CardLista key={s.id} s={s} isDeixado={true}/>)}</Secao>
-          <Secao titulo="Maratonei" cor="#22c55e" qtd={maratonei.length}>{maratonei.map(s=> view==="grade"? <CardGrade key={s.id} s={s}/> : <CardLista key={s.id} s={s}/>)}</Secao>
+          <Secao titulo="Assistindo" cor="#FFD400" qtd={assistindo.length} idSecao="assistindo">{assistindo.map(s=> view==="grade"? <CardGrade key={s.id} s={s}/> : <CardLista key={s.id} s={s}/>)}</Secao>
+          <Secao titulo="Quero Assistir" cor="#8b5cf6" qtd={queroAssistir.length} idSecao="quero">{queroAssistir.map(s=> view==="grade"? <CardGrade key={s.id} s={s}/> : <CardLista key={s.id} s={s}/>)}</Secao>
+          <Secao titulo="Deixei de lado" cor="#f97316" qtd={deixeiDeLado.length} destaque={true} idSecao="deixei">{deixeiDeLado.map(s=> view==="grade"? <CardGrade key={s.id} s={s} isDeixado={true}/> : <CardLista key={s.id} s={s} isDeixado={true}/>)}</Secao>
+          <Secao titulo="Maratonei" cor="#22c55e" qtd={maratonei.length} idSecao="maratonei">{maratonei.map(s=> view==="grade"? <CardGrade key={s.id} s={s}/> : <CardLista key={s.id} s={s}/>)}</Secao>
         </>}
       </div><BottomNav />
     </div>
