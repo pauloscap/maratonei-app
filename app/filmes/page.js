@@ -137,6 +137,17 @@ export default function FilmesPage() {
 .tit{font-size:11.5px;font-weight:700;margin-top:7px;line-height:1.25;height:28px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .row{display:flex;gap:12px;padding:10px;background:#12182F;border:1px solid rgba(255,255,255,0.08);border-radius:12px;cursor:pointer;align-items:center}
 .row img{width:48px;height:72px;min-width:48px;border-radius:8px;object-fit:cover;background:#000}
+
+/* AJUSTE SÓ WEB - igual séries */
+@media (min-width: 768px){
+ .grid{grid-template-columns:repeat(5,1fr);gap:16px}
+}
+@media (min-width: 1100px){
+ .grid{grid-template-columns:repeat(6,1fr);gap:18px}
+}
+@media (min-width: 1400px){
+ .grid{grid-template-columns:repeat(7,1fr);gap:20px}
+}
       `}</style>
 
       <header style={{height:62,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 14px",borderBottom:"1px solid rgba(255,255,255,0.06)",position:"sticky",top:0,background:"rgba(10,15,42,0.92)",backdropFilter:"blur(12px)",zIndex:20}}>
