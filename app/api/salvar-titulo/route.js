@@ -3,50 +3,44 @@ import { createClient } from '@supabase/supabase-js'
 export async function POST(request) {
   try {
     const item = await request.json()
-    const tipo = item.media_type === 'movie'? 'movie' : 'tv'
-    const tmdbKey = process.env.TMDB_API_KEY
-    const url = `https://api.themoviedb.org/3/${tipo}/${item.id}?api_key=${tmdbKey}&language=pt-BR`
-
-    const detalhesRes = await fetch(url)
-    if (!detalhesRes.ok) {
-      const erro = await detalhesRes.text()
-      return Response.json({ error: 'TMDB: ' + erro }, { status: 500 })
-    }
-    const d = await detalhesRes.json()
-
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY
     )
 
-    const generosArray = d.genres && d.genres.length > 0? d.genres.map(g => g.name) : ['Sem categoria']
+    // LOG do que chegou
+    console.log('ITEM RECEBIDO:', item)
+
+    const tipo = item.media_type === 'movie' ? 'movie' : 'tv'
+    const tmdbKey = process.env.TMDB_API_KEY
+    const d = await fetch(`https://api.themoviedb.org/3/${tipo}/${item.id}?api_key=${tmdbKey}&language=pt-BR`).then(r=>r.json())
 
     await supabase.from('series').upsert({
       id_tmdb: d.id,
-      titulo: d.name || d.title || 'Sem título',
-      sinopse: d.overview,
+      titulo: d.name || d.title,
+      generos: d.genres?.map(g=>g.name) || ['Sem categoria'],
       poster: d.poster_path,
-      banner: d.backdrop_path,
-      nota: d.vote_average,
-      ano: (d.first_air_date || d.release_date || '').split('-')[0],
-      generos: generosArray,
       tipo: tipo
     }, { onConflict: 'id_tmdb' })
 
-    const { data: serieSalva } = await supabase.from('series').select('id').eq('id_tmdb', d.id).single()
+    const { data: serie } = await supabase.from('series').select('id').eq('id_tmdb', d.id).single()
 
-    // pega user_id que vem do front - se não vier, avisa
-    const user_id = item.user_id
+    // SE não veio user_id, usa o seu pra TESTE
+    let user_id = item.user_id
     if (!user_id) {
-      return Response.json({ error: 'Falta user_id no body' }, { status: 400 })
+      const { data: perfil } = await supabase.from('profiles').select('id').ilike('nome','%Paulo%').limit(1).single()
+      user_id = perfil?.id
+      console.log('Usando fallback user_id:', user_id)
     }
 
-    await supabase.from('watchlist').upsert({
+    const { error } = await supabase.from('watchlist').upsert({
       user_id: user_id,
-      serie_id: serieSalva.id
+      serie_id: serie.id
     }, { onConflict: 'user_id,serie_id' })
 
-    return Response.json({ sucesso: true })
+    if (error) return Response.json({ error: 'WATCHLIST ERRO: ' + error.message, user_id_usado: user_id }, { status: 500 })
+
+    return Response.json({ sucesso: true, user_id_usado: user_id, serie_id: serie.id })
 
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 })
