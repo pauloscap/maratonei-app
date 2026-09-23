@@ -7,11 +7,16 @@ export async function GET() {
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
     
     if (!url || !serviceKey) {
-      return NextResponse.json({ error: "Faltando env vars", hasUrl: !!url, hasServiceKey: !!serviceKey }, { status: 500 })
+      return NextResponse.json({ error: "Faltando env vars" }, { status: 500 })
     }
 
     const supabaseAdmin = createClient(url, serviceKey)
-    const { data, count, error } = await supabaseAdmin.from("profiles").select("*", { count: "exact" }).order("created_at", { ascending: false }).limit(100)
+    
+    // sem order by created_at porque sua tabela não tem essa coluna
+    const { data, count, error } = await supabaseAdmin
+      .from("profiles")
+      .select("*", { count: "exact" })
+      .limit(100)
     
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ users: data, total: count })
