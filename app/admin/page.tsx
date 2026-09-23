@@ -3,10 +3,11 @@ import { useEffect, useState } from "react"
 
 type Profile = {
   id: string
-  email?: string
-  full_name?: string
-  avatar_url?: string
-  created_at: string
+  nome: string | null
+  username: string | null
+  avatar_url: string | null
+  bio: string | null
+  criado_em: string
 }
 
 export default function AdminPage() {
@@ -32,6 +33,7 @@ export default function AdminPage() {
     try {
       const res = await fetch("/api/admin/users")
       const json = await res.json()
+      if(json.error) alert("Erro API: " + json.error)
       setUsers(json.users || [])
       setTotal(json.total || 0)
     } catch (e) {
@@ -41,13 +43,13 @@ export default function AdminPage() {
   }
 
   const today = users.filter(u => {
-    const d = new Date(u.created_at)
+    const d = new Date(u.criado_em)
     const now = new Date()
     return d.toDateString() === now.toDateString()
   }).length
 
   const week = users.filter(u => {
-    const d = new Date(u.created_at)
+    const d = new Date(u.criado_em)
     const now = new Date()
     const diff = (now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24)
     return diff <= 7
@@ -56,7 +58,7 @@ export default function AdminPage() {
   if (!auth) {
     return (
       <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center p-4">
-        <div className="bg-white/[0.04] border border-white/10 rounded- p-8 w-full max-w-sm">
+        <div className="bg-white/[0.04] border border-white/10 rounded-2xl p-8 w-full max-w-sm">
           <div className="text-xl font-bold text-white mb-2">🍿 maratonei admin</div>
           <div className="text-white/40 text-sm mb-6">Digite a senha pra entrar</div>
           <input
@@ -102,24 +104,28 @@ export default function AdminPage() {
           <Stat label="Total Usuários" value={total} accent />
           <Stat label="Novos hoje" value={today} />
           <Stat label="Novos essa semana" value={week} />
-          <Stat label="Último cadastro" value={users[0]? new Date(users[0].created_at).toLocaleDateString('pt-BR') : "—"} />
+          <Stat label="Último cadastro" value={users[0]? new Date(users[0].criado_em).toLocaleDateString('pt-BR') : "—"} />
         </div>
 
-        <div className="bg-white/[0.03] border border-white/[0.06] rounded- p-6">
+        <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-6">
           <h2 className="font-semibold mb-4">Últimos usuários ({users.length}) {loading && "• carregando..."}</h2>
           <div className="space-y-2 max-h- overflow-auto">
             {users.map(u => (
               <div key={u.id} className="flex items-center justify-between bg-white/[0.03] p-3 rounded-xl">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-[#FFD400] text-black flex items-center justify-center font-bold text-xs">
-                    {(u.full_name || u.email || "?")[0].toUpperCase()}
-                  </div>
+                  {u.avatar_url? (
+                    <img src={u.avatar_url} className="w-8 h-8 rounded-full" alt="" />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-[#FFD400] text-black flex items-center justify-center font-bold text-xs">
+                      {(u.nome || "?")[0].toUpperCase()}
+                    </div>
+                  )}
                   <div>
-                    <div className="text-sm font-medium">{u.full_name || "Sem nome"}</div>
-                    <div className="text-xs text-white/40">{u.email || u.id.slice(0,8)}</div>
+                    <div className="text-sm font-medium">{u.nome || "Sem nome"}</div>
+                    <div className="text-xs text-white/40">{u.id.slice(0,8)} • {u.bio || ""}</div>
                   </div>
                 </div>
-                <div className="text-xs text-white/30">{new Date(u.created_at).toLocaleDateString('pt-BR')}</div>
+                <div className="text-xs text-white/30">{new Date(u.criado_em).toLocaleDateString('pt-BR')}</div>
               </div>
             ))}
           </div>
@@ -131,9 +137,9 @@ export default function AdminPage() {
 
 function Stat({ label, value, accent }: { label: string; value: string | number; accent?: boolean }) {
   return (
-    <div className="rounded- bg-white/[0.03] border border-white/[0.06] p-5">
+    <div className="rounded-2xl bg-white/[0.03] border border-white/[0.06] p-5">
       <div className="text- uppercase tracking-widest text-white/40 mb-3">{label}</div>
-      <div className={`text- font-semibold tracking-tight leading-none ${accent? "text-[#FFD400]" : ""}`}>{value}</div>
+      <div className={`text-2xl font-semibold tracking-tight leading-none ${accent? "text-[#FFD400]" : ""}`}>{value}</div>
     </div>
   )
 }
