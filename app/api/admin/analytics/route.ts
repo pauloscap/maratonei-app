@@ -1,46 +1,55 @@
 import { createClient } from '@supabase/supabase-js'
-export const dynamic = 'force-dynamic'
 
 export async function GET() {
-  try {
-    const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
-    const key = process.env.SUPABASE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY
+  )
 
-    if(!url ||!key) {
-      return Response.json({ error: `Falta env var. URL existe? ${!!url} KEY existe? ${!!key}` }, { status: 500 })
+  const { data: series } = await supabase.from('series').select('id_tmdb, titulo, generos')
+
+  // Conta gêneros funcionando com text[], jsonb ou string
+  const generoCount = {}
+  series?.forEach(s => {
+    let generos = s.generos
+    // se vier como string '["Ação","Drama"]' tenta parsear
+    if (typeof generos === 'string') {
+      try { generos = JSON.parse(generos) } catch { generos = [generos] }
     }
+    if (Array.isArray(generos)) {
+      generos.forEach(g => {
+        if (!g) return
+        const nome = g.toString().replace(/[{}"]/g, '').trim()
+        if (nome) generoCount[nome] = (generoCount[nome] || 0) + 1
+      })
+    }
+  })
 
-    const supabase = createClient(url, key)
+  const generosMaisVistos = Object.entries(generoCount)
+   .map(([genero, total]) => ({ genero, total }))
+   .sort((a,b) => b.total - a.total)
 
-    const { data: profiles } = await supabase.from('profiles').select('id, criado_em')
-    const { data: watchlist } = await supabase.from('watchlist').select('serie_id')
-    const { data: series } = await supabase.from('series').select('id, id_tmdb, titulo, generos').limit(500)
+  // Top assistidos via watchlist (serie_id é TEXT, id_tmdb é INT)
+  const { data: watchlist } = await supabase.from('watchlist').select('serie_id')
 
-    const map = new Map()
-    ;(series||[]).forEach((s:any)=>{
-      map.set(String(s.id), s)
-      map.set(String(s.id_tmdb), s)
+  const topMap = {}
+  watchlist?.forEach(w => {
+    const id = String(w.serie_id)
+    topMap[id] = (topMap[id] || 0) + 1
+  })
+
+  const topSeries = Object.entries(topMap)
+   .map(([id, total]) => {
+      const serie = series?.find(s => String(s.id_tmdb) === id)
+      return { titulo: serie?.titulo || `ID ${id}`, total }
     })
+   .sort((a,b) => b.total - a.total)
+   .slice(0, 5)
 
-    const counts: any = {}
-    const generosCount: any = {}
-
-    ;(watchlist||[]).forEach((w:any)=>{
-      const s = map.get(String(w.serie_id))
-      const nome = s?.titulo || `ID ${w.serie_id}`
-      counts[nome] = (counts[nome]||0)+1
-      const gens = s?.generos || []
-      gens.forEach((g:string)=>{ generosCount[g] = (generosCount[g]||0)+1 })
-    })
-
-    return Response.json({
-      totalUsuarios: profiles?.length||0,
-      totalWatchlist: watchlist?.length||0,
-      mediaPorUsuario: watchlist?.length? (watchlist.length/(profiles?.length||1)).toFixed(1):0,
-      topSeries: Object.entries(counts).map(([titulo,count])=>({titulo,count})).sort((a:any,b:any)=>b.count-a.count).slice(0,10),
-      topGeneros: Object.entries(generosCount).map(([genero,count])=>({genero,count})).sort((a:any,b:any)=>b.count-a.count),
-    })
-  } catch(e:any){
-    return Response.json({ error: "Erro analytics: "+ e.message }, { status: 500 })
-  }
+  return Response.json({
+    generosMaisVistos,
+    topSeries,
+    totalSeries: series?.length || 0,
+    totalWatchlist: watchlist?.length || 0
+  })
 }
