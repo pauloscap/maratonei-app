@@ -1,74 +1,78 @@
 "use client"
 import { useEffect, useState } from "react"
 
-type Profile = {
-  id: string
-  nome: string | null
-  avatar_url: string | null
-  criado_em: string
-}
-
 export default function AdminPage() {
   const [auth, setAuth] = useState(false)
   const [pass, setPass] = useState("")
-  const [users, setUsers] = useState<Profile[]>([])
+  const [users, setUsers] = useState<any[]>([])
   const [total, setTotal] = useState(0)
 
   useEffect(() => {
     if (localStorage.getItem("maratonei_admin") === "ok") setAuth(true)
   }, [])
-  useEffect(() => { if(auth) load() }, [auth])
+  useEffect(() => { if (auth) load() }, [auth])
 
-  async function load(){
-    const r = await fetch("/api/admin/users?t="+Date.now(), { cache:"no-store" })
+  async function load() {
+    const r = await fetch("/api/admin/users?t=" + Date.now(), { cache: "no-store" })
     const j = await r.json()
-    setUsers(j.users||[])
-    setTotal(j.total||0)
+    setUsers(j.users || [])
+    setTotal(j.total || 0)
   }
 
-  function login(){
-    if(pass==="maratonei2025!"){ localStorage.setItem("maratonei_admin","ok"); setAuth(true) }
-    else alert("Senha errada")
-  }
-
-  if(!auth){
+  if (!auth) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center p-4">
-        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8 w-full max-w-sm">
-          <div className="text-xl font-bold text-white mb-2">🍿 maratonei admin</div>
-          <input type="password" value={pass} onChange={e=>setPass(e.target.value)} placeholder="Senha" className="w-full bg-black border border-zinc-700 rounded-xl px-4 py-3 text-white mt-4 mb-4" />
-          <button onClick={login} className="w-full bg-yellow-400 text-black font-bold py-3 rounded-xl">Entrar</button>
+      <div style={{ minHeight: "100vh", background: "#0A0A0A", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ background: "#141414", border: "1px solid #222", borderRadius: 16, padding: 32, width: 360 }}>
+          <div style={{ color: "white", fontWeight: 700, fontSize: 20, marginBottom: 8 }}>🍿 maratonei admin</div>
+          <input type="password" value={pass} onChange={e => setPass(e.target.value)} placeholder="Senha" style={{ width: "100%", background: "#000", border: "1px solid #333", borderRadius: 12, padding: "12px 16px", color: "white", marginBottom: 16 }} />
+          <button onClick={() => { if (pass === "maratonei2025!") { localStorage.setItem("maratonei_admin", "ok"); setAuth(true) } else alert("Senha errada") }} style={{ width: "100%", background: "#FFD400", color: "black", fontWeight: 700, padding: 12, borderRadius: 12, border: "none", cursor: "pointer" }}>Entrar</button>
         </div>
       </div>
     )
   }
 
-  const today = users.filter(u=> new Date(u.criado_em).toDateString()===new Date().toDateString()).length
-  const week = users.filter(u=> (Date.now()-new Date(u.criado_em).getTime())/(1000*60*60*24)<=7).length
+  const today = users.filter(u => new Date(u.criado_em).toDateString() === new Date().toDateString()).length
+  const week = users.filter(u => (Date.now() - new Date(u.criado_em).getTime()) / (1000 * 60 * 60 * 24) <= 7).length
 
   return (
-    <div className="min-h-screen bg-black text-white p-6">
-      <div className="max-w-5xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">🍿 maratonei admin</h1>
-          <button onClick={load} className="bg-zinc-800 px-4 py-2 rounded-xl text-sm">↻ Atualizar</button>
+    <div style={{ minHeight: "100vh", background: "#0A0A0A", color: "white", padding: 24, fontFamily: "Inter, sans-serif" }}>
+      <div style={{ maxWidth: 1000, margin: "0 auto" }}>
+
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 32 }}>
+          <h1 style={{ fontSize: 28, fontWeight: 800 }}>🍿 maratonei admin - {total} usuários</h1>
+          <button onClick={load} style={{ background: "#1A1A1A", border: "1px solid #2A2A2A", color: "white", padding: "8px 16px", borderRadius: 10, cursor: "pointer" }}>↻ Atualizar</button>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5"><div className="text-xs text-zinc-500 uppercase mb-2">Total</div><div className="text-2xl font-bold text-yellow-400">{total}</div></div>
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5"><div className="text-xs text-zinc-500 uppercase mb-2">Hoje</div><div className="text-2xl font-bold">{today}</div></div>
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5"><div className="text-xs text-zinc-500 uppercase mb-2">Essa semana</div><div className="text-2xl font-bold">{week}</div></div>
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5"><div className="text-xs text-zinc-500 uppercase mb-2">Último</div><div className="text-lg font-bold">{users[0]? new Date(users[0].criado_em).toLocaleDateString('pt-BR'):"—"}</div></div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16, marginBottom: 32 }}>
+          <div style={{ background: "#141414", border: "1px solid #222", borderRadius: 16, padding: 20 }}>
+            <div style={{ fontSize: 10, letterSpacing: 1.5, color: "#666", textTransform: "uppercase", marginBottom: 12 }}>Total Usuários</div>
+            <div style={{ fontSize: 28, fontWeight: 800, color: "#FFD400" }}>{total}</div>
+          </div>
+          <div style={{ background: "#141414", border: "1px solid #222", borderRadius: 16, padding: 20 }}>
+            <div style={{ fontSize: 10, letterSpacing: 1.5, color: "#666", textTransform: "uppercase", marginBottom: 12 }}>Novos hoje</div>
+            <div style={{ fontSize: 28, fontWeight: 800 }}>{today}</div>
+          </div>
+          <div style={{ background: "#141414", border: "1px solid #222", borderRadius: 16, padding: 20 }}>
+            <div style={{ fontSize: 10, letterSpacing: 1.5, color: "#666", textTransform: "uppercase", marginBottom: 12 }}>Novos essa semana</div>
+            <div style={{ fontSize: 28, fontWeight: 800 }}>{week}</div>
+          </div>
+          <div style={{ background: "#141414", border: "1px solid #222", borderRadius: 16, padding: 20 }}>
+            <div style={{ fontSize: 10, letterSpacing: 1.5, color: "#666", textTransform: "uppercase", marginBottom: 12 }}>Último cadastro</div>
+            <div style={{ fontSize: 16, fontWeight: 700 }}>{users[0]? new Date(users[0].criado_em).toLocaleDateString('pt-BR') : "—"}</div>
+          </div>
         </div>
 
-        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
-          <div className="font-semibold mb-4">Últimos usuários ({users.length})</div>
-          <div className="space-y-2">
-            {users.map(u=>(
-              <div key={u.id} className="flex items-center gap-3 bg-black border border-zinc-800 p-3 rounded-xl">
-                {u.avatar_url? <img src={u.avatar_url} className="w-9 h-9 rounded-full" alt="" /> : <div className="w-9 h-9 rounded-full bg-yellow-400 text-black font-bold flex items-center justify-center text-xs">{(u.nome||"?")[0].toUpperCase()}</div>}
-                <div className="flex-1"><div className="text-sm font-medium">{u.nome}</div><div className="text-xs text-zinc-500">{u.id.slice(0,8)}</div></div>
-                <div className="text-xs text-zinc-500">{new Date(u.criado_em).toLocaleDateString('pt-BR')}</div>
+        <div style={{ background: "#141414", border: "1px solid #222", borderRadius: 20, padding: 24 }}>
+          <div style={{ fontWeight: 600, marginBottom: 16, fontSize: 16 }}>Últimos usuários ({users.length})</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {users.map(u => (
+              <div key={u.id} style={{ display: "flex", alignItems: "center", gap: 12, background: "#0F0F0F", border: "1px solid #1E1E1E", borderRadius: 12, padding: 12 }}>
+                {u.avatar_url? <img src={u.avatar_url} style={{ width: 36, height: 36, borderRadius: 999, objectFit: "cover" }} alt="" /> : <div style={{ width: 36, height: 36, borderRadius: 999, background: "#FFD400", color: "black", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800 }}>{(u.nome || "?")[0].toUpperCase()}</div>}
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600 }}>{u.nome}</div>
+                  <div style={{ fontSize: 11, color: "#666" }}>{u.id.slice(0, 8)} • {new Date(u.criado_em).toLocaleDateString('pt-BR')}</div>
+                </div>
+                <div style={{ fontSize: 11, color: "#555" }}>{new Date(u.criado_em).toLocaleDateString('pt-BR')}</div>
               </div>
             ))}
           </div>
