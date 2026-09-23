@@ -2,22 +2,20 @@ import { createClient } from '@supabase/supabase-js'
 
 export async function GET() {
   const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY
+    process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY!
   )
 
   const { data: series } = await supabase.from('series').select('id_tmdb, titulo, generos')
 
-  // Conta gêneros funcionando com text[], jsonb ou string
-  const generoCount = {}
-  series?.forEach(s => {
+  const generoCount: Record<string, number> = {}
+  series?.forEach((s: any) => {
     let generos = s.generos
-    // se vier como string '["Ação","Drama"]' tenta parsear
     if (typeof generos === 'string') {
       try { generos = JSON.parse(generos) } catch { generos = [generos] }
     }
     if (Array.isArray(generos)) {
-      generos.forEach(g => {
+      generos.forEach((g: any) => {
         if (!g) return
         const nome = g.toString().replace(/[{}"]/g, '').trim()
         if (nome) generoCount[nome] = (generoCount[nome] || 0) + 1
@@ -26,25 +24,25 @@ export async function GET() {
   })
 
   const generosMaisVistos = Object.entries(generoCount)
-   .map(([genero, total]) => ({ genero, total }))
-   .sort((a,b) => b.total - a.total)
+  .map(([genero, total]) => ({ genero, total: total as number }))
+  .sort((a, b) => (a.total as number) - (b.total as number))
+  .reverse()
 
-  // Top assistidos via watchlist (serie_id é TEXT, id_tmdb é INT)
   const { data: watchlist } = await supabase.from('watchlist').select('serie_id')
 
-  const topMap = {}
-  watchlist?.forEach(w => {
+  const topMap: Record<string, number> = {}
+  watchlist?.forEach((w: any) => {
     const id = String(w.serie_id)
     topMap[id] = (topMap[id] || 0) + 1
   })
 
   const topSeries = Object.entries(topMap)
-   .map(([id, total]) => {
-      const serie = series?.find(s => String(s.id_tmdb) === id)
-      return { titulo: serie?.titulo || `ID ${id}`, total }
+  .map(([id, total]) => {
+      const serie = series?.find((s: any) => String(s.id_tmdb) === id)
+      return { titulo: serie?.titulo || `ID ${id}`, total: total as number }
     })
-   .sort((a,b) => b.total - a.total)
-   .slice(0, 5)
+  .sort((a, b) => (b.total as number) - (a.total as number))
+  .slice(0, 5)
 
   return Response.json({
     generosMaisVistos,
