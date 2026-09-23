@@ -10,21 +10,27 @@ export async function POST(request) {
     const detalhesRes = await fetch(url)
     if (!detalhesRes.ok) {
       const erroTMDB = await detalhesRes.text()
-      return Response.json({ error: `TMDB recusou. Status: ${detalhesRes.status}. ${erroTMDB}` }, { status: 500 })
+      return Response.json({ error: `TMDB recusou: ${detalhesRes.status} ${erroTMDB}` }, { status: 500 })
     }
 
     const d = await detalhesRes.json()
-    const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY)
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY
+    )
+
+    // Seu generos é text[] -> precisa ser array JS puro
+    const generosArray = d.genres?.map(g => g.name) || []
 
     const { error } = await supabase.from('series').upsert({
-      id_tmdb: d.id,
+      id_tmdb: d.id, // int - seu id_tmdb é int
       titulo: d.name || d.title || "Sem título",
       sinopse: d.overview,
       poster: d.poster_path,
       banner: d.backdrop_path,
       nota: d.vote_average,
       ano: (d.first_air_date || d.release_date || "")?.split('-')[0],
-      generos: d.genres?.map(g => g.name) || [],
+      generos: generosArray, // <- AGORA vai como text[] certo
       temporadas: d.number_of_seasons || 1,
       episodios: d.number_of_episodes || 1,
       status: d.status,
@@ -32,7 +38,8 @@ export async function POST(request) {
     }, { onConflict: 'id_tmdb' })
 
     if (error) return Response.json({ error: 'Erro Supabase: ' + error.message }, { status: 500 })
-    return Response.json({ sucesso: true, titulo: d.name || d.title, generos: d.genres?.map(g=>g.name) })
+
+    return Response.json({ sucesso: true, titulo: d.name || d.title, generos: generosArray })
 
   } catch (e) {
     return Response.json({ error: 'Erro interno: ' + e.message }, { status: 500 })
