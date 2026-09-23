@@ -1,145 +1,135 @@
 "use client"
-
 import { useEffect, useState } from "react"
-import { createClient } from "@supabase/supabase-js"
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_KEY!
-)
 
 type Profile = {
   id: string
-  email: string
-  avatar_url: string | null
-  full_name: string | null
+  email?: string
+  full_name?: string
+  avatar_url?: string
   created_at: string
 }
 
 export default function AdminPage() {
-  const [total, setTotal] = useState<number | null>(null)
-  const [today, setToday] = useState(0)
-  const [week, setWeek] = useState(0)
-  const [recent, setRecent] = useState<Profile[]>([])
-  const [growth, setGrowth] = useState<{ date: string; count: number }[]>([])
-  const [loading, setLoading] = useState(true)
+  const [auth, setAuth] = useState(false)
+  const [pass, setPass] = useState("")
+  const [users, setUsers] = useState<Profile[]>([])
+  const [total, setTotal] = useState(0)
+  const [loading, setLoading] = useState(false)
 
-  async function fetchData() {
+  const correctPass = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || "maratonei2025!"
+
+  useEffect(() => {
+    if (localStorage.getItem("maratonei_admin") === "ok") setAuth(true)
+  }, [])
+
+  useEffect(() => {
+    if (!auth) return
+    fetchUsers()
+  }, [auth])
+
+  async function fetchUsers() {
     setLoading(true)
-
-    // Total - conta direto da tabela profiles
-    const { count, error } = await supabase
-     .from("profiles")
-     .select("*", { count: 'exact', head: true })
-
-    if (!error) setTotal(count?? 0)
-
-    // Últimos 50 para calcular métricas
-    const { data: users } = await supabase
-     .from("profiles")
-     .select("*")
-     .order("created_at", { ascending: false })
-     .limit(50)
-
-    if (users) {
-      setRecent(users.slice(0, 10))
-
-      const now = new Date()
-      const todayStr = now.toISOString().split("T")[0]
-
-      const todayCount = users.filter(u =>
-        u.created_at.startsWith(todayStr)
-      ).length
-
-      const weekAgo = new Date()
-      weekAgo.setDate(weekAgo.getDate() - 7)
-      const weekCount = users.filter(u =>
-        new Date(u.created_at) >= weekAgo
-      ).length
-
-      setToday(todayCount)
-      setWeek(weekCount)
-
-      // Gráfico 30 dias
-      const map: Record<string, number> = {}
-      for (let i = 29; i >= 0; i--) {
-        const d = new Date()
-        d.setDate(d.getDate() - i)
-        const key = d.toISOString().split("T")[0]
-        map[key] = 0
-      }
-      users.forEach(u => {
-        const key = u.created_at.split("T")[0]
-        if (map[key]!== undefined) map[key]++
-      })
-      setGrowth(Object.entries(map).map(([date, count]) => ({ date, count })))
+    try {
+      const res = await fetch("/api/admin/users")
+      const json = await res.json()
+      setUsers(json.users || [])
+      setTotal(json.total || 0)
+    } catch (e) {
+      console.error(e)
     }
     setLoading(false)
   }
 
-  useEffect(() => { fetchData() }, [])
+  const today = users.filter(u => {
+    const d = new Date(u.created_at)
+    const now = new Date()
+    return d.toDateString() === now.toDateString()
+  }).length
 
-  if (loading) {
+  const week = users.filter(u => {
+    const d = new Date(u.created_at)
+    const now = new Date()
+    const diff = (now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24)
+    return diff <= 7
+  }).length
+
+  if (!auth) {
     return (
-      <div className="min-h-screen bg-[#0A0F2A] text-white flex items-center justify-center">
-        <div className="text-white/40 text-sm">Carregando...</div>
+      <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center p-4">
+        <div className="bg-white/[0.04] border border-white/10 rounded- p-8 w-full max-w-sm">
+          <div className="text-xl font-bold text-white mb-2">🍿 maratonei admin</div>
+          <div className="text-white/40 text-sm mb-6">Digite a senha pra entrar</div>
+          <input
+            type="password"
+            value={pass}
+            onChange={e => setPass(e.target.value)}
+            placeholder="Senha"
+            className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-white outline-none mb-4"
+            onKeyDown={e => e.key === 'Enter' && handleLogin()}
+          />
+          <button
+            onClick={handleLogin}
+            className="w-full bg-[#FFD400] text-black font-bold py-3 rounded-xl"
+          >
+            Entrar
+          </button>
+        </div>
       </div>
     )
   }
 
-  return (
-    <div className="min-h-screen bg-[#0A0F2A] text-white">
-      <header className="border-b border-white/[0.06] px-8 h- flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-[#3B82F6] rounded- flex items-center justify-center">🍿</div>
-          <span className="font-semibold tracking-tight">maratonei <span className="text-white/40 font-normal">admin</span></span>
-        </div>
-        <button onClick={fetchData} className="text-xs px-3 py-1.5 rounded-full bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.08] transition">↻ Atualizar</button>
-      </header>
+  function handleLogin() {
+    if (pass === correctPass) {
+      localStorage.setItem("maratonei_admin", "ok")
+      setAuth(true)
+    } else {
+      alert("Senha errada")
+    }
+  }
 
-      <main className="p-8 max-w- mx-auto">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <Stat label="Total Usuários" value={total?? "—"} accent />
+  return (
+    <div className="min-h-screen bg-[#0A0A0A] text-white p-6 md:p-10">
+      <div className="max-w-6xl mx-auto">
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-2xl font-bold">🍿 maratonei admin</h1>
+          <div className="flex gap-2">
+            <button onClick={fetchUsers} className="bg-white/10 px-4 py-2 rounded-xl text-sm">↻ Atualizar</button>
+            <button onClick={() => { localStorage.removeItem("maratonei_admin"); setAuth(false) }} className="bg-white/5 px-4 py-2 rounded-xl text-sm">Sair</button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          <Stat label="Total Usuários" value={total} accent />
           <Stat label="Novos hoje" value={today} />
           <Stat label="Novos essa semana" value={week} />
-          <Stat label="Último cadastro" value={recent[0]? new Date(recent[0].created_at).toLocaleDateString("pt-BR") : "—"} />
+          <Stat label="Último cadastro" value={users[0]? new Date(users[0].created_at).toLocaleDateString('pt-BR') : "—"} />
         </div>
 
-        <div className="rounded- bg-white/[0.03] border border-white/[0.06] p-6 mb-8">
-          <h3 className="text-sm font-medium mb-6">Crescimento · 30 dias</h3>
-          <div className="flex items-end gap- h-">
-            {growth.map((g, i) => (
-              <div key={i} className="flex-1 bg-[#FFD400] rounded- transition-all" style={{ height: `${Math.max(8, g.count * 18 + 8)}%`, opacity: 0.3 + (i / growth.length) * 0.7 }} />
-            ))}
-          </div>
-        </div>
-
-        <div className="rounded- bg-white/[0.03] border border-white/[0.06] overflow-hidden">
-          <div className="px-6 py-4 border-b border-white/[0.06] flex items-center justify-between">
-            <h3 className="text-sm font-medium">Últimos usuários</h3>
-            <span className="text- text-white/40">{recent.length} registros</span>
-          </div>
-          <div className="divide-y divide-white/[0.04]">
-            {recent.map(u => (
-              <div key={u.id} className="px-6 py-3.5 flex items-center justify-between hover:bg-white/[0.02]">
+        <div className="bg-white/[0.03] border border-white/[0.06] rounded- p-6">
+          <h2 className="font-semibold mb-4">Últimos usuários ({users.length}) {loading && "• carregando..."}</h2>
+          <div className="space-y-2 max-h- overflow-auto">
+            {users.map(u => (
+              <div key={u.id} className="flex items-center justify-between bg-white/[0.03] p-3 rounded-xl">
                 <div className="flex items-center gap-3">
-                  <img src={u.avatar_url || `https://i.pravatar.cc/100?u=${u.id}`} className="w-8 h-8 rounded-full bg-white/10" alt="" />
+                  <div className="w-8 h-8 rounded-full bg-[#FFD400] text-black flex items-center justify-center font-bold text-xs">
+                    {(u.full_name || u.email || "?")[0].toUpperCase()}
+                  </div>
                   <div>
-                    <div className="text-">{u.full_name || u.email.split("@")[0]}</div>
-                    <div className="text- text-white/40">{u.email}</div>
+                    <div className="text-sm font-medium">{u.full_name || "Sem nome"}</div>
+                    <div className="text-xs text-white/40">{u.email || u.id.slice(0,8)}</div>
                   </div>
                 </div>
-                <div className="text- text-white/30">{new Date(u.created_at).toLocaleDateString("pt-BR")}</div>
+                <div className="text-xs text-white/30">{new Date(u.created_at).toLocaleDateString('pt-BR')}</div>
               </div>
             ))}
           </div>
         </div>
-      </main>
+      </div>
     </div>
   )
 }
 
-function Stat({ label, value, accent }: { label: string; value: any; accent?: boolean }) {
+function Stat({ label, value, accent }: { label: string; value: string | number; accent?: boolean }) {
   return (
     <div className="rounded- bg-white/[0.03] border border-white/[0.06] p-5">
       <div className="text- uppercase tracking-widest text-white/40 mb-3">{label}</div>
