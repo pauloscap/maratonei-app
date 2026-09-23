@@ -20,7 +20,9 @@ export async function POST(request) {
     )
 
     // Seu generos é text[] -> precisa ser array JS puro
-    const generosArray = d.genres?.map(g => g.name) || []
+    const generosArray = (d.genres && d.genres.length > 0) 
+  ? d.genres.map(g => g.name) 
+  : ['Sem categoria']
 
     const { error } = await supabase.from('series').upsert({
       id_tmdb: d.id, // int - seu id_tmdb é int
