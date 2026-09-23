@@ -1,6 +1,8 @@
 import { createClient } from "@supabase/supabase-js"
 import { NextResponse } from "next/server"
 
+export const dynamic = 'force-dynamic'
+
 export async function GET() {
   const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -8,5 +10,8 @@ export async function GET() {
   )
   const { data, count, error } = await supabaseAdmin.from("profiles").select("*", { count: "exact" }).limit(100)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ users: data, total: count })
+  return NextResponse.json(
+    { users: data, total: count },
+    { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } }
+  )
 }
