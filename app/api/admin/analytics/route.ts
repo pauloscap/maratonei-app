@@ -6,30 +6,32 @@ export async function GET() {
     process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY!
   )
 
-  const { data: series } = await supabase.from('series').select('id_tmdb, titulo, generos')
+  const { data: series } = await supabase.from('series').select('id, id_tmdb, titulo, generos')
   const { data: watchlist } = await supabase.from('watchlist').select('serie_id')
 
-  // MAPA id_tmdb -> generos e titulo
   const serieMap: Record<string, any> = {}
-  series?.forEach((s: any) => { serieMap[String(s.id_tmdb)] = s })
+  series?.forEach((s: any) => {
+    serieMap[String(s.id)] = s
+    if (s.id_tmdb) serieMap[String(s.id_tmdb)] = s
+  })
 
   const generoCount: Record<string, number> = {}
   const topMap: Record<string, number> = {}
 
-  // AGORA CONTA BASEADO NA WATCHLIST REAL (16 usuários)
   watchlist?.forEach((w: any) => {
-    const id = String(w.serie_id)
-    topMap[id] = (topMap[id] || 0) + 1
-
-    const serie = serieMap[id]
-    let generos = serie?.generos
+    const sid = String(w.serie_id)
+    topMap[sid] = (topMap[sid] || 0) + 1
+    const serie = serieMap[sid]
+    let generos: any = serie?.generos
     if (typeof generos === 'string') {
-      try { generos = JSON.parse(generos) } catch { generos = [generos] }
+      try { generos = JSON.parse(generos) } catch {}
     }
     if (Array.isArray(generos)) {
       generos.forEach((g: any) => {
-        const nome = g?.toString().replace(/[{}"]/g, '').trim()
-        if (nome) generoCount[nome] = (generoCount[nome] || 0) + 1
+        const nome = g?.toString().replace(/[{}"\[\]]/g, '').trim()
+        if (nome && nome!== 'NULL') {
+          generoCount[nome] = (generoCount[nome] || 0) + 1
+        }
       })
     }
   })
@@ -46,10 +48,25 @@ export async function GET() {
    .sort((a, b) => (b.total as number) - (a.total as number))
    .slice(0, 5)
 
+  // Se watchlist vazia, mostra gêneros do catálogo pra não ficar vazio
+  let finalGeneros = generosMaisVistos
+  if (finalGeneros.length === 0 && series) {
+    const catCount: Record<string, number> = {}
+    series.forEach((s: any) => {
+      let g = s.generos
+      if (typeof g === 'string') try { g = JSON.parse(g) } catch {}
+      if (Array.isArray(g)) g.forEach((x: any) => {
+        const nome = x?.toString().replace(/[{}"\[\]]/g, '').trim()
+        if (nome) catCount[nome] = (catCount[nome] || 0) + 1
+      })
+    })
+    finalGeneros = Object.entries(catCount).map(([genero, total]) => ({ genero, total: total as number })).sort((a,b)=>(b.total as number)-(a.total as number))
+  }
+
   return Response.json({
-    generosMaisVistos, // <- já é consumo real dos 16 usuários
-    topSeries, // <- já é ranking real dos 16 usuários
+    generosMaisVistos: finalGeneros,
+    topSeries: topSeries.length? topSeries : series?.slice(0,5).map((s:any)=>({ titulo: s.titulo, total: 1 })) || [],
     totalSeries: series?.length || 0,
-    totalWatchlist: watchlist?.length || 0 // <- tem que dar 16+ já
+    totalWatchlist: watchlist?.length || 0
   })
 }
