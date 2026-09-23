@@ -6,10 +6,9 @@ export async function GET(){
   const key = process.env.SUPABASE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   const supabase = createClient(url, key)
 
-  // SUA TABELA É profiles, não users
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, nome, email, avatar_url')
+    .select('*')
     .order('criado_em', { ascending: false })
     .limit(50)
 
