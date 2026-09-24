@@ -3,6 +3,8 @@ import { useEffect, useState } from "react"
 
 export default function AdminPage() {
   const [data, setData] = useState<any>(null)
+  const [aba, setAba] = useState('filmes')
+
   useEffect(() => { fetch("/api/admin/analytics").then(r=>r.json()).then(setData) }, [])
 
   if (!data) return <div style={{minHeight:'100vh',background:'#0e0f23',color:'white',display:'flex',alignItems:'center',justifyContent:'center'}}>Carregando base real...</div>
@@ -45,27 +47,8 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* LISTA DE USUÁRIOS IGUAL AO SEU PRINT ANTIGO */}
-        <div style={{...card, padding:'20px'}}>
-          <div style={{fontWeight:800, fontSize:'13px', marginBottom:'14px'}}>👥 Usuários ({data.totalUsuarios}) — Base real do Supabase</div>
-          <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(220px, 1fr))', gap:'10px'}}>
-            {data.usuarios?.map((u:any)=>(
-              <div key={u.id} style={{display:'flex', alignItems:'center', gap:'10px', background:'rgba(0,0,0,0.2)', border:'1px solid rgba(255,255,255,0.05)', borderRadius:'14px', padding:'10px 12px'}}>
-                <img src={u.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.nome||u.username||'U')}&background=random`} style={{width:'36px',height:'36px',borderRadius:'999px',objectFit:'cover'}} />
-                <div style={{overflow:'hidden'}}>
-                  <div style={{fontSize:'12px',fontWeight:700, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>{u.nome || u.username || 'Usuário'}</div>
-                  <div style={{fontSize:'10px',opacity:0.4}}>{u.criado_em? new Date(u.criado_em).toLocaleDateString('pt-BR') : ''}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-      </div>
-    </div>
-    {/* === NOVO - ACRESCENTAR SEM MEXER NO QUE JÁ TEM === */}
         <div style={{...card, marginBottom:'16px'}}>
-          <div style={{display:'flex', gap:'8px', marginBottom:'16px'}}>
+          <div style={{display:'flex', gap:'8px', marginBottom:'16px', flexWrap:'wrap'}}>
             {[
               {id:'filmes', label:`🎬 Filmes (${data.topFilmesTodos?.length||0})`},
               {id:'series', label:`📺 Séries (${data.topSeriesTodos?.length||0})`},
@@ -99,12 +82,12 @@ export default function AdminPage() {
             </div>
           )}
           {aba==='users' && (
-            <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))', gap:'10px'}}>
+            <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(260px, 1fr))', gap:'10px'}}>
               {data.usuariosDetalhado?.map((u:any)=>(
                 <div key={u.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',background:'rgba(0,0,0,0.2)',border:'1px solid rgba(255,255,255,0.05)',borderRadius:'12px',padding:'10px 12px'}}>
                   <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
-                    <img src={u.avatar_url||`https://ui-avatars.com/api/?name=${u.nome}`} style={{width:'28px',height:'28px',borderRadius:'999px'}}/>
-                    <span style={{fontSize:'12px',fontWeight:700}}>{u.nome}</span>
+                    <img src={u.avatar_url||`https://ui-avatars.com/api/?name=${encodeURIComponent(u.nome||'U')}`} style={{width:'28px',height:'28px',borderRadius:'999px',objectFit:'cover'}}/>
+                    <span style={{fontSize:'12px',fontWeight:700}}>{u.nome||u.username}</span>
                   </div>
                   <div style={{fontSize:'11px',textAlign:'right'}}>
                     <div>🎬 {u.total_filmes} filmes</div>
@@ -116,5 +99,23 @@ export default function AdminPage() {
             </div>
           )}
         </div>
+
+        <div style={{...card, padding:'20px'}}>
+          <div style={{fontWeight:800, fontSize:'13px', marginBottom:'14px'}}>👥 Usuários ({data.totalUsuarios}) — Base real do Supabase</div>
+          <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(220px, 1fr))', gap:'10px'}}>
+            {data.usuarios?.map((u:any)=>(
+              <div key={u.id} style={{display:'flex', alignItems:'center', gap:'10px', background:'rgba(0,0,0,0.2)', border:'1px solid rgba(255,255,255,0.05)', borderRadius:'14px', padding:'10px 12px'}}>
+                <img src={u.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.nome||u.username||'U')}&background=random`} style={{width:'36px',height:'36px',borderRadius:'999px',objectFit:'cover'}} />
+                <div style={{overflow:'hidden'}}>
+                  <div style={{fontSize:'12px',fontWeight:700, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>{u.nome || u.username || 'Usuário'}</div>
+                  <div style={{fontSize:'10px',opacity:0.4}}>{u.criado_em? new Date(u.criado_em).toLocaleDateString('pt-BR') : ''}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+      </div>
+    </div>
   )
 }
