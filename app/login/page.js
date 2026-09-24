@@ -1,120 +1,61 @@
-'use client'
-
-import { useEffect, useState } from 'react'
-import { createClient } from '@supabase/supabase-js'
-import { useRouter } from 'next/navigation'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_KEY
-)
-
-export default function Login() {
-  const [loading, setLoading] = useState(false)
-  const router = useRouter()
-
-  useEffect(() => {
-    checkUser()
-  }, [])
-
-  async function checkUser() {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (session) {
-      router.push('/')
-    }
+import { Metadata } from 'next'
+export const metadata: Metadata = {
+  title: 'Maratonei App - Controle suas maratonas de séries e filmes',
+  description: 'Organize o que você já assistiu, o que quer ver e acompanhe seu progresso. O melhor app para maratonar séries com 18+ usuários ativos.',
+  keywords: ['maratonei app', 'maratonei', 'controle de séries', 'watchlist', 'app de séries'],
+  openGraph: {
+    title: 'Maratonei App - Sua maratona organizada',
+    description: 'Controle suas maratonas de séries e filmes de forma simples e rápida.',
+    url: 'https://www.maratoneiapp.com.br',
+    type: 'website',
   }
+}
 
-  async function signInWithGoogle() {
-    setLoading(true)
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/`
-      }
-    })
-    
-    if (error) {
-      console.error('Erro ao fazer login:', error)
-      setLoading(false)
-    }
-  }
-
+export default function LoginPage(){
   return (
-    <main className="main" style={{
-      display: 'flex', 
-      alignItems: 'center', 
-      justifyContent: 'center', 
-      minHeight: '100vh',
-      padding: '20px'
-    }}>
-      <div className="card" style={{
-        maxWidth: '400px', 
-        width: '100%', 
-        textAlign: 'center',
-        padding: '40px 24px'
-      }}>
-        <h1 style={{
-          color: '#FACC15', 
-          fontSize: '32px', 
-          marginBottom: '8px',
-          fontWeight: 'bold'
-        }}>
-          Maratonei
+    <div className="min-h-screen bg-[#0a0f1e] text-white">
+      {/* HERO */}
+      <div className="max-w-6xl mx-auto px-6 pt-16 pb-10 text-center">
+        <h1 className="text-5xl font-black mb-4 tracking-tight">
+          <span className="text-[#f5c518]">Maratonei</span> App
         </h1>
+        <h2 className="text-xl md:text-2xl text-slate-300 max-w-2xl mx-auto mb-8">
+          Pare de se perder no que já assistiu. Organize suas séries e filmes em uma watchlist inteligente.
+        </h2>
         
-        <p style={{
-          color: '#94A3B8', 
-          marginBottom: '32px',
-          fontSize: '16px'
-        }}>
-          Controle suas maratonas de séries
-        </p>
-        
-        <button
-          onClick={signInWithGoogle}
-          disabled={loading}
-          style={{
-            width: '100%',
-            background: loading ? '#94A3B8' : '#fff',
-            color: '#000',
-            border: 'none',
-            padding: '14px',
-            borderRadius: '8px',
-            fontSize: '16px',
-            fontWeight: 'bold',
-            cursor: loading ? 'not-allowed' : 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '12px',
-            transition: 'all 0.2s',
-            opacity: loading ? 0.7 : 1
-          }}
-        >
-          {loading ? (
-            'Carregando...'
-          ) : (
-            <>
-              <svg width="20" height="20" viewBox="0 0 24 24">
-                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-              </svg>
-              Entrar com Google
-            </>
-          )}
-        </button>
+        <div className="flex flex-col items-center gap-3">
+          <button className="bg-white text-black px-8 py-4 rounded-xl font-bold text-lg flex items-center gap-3 hover:scale-105 transition">
+            <img src="https://www.google.com/favicon.ico" className="w-5 h-5"/> Entrar com Google
+          </button>
+          <p className="text-xs text-slate-500">Grátis, rápido e seguro. Seus dados salvos na nuvem.</p>
+        </div>
 
-        <p style={{
-          color: '#64748B', 
-          fontSize: '12px', 
-          marginTop: '24px',
-          lineHeight: '1.5'
-        }}>
-          Ao entrar, você concorda em salvar seu progresso de forma segura
-        </p>
+        <div className="mt-12 bg-[#151a2d] rounded-2xl p-2 border border-white/10 shadow-2xl">
+          <div className="bg-[#0a0f1e] rounded-xl p-4 text-left text-sm text-slate-400">
+            📊 Hoje: 18 usuários • 221 títulos salvos • Top: Minha Melhor Amiga
+          </div>
+        </div>
       </div>
-    </main>
+
+      {/* FEATURES */}
+      <div className="max-w-6xl mx-auto px-6 py-16 grid md:grid-cols-3 gap-6">
+        {[
+          {t:'Sua Watchlist em um lugar', d:'Salve filmes e séries que quer assistir, marque como visto e nunca mais esqueça.'},
+          {t:'Acompanhe seu progresso', d:'Veja quantos filmes por pessoa, média por usuário e seus gêneros favoritos.'},
+          {t:'Top da galera', d:'Descubra o que todo mundo está maratonando agora no Maratonei.'},
+        ].map(f=>(
+          <div key={f.t} className="bg-[#151a2d] p-6 rounded-2xl border border-white/5">
+            <h3 className="font-bold text-lg mb-2">{f.t}</h3>
+            <p className="text-slate-400 text-sm">{f.d}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* SEO TEXT - ISSO FAZ O GOOGLE TE ACHAR */}
+      <div className="max-w-3xl mx-auto px-6 py-10 text-center text-slate-400 text-sm leading-relaxed">
+        <h3 className="text-white font-bold mb-3">O que é o Maratonei App?</h3>
+        <p>O Maratonei App é a ferramenta definitiva para quem ama maratonar séries e filmes. Cansado de esquecer onde parou ou o que queria ver? Com o Maratonei você cria sua lista pessoal, organiza por filmes e séries e tem um painel admin com estatísticas reais do que está bombando.</p>
+      </div>
+    </div>
   )
 }
