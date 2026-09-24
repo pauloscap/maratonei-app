@@ -1,38 +1,27 @@
 import { ImageResponse } from 'next/og'
-
 export const runtime = 'edge'
-export const alt = 'Maratonei App - Filme'
 export const size = { width: 1200, height: 630 }
 export const contentType = 'image/png'
 
 export default async function Image({ params }: { params: { id: string } }) {
-  const id = params.id
   const TMDB_KEY = process.env.NEXT_PUBLIC_TMDB_KEY
-  let titulo = 'Filme'
+  let titulo = 'Maratonei App'
   let poster = ''
-
-  try {
-    const res = await fetch(`https://api.themoviedb.org/3/movie/${id}?api_key=${TMDB_KEY}&language=pt-BR`)
-    const data = await res.json()
-    if(data.title){
-      titulo = data.title
-      poster = data.poster_path? `https://image.tmdb.org/t/p/w500${data.poster_path}` : ''
-    }
-  } catch{}
-
+  try{
+    const r = await fetch(`https://api.themoviedb.org/3/movie/${params.id}?api_key=${TMDB_KEY}&language=pt-BR`, { next: { revalidate: 86400 } })
+    const j = await r.json()
+    titulo = j.title || titulo
+    poster = j.poster_path? `https://image.tmdb.org/t/p/w500${j.poster_path}` : ''
+  }catch{}
   return new ImageResponse(
-    (
-      <div style={{ width: '100%', height: '100%', display: 'flex', background: '#080B1F', color: 'white', padding: 40 }}>
-        <div style={{ display: 'flex', gap: 30 }}>
-          {poster && <img src={poster} style={{ width: 300, height: 450, borderRadius: 16, objectFit: 'cover' }} />}
-          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-            <div style={{ fontSize: 60, fontWeight: 900 }}>🍿 {titulo}</div>
-            <div style={{ fontSize: 28, opacity: 0.7, marginTop: 20 }}>Vem organizar seus filmes também!</div>
-            <div style={{ fontSize: 24, color: '#FFD400', marginTop: 20, fontWeight: 800 }}>maratoneiapp.com.br</div>
-          </div>
-        </div>
+    <div style={{ display: 'flex', width: '100%', height: '100%', background: '#080B1F', padding: 40, alignItems: 'center', gap: 40 }}>
+      {poster && <img src={poster} style={{ width: 340, height: 510, borderRadius: 20, objectFit: 'cover' }} />}
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
+        <div style={{ fontSize: 28, color: '#FFD400', fontWeight: 800 }}>MARATONEI APP</div>
+        <div style={{ fontSize: 64, fontWeight: 900, color: 'white', marginTop: 10, lineHeight: 1.1 }}>{titulo}</div>
+        <div style={{ fontSize: 28, color: '#8b9cc7', marginTop: 20 }}>Vem organizar seus filmes também!</div>
+        <div style={{ fontSize: 22, color: '#ffffff55', marginTop: 20 }}>maratoneiapp.com.br</div>
       </div>
-    ),
-    {...size }
+    </div>, size
   )
 }
