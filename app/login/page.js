@@ -2,90 +2,94 @@ export const dynamic = 'force-dynamic';
 
 export default function LoginPage(){
   return (
-    <div style={{
-      minHeight:'100vh', background:'#6ec1e4', position:'relative', overflow:'hidden',
-      fontFamily:'Inter, system-ui, sans-serif'
-    }}>
-      {/* FILMES NO FUNDO - animado */}
-      <div style={{
-        position:'absolute', inset:'-40px', opacity:0.35,
-        display:'grid', gridTemplateColumns:'repeat(7, 1fr)', gap:'10px',
-        transform:'rotate(-4deg) scale(1.2)', pointerEvents:'none'
-      }}>
-        {[
-          '#ff6b6b','#feca57','#48dbfb','#1dd1a1','#5f27cd','#ff9ff3','#54a0ff',
-          '#00d2d3','#ff9f43','#10ac84','#ee5253','#0abde3','#f368e0','#00d2d3',
-          '#ff9f43','#5f27cd','#48dbfb','#feca57','#ff6b6b','#1dd1a1','#54a0ff'
-        ].map((c,i)=>(
-          <div key={i} style={{
-            height:'150px', borderRadius:'10px', background:c,
-            border:'3px solid white', boxShadow:'0 6px 16px rgba(0,0,0,0.15)',
-            transform:`rotate(${i%2?3:-3}deg)`, 
-            animation:`float ${3+i%3}s ease-in-out infinite`
-          }}/>
-        ))}
-      </div>
-
-      <div style={{position:'relative', maxWidth:'980px', margin:'0 auto', padding:'48px 24px'}}>
-        
-        {/* LOGO OFICIAL */}
-        <div style={{textAlign:'center', marginBottom:'28px'}}>
-          <img 
-            src="/logo.png" 
-            alt="Maratonei App"
-            style={{
-              width:'140px', height:'140px', borderRadius:'32px',
-              boxShadow:'0 16px 40px rgba(0,0,0,0.25)', margin:'0 auto 20px',
-              display:'block', background:'white'
-            }}
-          />
-          <h1 style={{fontSize:'48px', fontWeight:'900', color:'white', margin:0, textShadow:'0 2px 12px rgba(0,0,0,0.2)', letterSpacing:'-1px'}}>
-            Maratonei<span style={{color:'#FFD600'}}>App</span>
-          </h1>
+    <div style={{minHeight:'100vh', background:'#080e1f', color:'white', fontFamily:'Inter, system-ui, sans-serif', overflowX:'hidden'}}>
+      
+      {/* TOPO - MOSAICO DE BANNERS REAIS igual sua referência */}
+      <div style={{position:'relative', height:'420px', overflow:'hidden', background:'#050a18'}}>
+        {/* usa a imagem que você mandou */}
+        <img 
+          src="/banners.jpg" 
+          alt="Séries e filmes"
+          style={{width:'100%', height:'100%', objectFit:'cover', opacity:0.85}}
+          onError={(e)=> e.target.style.display='none'}
+        />
+        {/* fallback se não tiver banners.jpg - grade de títulos reais */}
+        <div style={{
+          position:'absolute', inset:0, display:'grid', 
+          gridTemplateColumns:'repeat(auto-fill, minmax(160px, 1fr))', gap:'4px', padding:'8px',
+          opacity:0.6
+        }}>
+          {[
+            'GAME OF THRONES','BREAKING BAD','STRANGER THINGS','FRIENDS','THE CROWN',
+            'THE OFFICE','PEAKY BLINDERS','SHERLOCK','BETTER CALL SAUL','MONEY HEIST',
+            'DEXTER','HOUSE','SUCCESSION','THE WITCHER','LOST','TWIN PEAKS',
+            'OZARK','NARCOS','TRUE DETECTIVE','AVATAR','MANDALORIAN','SUITS',
+            'ATLANTA','THE QUEEN GAMBIT','TED LASSO','VIKINGS','DARK','ARRESTED DEVELOPMENT'
+          ].map(t=>(
+            <div key={t} style={{
+              background:`linear-gradient(135deg, #151e35 0%, #0f172a 100%)`,
+              border:'1px solid rgba(255,255,255,0.08)', borderRadius:'4px',
+              display:'flex', alignItems:'center', justifyContent:'center',
+              fontSize:'10px', fontWeight:'900', letterSpacing:'1px',
+              color:'rgba(255,255,255,0.7)', padding:'20px 8px', textAlign:'center'
+            }}>{t}</div>
+          ))}
         </div>
 
-        {/* HERO */}
-        <div style={{textAlign:'center', maxWidth:'640px', margin:'0 auto', background:'rgba(255,255,255,0.92)', backdropFilter:'blur(12px)', borderRadius:'24px', padding:'32px 28px', boxShadow:'0 16px 40px rgba(0,0,0,0.15)', border:'2px solid white'}}>
-          <h2 style={{fontSize:'26px', fontWeight:'800', color:'#0f172a', lineHeight:'1.2', margin:'0 0 12px'}}>
-            Sua maratona, organizada. De verdade.
-          </h2>
-          <p style={{fontSize:'16px', color:'#475569', lineHeight:'1.5', margin:'0 0 24px'}}>
-            Chega de anotar no bloco de notas. Controle o que já viu e o que quer ver, sem burocracia.
-          </p>
+        {/* DEGRADE PRA AZUL ESCURO DOMINAR */}
+        <div style={{
+          position:'absolute', inset:0,
+          background:'linear-gradient(to bottom, rgba(8,14,31,0.2) 0%, rgba(8,14,31,0.6) 50%, #080e1f 100%)'
+        }}/>
 
+        {/* LOGO + CTA SOBRE O MOSAICO */}
+        <div style={{position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', textAlign:'center', padding:'24px'}}>
+          <img 
+            src="/icon-192.png" 
+            alt="Maratonei"
+            style={{width:'96px', height:'96px', borderRadius:'22px', boxShadow:'0 12px 32px rgba(0,0,0,0.5)', marginBottom:'16px', background:'white'}}
+          />
+          <h1 style={{fontSize:'42px', fontWeight:'900', margin:0, letterSpacing:'-1px', textShadow:'0 2px 20px rgba(0,0,0,0.6)'}}>
+            Maratonei<span style={{color:'#f5c518'}}>App</span>
+          </h1>
+          <p style={{fontSize:'15px', color:'#cbd5e1', maxWidth:'520px', margin:'8px 0 20px', lineHeight:'1.4', textShadow:'0 1px 8px rgba(0,0,0,0.8)'}}>
+            Sua maratona organizada. Check-list diário, sem burocracia.
+          </p>
           <a href="/api/auth/google" style={{
-            display:'inline-flex', alignItems:'center', gap:'12px',
-            background:'#0f172a', color:'white', padding:'16px 32px',
-            borderRadius:'100px', fontWeight:'bold', fontSize:'17px',
-            textDecoration:'none', boxShadow:'0 8px 20px rgba(0,0,0,0.2)'
+            display:'inline-flex', alignItems:'center', gap:'10px',
+            background:'white', color:'black', padding:'14px 28px',
+            borderRadius:'100px', fontWeight:'800', fontSize:'15px',
+            textDecoration:'none', boxShadow:'0 8px 24px rgba(0,0,0,0.4)'
           }}>
-            <span style={{background:'white', borderRadius:'50%', width:'22px', height:'22px', display:'flex', alignItems:'center', justifyContent:'center', color:'black', fontWeight:'900'}}>G</span>
-            Entrar com Google
+            <img src="https://www.google.com/favicon.ico" style={{width:'18px', height:'18px'}} alt=""/> Entrar com Google
           </a>
         </div>
+      </div>
 
-        {/* 3 FEATURES PEDIDAS */}
-        <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(250px, 1fr))', gap:'16px', marginTop:'28px'}}>
-          <div style={{background:'white', padding:'22px', borderRadius:'20px', boxShadow:'0 8px 24px rgba(0,0,0,0.12)'}}>
-            <div style={{fontSize:'26px'}}>✅</div>
-            <h3 style={{fontWeight:'800', color:'#0f172a', margin:'8px 0 6px'}}>Check-list diário</h3>
-            <p style={{color:'#64748b', fontSize:'14px', margin:0, lineHeight:'1.4'}}>Marque o que assistiu hoje em 1 clique. Seu histórico fica salvo.</p>
+      {/* FEATURES - AZUL ESCURO DOMINANTE */}
+      <div style={{maxWidth:'980px', margin:'0 auto', padding:'36px 24px 60px'}}>
+        <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(260px, 1fr))', gap:'16px'}}>
+          <div style={{background:'#111a33', border:'1px solid rgba(255,255,255,0.08)', padding:'22px', borderRadius:'16px'}}>
+            <div style={{fontSize:'24px', marginBottom:'8px'}}>✅</div>
+            <h3 style={{fontWeight:'800', margin:'0 0 6px', fontSize:'15px'}}>Check-list diário</h3>
+            <p style={{color:'#94a3b8', fontSize:'13px', margin:0, lineHeight:'1.4'}}>Marque o que assistiu hoje em 1 clique. Histórico salvo na nuvem.</p>
           </div>
-          <div style={{background:'white', padding:'22px', borderRadius:'20px', boxShadow:'0 8px 24px rgba(0,0,0,0.12)'}}>
-            <div style={{fontSize:'26px'}}>🎬</div>
-            <h3 style={{fontWeight:'800', color:'#0f172a', margin:'8px 0 6px'}}>Filmes e séries organizados</h3>
-            <p style={{color:'#64748b', fontSize:'14px', margin:0, lineHeight:'1.4'}}>Listas separadas, busca rápida e sem bagunça. Tudo no seu jeito.</p>
+          <div style={{background:'#111a33', border:'1px solid rgba(255,255,255,0.08)', padding:'22px', borderRadius:'16px'}}>
+            <div style={{fontSize:'24px', marginBottom:'8px'}}>🎬</div>
+            <h3 style={{fontWeight:'800', margin:'0 0 6px', fontSize:'15px'}}>Filmes e séries organizados</h3>
+            <p style={{color:'#94a3b8', fontSize:'13px', margin:0, lineHeight:'1.4'}}>Listas separadas e busca rápida. Sem bagunça.</p>
           </div>
-          <div style={{background:'white', padding:'22px', borderRadius:'20px', boxShadow:'0 8px 24px rgba(0,0,0,0.12)'}}>
-            <div style={{fontSize:'26px'}}>⚡️</div>
-            <h3 style={{fontWeight:'800', color:'#0f172a', margin:'8px 0 6px'}}>Sem burocracia</h3>
-            <p style={{color:'#64748b', fontSize:'14px', margin:0, lineHeight:'1.4'}}>Entrou com Google, já está dentro. Nada de formulários chatos.</p>
+          <div style={{background:'#111a33', border:'1px solid rgba(255,255,255,0.08)', padding:'22px', borderRadius:'16px'}}>
+            <div style={{fontSize:'24px', marginBottom:'8px'}}>⚡️</div>
+            <h3 style={{fontWeight:'800', margin:'0 0 6px', fontSize:'15px'}}>Sem burocracia</h3>
+            <p style={{color:'#94a3b8', fontSize:'13px', margin:0, lineHeight:'1.4'}}>Entrou com Google, já pode usar. Zero cadastro chato.</p>
           </div>
         </div>
 
+        <div style={{textAlign:'center', marginTop:'36px', color:'#475569', fontSize:'12px'}}>
+          Maratonei App • Organize suas maratonas • Feito pra quem ama cinema
+        </div>
       </div>
-
-      <style>{`@keyframes float{0%,100%{transform:translateY(0) rotate(var(--r,0deg))}50%{transform:translateY(-6px) rotate(var(--r,0deg))}}`}</style>
     </div>
   )
 }
