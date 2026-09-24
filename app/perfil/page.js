@@ -1,4 +1,5 @@
 "use client"
+import LimparBugados from './LimparBugados';
 import { useEffect, useState, useMemo } from "react"
 import { createClient } from "@supabase/supabase-js"
 import { BottomNav } from "../../components/BottomNav"
