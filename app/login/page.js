@@ -1,21 +1,24 @@
-export const dynamic = 'force-dynamic';
-
-export const metadata = {
-  title: 'Maratonei App - Organize suas maratonas de séries e filmes',
-  description: 'Maratonei App é o app para organizar filmes e séries. Check-list diário, listas separadas e sem burocracia. Controle o que já assistiu e o que quer ver.',
-  keywords: ['maratonei app', 'maratonei', 'app de séries', 'controle de filmes', 'watchlist', 'maratonar séries'],
-  openGraph: {
-    title: 'Maratonei App - Sua maratona organizada',
-    description: 'Check-list diário, organização de filmes e séries sem burocracia.',
-    url: 'https://www.maratoneiapp.com.br/login',
-  }
-};
+'use client';
+import { useState } from 'react';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
 export default function LoginPage(){
+  const [loading, setLoading] = useState(false);
+  const supabase = createClientComponentClient();
+
+  const handleGoogleLogin = async () => {
+    setLoading(true);
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { 
+        redirectTo: `${window.location.origin}/auth/callback` 
+      }
+    });
+  };
+
   return (
     <div style={{minHeight:'100vh', background:'#080e1f', color:'white', fontFamily:'Inter, system-ui, sans-serif'}}>
       
-      {/* TOPO - IGUAL SEU PRINT */}
       <div style={{position:'relative', height:'380px', overflow:'hidden', background:'#050a18'}}>
         <img src="/banners.jpg" alt="Maratonei App - séries e filmes" loading="eager" style={{width:'100%', height:'100%', objectFit:'cover', opacity:0.7}}/>
         <div style={{position:'absolute', inset:0, background:'linear-gradient(to bottom, rgba(8,14,31,0.1) 0%, #080e1f 92%)'}}/>
@@ -27,13 +30,17 @@ export default function LoginPage(){
           <h2 style={{fontSize:'14px', color:'#cbd5e1', margin:'6px 0 18px', fontWeight:'400'}}>
             Check-list diário • Organização sem burocracia
           </h2>
-          <a href="/api/auth/google" style={{display:'inline-flex', alignItems:'center', gap:'8px', background:'white', color:'black', padding:'12px 24px', borderRadius:'100px', fontWeight:'800', fontSize:'14px', textDecoration:'none'}}>
-            Entrar com Google
-          </a>
+          <button 
+            onClick={handleGoogleLogin}
+            disabled={loading}
+            style={{display:'inline-flex', alignItems:'center', gap:'8px', background:'white', color:'black', padding:'12px 24px', borderRadius:'100px', fontWeight:'800', fontSize:'14px', border:'none', cursor:'pointer', opacity: loading ? 0.7 : 1}}
+          >
+            <img src="https://www.google.com/favicon.ico" style={{width:'16px', height:'16px'}} alt=""/> 
+            {loading ? 'Entrando...' : 'Entrar com Google'}
+          </button>
         </div>
       </div>
 
-      {/* FEATURES - IGUAL SEU PRINT */}
       <div style={{maxWidth:'900px', margin:'0 auto', padding:'28px 20px 0', display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(240px, 1fr))', gap:'12px'}}>
         <div style={{background:'#111a33', border:'1px solid rgba(255,255,255,0.07)', padding:'18px', borderRadius:'14px'}}>
           <div style={{fontSize:'20px'}}>✅</div>
@@ -52,7 +59,6 @@ export default function LoginPage(){
         </div>
       </div>
 
-      {/* SEO - ISSO FAZ O GOOGLE TE ACHAR - invisível pro usuário mas legível pro Google */}
       <div style={{maxWidth:'900px', margin:'0 auto', padding:'48px 20px 60px'}}>
         <div style={{background:'rgba(17,26,51,0.6)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'16px', padding:'28px'}}>
           <h2 style={{fontSize:'18px', fontWeight:'800', color:'white', margin:'0 0 10px'}}>O que é o Maratonei App?</h2>
@@ -62,37 +68,21 @@ export default function LoginPage(){
             organiza por filmes e séries e controla seu progresso com um check-list diário simples. 
             Sem cadastro chato, sem burocracia. Entrou com Google, já pode usar.
           </p>
-
           <h3 style={{fontSize:'15px', fontWeight:'700', color:'white', margin:'0 0 8px'}}>Como funciona?</h3>
           <p style={{color:'#94a3b8', fontSize:'13px', lineHeight:'1.6', margin:'0 0 20px'}}>
             1. Faça login com Google em 5 segundos. 2. Adicione filmes e séries à sua watchlist. 
-            3. Marque no check-list diário o que já assistiu. Pronto. Sua maratona fica organizada automaticamente 
-            com suas listas de filmes e séries separadas.
+            3. Marque no check-list diário o que já assistiu. Pronto.
           </p>
-
           <h3 style={{fontSize:'15px', fontWeight:'700', color:'white', margin:'0 0 8px'}}>Por que usar o MaratoneiApp.com.br?</h3>
           <p style={{color:'#94a3b8', fontSize:'13px', lineHeight:'1.6', margin:0}}>
-            Diferente de outros apps, o Maratonei App foi feito para ser rápido e sem burocracia. 
             Interface em azul escuro que não cansa a vista, organização inteligente e foco no que importa: 
             você saber exatamente o que já viu e o que falta maratonar.
           </p>
         </div>
-
         <p style={{textAlign:'center', marginTop:'28px', color:'#334155', fontSize:'11px'}}>
           maratonei app • maratoneiapp.com.br • app de séries e filmes • watchlist
         </p>
       </div>
-
-      {/* JSON-LD pro Google */}
-      <script type="application/ld+json" dangerouslySetInnerHTML={{__html: JSON.stringify({
-        "@context":"https://schema.org",
-        "@type":"SoftwareApplication",
-        "name":"Maratonei App",
-        "applicationCategory":"EntertainmentApplication",
-        "operatingSystem":"Web",
-        "offers":{"@type":"Offer","price":"0","priceCurrency":"BRL"},
-        "description":"Organize suas maratonas de séries e filmes com check-list diário sem burocracia"
-      })}} />
     </div>
   )
 }
