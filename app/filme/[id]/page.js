@@ -21,6 +21,7 @@ export default function DetalheFilme() {
   const [hoverNota, setHoverNota] = useState(0)
   const [showShare, setShowShare] = useState(false)
   const [shareData, setShareData] = useState(null)
+  const [baixando, setBaixando] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -86,9 +87,9 @@ export default function DetalheFilme() {
     if(!filme) return
     const linkFilme = `${SITE_URL}/filme/${id}`
     const textos = {
-      quero_assistir: `Coloquei ${filme.titulo} na minha lista para assistir no Maratonei App 🍿\n\nVem organizar seus filmes também: ${linkFilme}`,
-      ja_assisti: `Acabei de assistir ${filme.titulo}! ${minhaNota? `Minha nota: ${minhaNota}★ ` : ''}🎬\n\nOrganizo tudo no Maratonei App - vem organizar os seus também: ${linkFilme}`,
-      livre: `Olha esse filme que achei: ${filme.titulo} 🎬\n\nEstou organizando minha lista no Maratonei App, vem organizar os seus também: ${linkFilme}`
+      quero_assistir: `Coloquei ${filme.titulo} na minha lista para assistir no Maratonei App 🍿\n\nVem organizar seus filmes também no Maratonei: ${linkFilme}`,
+      ja_assisti: `Acabei de assistir ${filme.titulo}! ${minhaNota? `Minha nota: ${minhaNota}★ ` : ''}🎬\n\nOrganizo tudo no Maratonei App - vem organizar seus filmes também: ${linkFilme}`,
+      livre: `Olha esse filme: ${filme.titulo} 🎬\n\nTô organizando minha lista no Maratonei App, vem organizar os seus também: ${linkFilme}`
     }
     setShareData({
       tipo: tipoStatus,
@@ -115,69 +116,71 @@ export default function DetalheFilme() {
     if(rede==='copiar'){ navigator.clipboard.writeText(txt); alert('Link copiado com CTA!') }
   }
 
-  async function baixarImagemShare(){
+  async function baixarImagemShare(formato = 'story'){
     if(!shareData ||!filme) return
-    const canvas = document.createElement('canvas')
-    canvas.width = 1080
-    canvas.height = 1920 // Stories 9:16 agora
-    const ctx = canvas.getContext('2d')
+    setBaixando(true)
+    try{
+      const canvas = document.createElement('canvas')
+      if(formato==='story'){
+        canvas.width = 1080
+        canvas.height = 1920
+      } else {
+        canvas.width = 1080
+        canvas.height = 1080
+      }
+      const ctx = canvas.getContext('2d')
+      ctx.fillStyle = '#080B1F'
+      ctx.fillRect(0,0,canvas.width,canvas.height)
+      ctx.fillStyle = shareData.cor
+      ctx.fillRect(0,0,canvas.width,16)
 
-    // Fundo
-    ctx.fillStyle = '#080B1F'
-    ctx.fillRect(0,0,1080,1920)
-    ctx.fillStyle = shareData.cor
-    ctx.fillRect(0,0,1080,14)
+      // Carrega poster via proxy (resolve CORS)
+      let bmp = null
+      try{
+        const proxied = `/api/proxy-image?url=${encodeURIComponent(shareData.img)}`
+        const res = await fetch(proxied)
+        const blob = await res.blob()
+        bmp = await createImageBitmap(blob)
+      }catch{}
 
-    // Tenta carregar imagem sem travar com CORS
-    let imgLoaded = null
-    try {
-      const resp = await fetch(shareData.img)
-      const blob = await resp.blob()
-      const bmp = await createImageBitmap(blob)
-      imgLoaded = bmp
-    } catch(e){}
+      if(bmp){
+        if(formato==='story'){
+          ctx.drawImage(bmp, 90, 100, 900, 1350)
+          const grad = ctx.createLinearGradient(0, 900, 0, 1450)
+          grad.addColorStop(0, 'rgba(8,11,31,0)')
+          grad.addColorStop(1, 'rgba(8,11,31,1)')
+          ctx.fillStyle = grad
+          ctx.fillRect(0, 900, 1080, 550)
+        } else {
+          ctx.drawImage(bmp, 340, 80, 400, 600)
+        }
+      }
 
-    if(imgLoaded){
-      ctx.drawImage(imgLoaded, 120, 140, 840, 1260)
-      // gradiente por cima pra texto ficar legivel
-      const fade = ctx.createLinearGradient(0, 800, 0, 1400)
-      fade.addColorStop(0, 'rgba(8,11,31,0)')
-      fade.addColorStop(0.6, 'rgba(8,11,31,0.85)')
-      fade.addColorStop(1, 'rgba(8,11,31,1)')
-      ctx.fillStyle = fade
-      ctx.fillRect(0, 800, 1080, 600)
+      ctx.textAlign = 'center'
+      ctx.font = '90px serif'
+      ctx.fillText(shareData.emoji, 540, formato==='story'? 1550 : 780)
+
+      ctx.fillStyle = '#fff'
+      ctx.font = 'bold 48px sans-serif'
+      const tit = filme.titulo.length>28? filme.titulo.slice(0,28)+'...' : filme.titulo
+      ctx.fillText(tit, 540, formato==='story'? 1630 : 840)
+
+      ctx.fillStyle = '#FFD400'
+      ctx.font = 'bold 30px sans-serif'
+      ctx.fillText('Vem organizar seus filmes também!', 540, formato==='story'? 1720 : 900)
+
+      ctx.fillStyle = '#ffffff66'
+      ctx.font = '24px sans-serif'
+      ctx.fillText('maratoneiapp.com.br', 540, formato==='story'? 1770 : 940)
+
+      const a = document.createElement('a')
+      a.download = `maratonei-${formato}-${filme.titulo.replace(/\s+/g,'-')}.png`
+      a.href = canvas.toDataURL('image/png')
+      a.click()
+    }catch(e){
+      alert('Erro ao gerar imagem: '+e.message)
     }
-
-    // Emoji
-    ctx.font = '90px serif'
-    ctx.textAlign = 'center'
-    ctx.fillText(shareData.emoji, 540, 1440)
-
-    // Titulo
-    ctx.fillStyle = '#fff'
-    ctx.font = 'bold 52px Inter, sans-serif'
-    const titulo = filme.titulo.length>28? filme.titulo.slice(0,28)+'...' : filme.titulo
-    ctx.fillText(titulo, 540, 1520)
-
-    // Badge
-    ctx.fillStyle = shareData.cor
-    ctx.font = 'bold 26px Inter, sans-serif'
-    const badge = shareData.tipo==='ja_assisti'? 'JÁ ASSISTI • MINHA LISTA' : shareData.tipo==='quero_assistir'? 'QUERO ASSISTIR' : 'MARATONEI APP'
-    ctx.fillText(badge, 540, 1570)
-
-    // CTA - NOVO
-    ctx.fillStyle = '#FFD400'
-    ctx.font = 'bold 30px Inter, sans-serif'
-    ctx.fillText('Vem organizar seus filmes também!', 540, 1680)
-
-    ctx.fillStyle = '#ffffff66'
-    ctx.font = '24px Inter, sans-serif'
-    ctx.fillText('maratoneiapp.com.br', 540, 1730)
-
-    const link = document.createElement('a')
-    link.download = `maratonei-${filme.titulo.replace(/\s+/g,'-')}-${Date.now()}.png`
-    link.href = canvas.toDataURL('image/png')
-    link.click()
+    setBaixando(false)
   }
 
   async function mudar(novoStatus) {
@@ -196,7 +199,7 @@ export default function DetalheFilme() {
         status: novoStatus,
         updated_at: agora,
         data_lancamento: dataLanc,
-     ...(novoStatus==="ja_assisti"? {data_assistido: agora} : {})
+    ...(novoStatus==="ja_assisti"? {data_assistido: agora} : {})
       }
       const { error } = await supabase.from("user_filmes").upsert(payload, { onConflict:"user_id,filme_id" })
       if(error) throw error
@@ -216,7 +219,6 @@ export default function DetalheFilme() {
       abrirShare(novoStatus)
       return
     }
-    setTimeout(()=>{ window.location.href="/filmes" }, 400)
   }
 
   async function salvarNota(nota){
@@ -281,18 +283,16 @@ export default function DetalheFilme() {
         {(detalhes.sinopse || detalhes.providers.length>0) && (
           <div style={{ background:"#12182F", border:"1px solid #1e274f", borderRadius:16, padding:14, marginBottom:14 }}>
             {detalhes.sinopse && <div style={{ fontSize:12, lineHeight:1.5, opacity:0.85 }}>{detalhes.sinopse}</div>}
-            {detalhes.providers.length>0 && <div style={{ marginTop:12, display:"flex", gap:8, flexWrap:"wrap" }}>{detalhes.providers.map(p=><div key={p.provider_id} style={{ width:36, height:36, borderRadius:8, overflow:"hidden" }}><img src={`https://image.tmdb.org/t/p/w45${p.logo_path}`} alt="" style={{width:"100%",height:"100%"}}/></div>)}</div>}
           </div>
         )}
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
           <button disabled={salvando} onClick={()=> mudar("quero_assistir")} style={{ height:48, borderRadius:12, fontWeight:900, fontSize:13, background: status==="quero_assistir"? "#FFD400" : "#12182F", color: status==="quero_assistir"? "#000" : "#fff", border:"1px solid #222", cursor:"pointer" }}>{status==="quero_assistir"?"★ Quero Assistir":"Quero Assistir"}</button>
           <button disabled={salvando} onClick={()=> mudar("ja_assisti")} style={{ height:48, borderRadius:12, fontWeight:900, fontSize:13, background: status==="ja_assisti"? "#22c55e" : "#12182F", color:"#fff", border:"1px solid #222", cursor:"pointer" }}>{status==="ja_assisti"?"✓ Já Assisti":"Já Assisti"}</button>
         </div>
-        <button onClick={()=>abrirShare('livre')} style={{width:"100%", marginTop:10, height:44, borderRadius:12, background:"#ffffff08", border:"1px dashed rgba(255,255,255,0.15)", color:"#fff", fontWeight:700, fontSize:12, cursor:"pointer"}}>↗ Compartilhar este filme</button>
       </div>
 
       {showShare && shareData && (
-        <div style={{position:"fixed", inset:0, background:"rgba(0,0,0,0.9)", backdropFilter:"blur(12px)", zIndex:10002, padding:14, display:"grid", placeItems:"center"}}>
+        <div style={{position:"fixed", inset:0, background:"rgba(0,0,0,0.92)", backdropFilter:"blur(12px)", zIndex:10002, padding:14, display:"grid", placeItems:"center"}}>
           <div style={{width:"100%", maxWidth:400, background:"#12182F", border:"1px solid #ffffff18", borderRadius:20, padding:18}}>
             <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14}}>
               <b>Compartilhar filme</b>
@@ -308,12 +308,13 @@ export default function DetalheFilme() {
             <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginTop:14}}>
               <button onClick={()=>compartilhar('whatsapp')} style={{background:"#25D366", color:"#fff", border:0, borderRadius:999, padding:"12px", fontWeight:800, fontSize:12}}>WhatsApp</button>
               <button onClick={()=>compartilhar('twitter')} style={{background:"#fff", color:"#000", border:0, borderRadius:999, padding:"12px", fontWeight:800, fontSize:12}}>X / Twitter</button>
-              <button onClick={()=>compartilhar('copiar')} style={{background:"#ffffff12", color:"#fff", border:"1px solid #ffffff20", borderRadius:999, padding:"12px", fontWeight:800, fontSize:12}}>🔗 Copiar</button>
-              <button onClick={baixarImagemShare} style={{background:"#FFD400", color:"#000", border:0, borderRadius:999, padding:"12px", fontWeight:900, fontSize:12}}>⬇ Imagem</button>
+              <button onClick={()=>compartilhar('copiar')} style={{background:"#ffffff12", color:"#fff", border:"1px solid #ffffff20", borderRadius:999, padding:"12px", fontWeight:800, fontSize:12}}>🔗 Copiar Link</button>
+              <button onClick={()=>baixarImagemShare('feed')} disabled={baixando} style={{background:"#FFD400", color:"#000", border:0, borderRadius:999, padding:"12px", fontWeight:900, fontSize:12}}>{baixando?'...':'⬇ Feed'}</button>
             </div>
-            {typeof navigator!== 'undefined' && navigator.share && (
-              <button onClick={()=>compartilhar('nativo')} style={{width:"100%", marginTop:8, background:shareData.cor, color: shareData.cor==='#FFD400'?'#000':'#fff', border:0, borderRadius:999, padding:"12px", fontWeight:900, fontSize:12}}>📲 Compartilhar</button>
-            )}
+            <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginTop:8}}>
+              <button onClick={()=>baixarImagemShare('story')} disabled={baixando} style={{background:"#8b5cf6", color:"#fff", border:0, borderRadius:999, padding:"12px", fontWeight:900, fontSize:12}}>{baixando?'Gerando...':'📸 Instagram Story'}</button>
+              <button onClick={()=>compartilhar('nativo')} style={{background:"#ffffff15", color:"#fff", border:"1px solid #ffffff20", borderRadius:999, padding:"12px", fontWeight:800, fontSize:12}}>📲 Mais</button>
+            </div>
           </div>
         </div>
       )}
