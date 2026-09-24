@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation"
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_KEY)
 const TMDB_KEY = process.env.NEXT_PUBLIC_TMDB_KEY || "4e44d9029b1273360df0be1de39768d1"
+const SITE_URL = "https://www.maratoneiapp.com.br"
 
 export default function DetalheSerie() {
   const params = useParams()
@@ -21,6 +22,10 @@ export default function DetalheSerie() {
   const [showRating, setShowRating] = useState(false)
   const [minhaNota, setMinhaNota] = useState(0)
   const [hoverNota, setHoverNota] = useState(0)
+  
+  // SHARE
+  const [showShare, setShowShare] = useState(false)
+  const [shareData, setShareData] = useState(null)
 
   useEffect(() => {
     async function run() {
@@ -72,6 +77,135 @@ export default function DetalheSerie() {
     run()
   }, [id, router])
 
+  // SHARE FUNCTIONS
+  function abrirShareStatus(novoStatus){
+    const textoMap = {
+      assistindo: `Comecei a assistir ${serie.titulo} no Maratonei App 🍿 Bora maratonar comigo? ${SITE_URL}`,
+      maratonei: `Maratonei ${serie.titulo}! 🏆 Acabei de completar no Maratonei App. ${minhaNota? `Minha nota: ${minhaNota}★` : ''} ${SITE_URL}`,
+      quero_assistir: `Coloquei ${serie.titulo} na minha lista pra assistir no Maratonei App! ${SITE_URL}`
+    }
+    setShareData({
+      tipo: 'status',
+      titulo: serie.titulo,
+      emoji: novoStatus==='maratonei'?'🏆': novoStatus==='assistindo'?'👀':'📌',
+      texto: textoMap[novoStatus] || `Estou assistindo ${serie.titulo} no Maratonei App! ${SITE_URL}`,
+      subtexto: `${novoStatus.toUpperCase()} • ${temporadas.length} temp`,
+      img: serie.img,
+      cor: novoStatus==='maratonei'? '#22c55e' : '#FFD400'
+    })
+    setShowShare(true)
+  }
+
+  function abrirShareEpisodio(ep, tempNumero){
+    const texto = `Estou assistindo a série ${serie.titulo} - T${tempNumero} E${ep.numero} "${ep.nome}" no Maratonei App 📺 ${SITE_URL}`
+    setShareData({
+      tipo: 'episodio',
+      titulo: `T${tempNumero} E${ep.numero} - ${ep.nome}`,
+      emoji: '📺',
+      texto,
+      subtexto: `${serie.titulo} • Temporada ${tempNumero}`,
+      img: ep.img || serie.img,
+      ep: ep,
+      temp: tempNumero,
+      cor: '#8b5cf6'
+    })
+    setShowShare(true)
+  }
+
+  function compartilhar(tipo){
+    if(!shareData) return
+    const url = SITE_URL
+    const txt = shareData.texto
+    if(navigator.share && tipo==='nativo'){
+      navigator.share({ title: serie.titulo, text: txt, url }).catch(()=>{})
+      return
+    }
+    if(tipo==='whatsapp') window.open(`https://wa.me/?text=${encodeURIComponent(txt)}`, '_blank')
+    if(tipo==='twitter') window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(txt)}`, '_blank')
+    if(tipo==='copiar'){ navigator.clipboard.writeText(txt); alert('Copiado!') }
+  }
+
+  async function baixarImagemShare(){
+    if(!shareData) return
+    const canvas = document.createElement('canvas')
+    canvas.width = 1080
+    canvas.height = 1350
+    const ctx = canvas.getContext('2d')
+    
+    // Fundo
+    const grad = ctx.createLinearGradient(0,0,0,1350)
+    grad.addColorStop(0, '#0A0F2A')
+    grad.addColorStop(1, '#12182F')
+    ctx.fillStyle = grad
+    ctx.fillRect(0,0,1080,1350)
+    
+    // Faixa cor
+    ctx.fillStyle = shareData.cor || '#FFD400'
+    ctx.fillRect(0,0,1080,14)
+
+    // Tenta desenhar poster se for episódio
+    if(shareData.img){
+      try{
+        const img = new Image()
+        img.crossOrigin = 'anonymous'
+        img.src = shareData.img
+        await new Promise((res,rej)=>{ img.onload=res; img.onerror=res; setTimeout(res,2000) })
+        ctx.save()
+        ctx.globalAlpha = 0.35
+        ctx.drawImage(img, 0, 80, 1080, 700)
+        ctx.restore()
+        const fade = ctx.createLinearGradient(0,80,0,780)
+        fade.addColorStop(0, 'rgba(10,15,42,0)')
+        fade.addColorStop(1, 'rgba(10,15,42,1)')
+        ctx.fillStyle = fade
+        ctx.fillRect(0,80,1080,700)
+      }catch{}
+    }
+
+    // Emoji
+    ctx.font = '160px serif'
+    ctx.textAlign = 'center'
+    ctx.fillText(shareData.emoji, 540, 360)
+
+    // Titulo da série
+    ctx.fillStyle = '#fff'
+    ctx.font = 'bold 52px Inter, sans-serif'
+    ctx.textAlign = 'center'
+    const tituloSerie = shareData.tipo==='episodio' ? serie.titulo : shareData.titulo
+    ctx.fillText(tituloSerie.length>26 ? tituloSerie.slice(0,26)+'...' : tituloSerie, 540, 500)
+
+    // Episódio
+    if(shareData.tipo==='episodio'){
+      ctx.fillStyle = shareData.cor
+      ctx.font = 'bold 38px Inter, sans-serif'
+      ctx.fillText(shareData.titulo.length>36 ? shareData.titulo.slice(0,36)+'...' : shareData.titulo, 540, 580)
+    }
+
+    // Subtexto
+    ctx.fillStyle = '#94a3b8'
+    ctx.font = '28px Inter, sans-serif'
+    ctx.fillText(shareData.subtexto, 540, shareData.tipo==='episodio' ? 640 : 560)
+
+    // Frase destaque
+    ctx.fillStyle = '#fff'
+    ctx.font = 'italic 26px Inter, sans-serif'
+    const frase = shareData.tipo==='episodio' ? `"estou assistindo no maratonei app"` : `"maratonando no maratonei app"`
+    ctx.fillText(frase, 540, 820)
+
+    // Footer
+    ctx.fillStyle = '#FFD400'
+    ctx.font = 'bold 32px Inter, sans-serif'
+    ctx.fillText('Maratonei App', 540, 1050)
+    ctx.fillStyle = '#ffffff55'
+    ctx.font = '24px Inter, sans-serif'
+    ctx.fillText(SITE_URL.replace('https://',''), 540, 1090)
+
+    const link = document.createElement('a')
+    link.download = `maratonei-${shareData.tipo}-${Date.now()}.png`
+    link.href = canvas.toDataURL()
+    link.click()
+  }
+
   async function toggleEp(eid){
     let novo = epsVistos.includes(eid)? epsVistos.filter(x=>x!==eid) : [...epsVistos, eid]
     setEpsVistos(novo); localStorage.setItem(userId+":eps-"+id, JSON.stringify(novo))
@@ -89,9 +223,11 @@ export default function DetalheSerie() {
     if(novo==="maratonei"){
       const todosIds=temporadas.flatMap(t=>t.eps.map(e=>e.id)); const novoEps=Array.from(new Set([...epsVistos,...todosIds]))
       setEpsVistos(novoEps); localStorage.setItem(userId+":eps-"+id, JSON.stringify(novoEps))
-      // CORRIGIDO: segundo update agora também manda updated_at pra subir pro topo
       await supabase.from("user_series").update({ eps_vistos:novoEps, updated_at:new Date().toISOString() }).eq("user_id",userId).eq("serie_id",id)
       setShowRating(true)
+      setTimeout(()=>abrirShareStatus(novo), 800)
+    } else if(novo==="assistindo"){
+      setTimeout(()=>abrirShareStatus(novo), 400)
     }
   }
   async function salvarNota(nota){ setMinhaNota(nota); setShowRating(false); localStorage.setItem(userId+":nota-"+id, String(nota)); try{ await supabase.from("user_series").update({ nota, avaliacao:nota, updated_at:new Date().toISOString() }).eq("user_id",userId).eq("serie_id",id) }catch{} }
@@ -149,13 +285,48 @@ export default function DetalheSerie() {
                 <div key={ep.id} style={{ display:"flex", gap:10, padding:10, borderRadius:14, background: ok?"rgba(255,255,255,0.05)":"#0E1430", border: ok?"1px solid #22c55e55":"1px solid rgba(255,255,255,0.06)" }}>
                   <div style={{ width:84, height:48, borderRadius:8, overflow:"hidden", background:"#0A0F2A" }}>{ep.img? <img src={ep.img} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} /> : <div style={{ display:"grid", placeItems:"center", fontSize:10, opacity:0.3, height:"100%" }}>SEM IMG</div>}</div>
                   <div style={{ flex:1, minWidth:0 }}><div style={{ fontSize:13, fontWeight:800 }}>{ep.numero}. {ep.nome}</div><div style={{ fontSize:11, opacity:0.55, marginTop:4 }}>{ep.resumo}</div></div>
-                  <button onClick={()=>toggleEp(ep.id)} style={{ width:36, height:36, borderRadius:999, border: ok?"0":"1.5px solid rgba(255,255,255,0.2)", background: ok?"#22c55e":"transparent", color:"#fff", cursor:"pointer" }}>{ok?"✓":""}</button>
+                  <div style={{display:"flex", gap:6, alignItems:"center"}}>
+                    <button onClick={()=>abrirShareEpisodio(ep, t.numero)} title="Compartilhar episódio" style={{ width:32, height:32, borderRadius:8, background:"#ffffff12", border:"1px solid rgba(255,255,255,0.12)", color:"#fff", cursor:"pointer", fontSize:12 }}>↗</button>
+                    <button onClick={()=>toggleEp(ep.id)} style={{ width:36, height:36, borderRadius:999, border: ok?"0":"1.5px solid rgba(255,255,255,0.2)", background: ok?"#22c55e":"transparent", color:"#fff", cursor:"pointer" }}>{ok?"✓":""}</button>
+                  </div>
                 </div>
               )})}</div>}
             </div>
           )})}
         </div>
       </div>
+
+      {showShare && shareData && (
+        <div style={{position:"fixed", inset:0, background:"rgba(0,0,0,0.9)", backdropFilter:"blur(12px)", zIndex:10002, padding:14, display:"grid", placeItems:"center"}}>
+          <div style={{width:"100%", maxWidth:400, background:"#12182F", border:"1px solid #ffffff18", borderRadius:20, padding:18}}>
+            <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14}}>
+              <b>{shareData.tipo==='episodio'?'Compartilhar episódio':'Compartilhar conquista'}</b>
+              <button onClick={()=>setShowShare(false)} style={{width:32,height:32,borderRadius:999,background:"#ffffff12",border:"1px solid #ffffff15",color:"#fff"}}>✕</button>
+            </div>
+
+            <div style={{background: "#0A0F2A", border:`1px solid ${shareData.cor}44`, borderRadius:16, padding:16, textAlign:"center"}}>
+              <div style={{width:80, height:120, margin:"0 auto", borderRadius:10, overflow:"hidden", background:"#000"}}><img src={shareData.img} style={{width:"100%", height:"100%", objectFit:"cover"}} /></div>
+              <div style={{fontSize:32, marginTop:10}}>{shareData.emoji}</div>
+              <div style={{fontSize:15, fontWeight:900, marginTop:6, color:"#fff"}}>{shareData.tipo==='episodio'? serie.titulo : shareData.titulo}</div>
+              {shareData.tipo==='episodio' && <div style={{fontSize:12, fontWeight:700, color:shareData.cor, marginTop:4}}>{shareData.titulo}</div>}
+              <div style={{fontSize:11, opacity:0.6, marginTop:6}}>{shareData.subtexto}</div>
+              <div style={{marginTop:10, fontSize:11, background:"#ffffff10", padding:"8px", borderRadius:8}}>{shareData.texto}</div>
+            </div>
+
+            <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginTop:14}}>
+              <button onClick={()=>compartilhar('whatsapp')} style={{background:"#25D366", color:"#fff", border:0, borderRadius:999, padding:"12px", fontWeight:800, fontSize:12}}>WhatsApp</button>
+              <button onClick={()=>compartilhar('twitter')} style={{background:"#fff", color:"#000", border:0, borderRadius:999, padding:"12px", fontWeight:800, fontSize:12}}>X / Twitter</button>
+              <button onClick={()=>compartilhar('copiar')} style={{background:"#ffffff12", color:"#fff", border:"1px solid #ffffff20", borderRadius:999, padding:"12px", fontWeight:800, fontSize:12}}>🔗 Copiar</button>
+              <button onClick={baixarImagemShare} style={{background:"#FFD400", color:"#000", border:0, borderRadius:999, padding:"12px", fontWeight:900, fontSize:12}}>⬇ Imagem</button>
+            </div>
+
+            {typeof navigator!== 'undefined' && navigator.share && (
+              <button onClick={()=>compartilhar('nativo')} style={{width:"100%", marginTop:8, background:shareData.cor, color: shareData.cor==='#FFD400'?'#000':'#fff', border:0, borderRadius:999, padding:"12px", fontWeight:900, fontSize:12}}>📲 Compartilhar</button>
+            )}
+            <div style={{fontSize:10, opacity:0.4, textAlign:"center", marginTop:10}}>Imagem perfeita para Stories do Instagram</div>
+          </div>
+        </div>
+      )}
 
       {showRating && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", backdropFilter:"blur(6px)", display:"grid", placeItems:"center", zIndex:10000, padding:16 }}>
