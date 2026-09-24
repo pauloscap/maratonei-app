@@ -1,11 +1,11 @@
 "use client"
-import LimparBugados from './LimparBugados';
 import { useEffect, useState, useMemo } from "react"
 import { createClient } from "@supabase/supabase-js"
 import { BottomNav } from "../../components/BottomNav"
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_KEY)
 const TMDB_IMG_BIG = "https://image.tmdb.org/t/p/w500"
+const SITE_URL = "https://www.maratoneiapp.com.br"
 
 const hojeISO = ()=>new Date().toISOString().slice(0,10)
 const ontemISO = ()=>{ const d=new Date(); d.setDate(d.getDate()-1); return d.toISOString().slice(0,10) }
@@ -30,8 +30,8 @@ const CONQUISTAS = [
   { id:1, nome:"Pipoquinha", emoji:"🍿", min:1, max:7 },
   { id:2, nome:"Pipoca Média", emoji:"🍿", min:8, max:14 },
   { id:3, nome:"Baldão", emoji:"🪣", min:15, max:21 },
-  { id:4, nome:"Ticket", emoji:"🎟️", min:22, max:28 },
-  { id:5, nome:"Óculos 3D", emoji:"🕶️", min:29, max:35 },
+  { id:4, nome:"Ticket", emoji:"🎟", min:22, max:28 },
+  { id:5, nome:"Óculos 3D", emoji:"🕶", min:29, max:35 },
   { id:6, nome:"Claquete", emoji:"🎬", min:36, max:42 },
   { id:7, nome:"Câmera", emoji:"🎥", min:43, max:49 },
   { id:8, nome:"Troféu", emoji:"🏆", min:50, max:56 },
@@ -42,13 +42,13 @@ const PERSONAGENS_EMOJI = [
   { nome:"Wandinha", emoji:"🖤", cor:"#1a1a1a" },
   { nome:"Harry Potter", emoji:"⚡", cor:"#7a0000" },
   { nome:"Stitch", emoji:"👽", cor:"#2a7fff" },
-  { nome:"Homem-Aranha", emoji:"🕷️", cor:"#b00000" },
+  { nome:"Homem-Aranha", emoji:"🕷", cor:"#b00000" },
   { nome:"Barbie", emoji:"💖", cor:"#ff69b4" },
   { nome:"Naruto", emoji:"🍥", cor:"#ff8c00" },
   { nome:"Luffy", emoji:"👒", cor:"#d00000" },
   { nome:"Pikachu", emoji:"⚡", cor:"#ffcc00" },
   { nome:"Batman", emoji:"🦇", cor:"#111111" },
-  { nome:"Deadpool", emoji:"🗡️", cor:"#a00000" },
+  { nome:"Deadpool", emoji:"🗡", cor:"#a00000" },
   { nome:"Grogu", emoji:"👶", cor:"#7ab000" },
   { nome:"Eleven", emoji:"🧇", cor:"#e00000" },
 ]
@@ -64,14 +64,13 @@ export default function Perfil(){
   const [streakQuebrado,setStreakQuebrado]=useState(false)
   const [showFoto,setShowFoto]=useState(false)
   const [showPuzzle,setShowPuzzle]=useState(false)
+  const [showShare,setShowShare]=useState(false)
+  const [shareData,setShareData]=useState(null)
   const [posterReacher,setPosterReacher]=useState("https://image.tmdb.org/t/p/w500/bQnnKBe3VsvXKMoNCaYmRzs1Dup.jpg")
   const [stats,setStats]=useState({t:0,n:1,xp:0, seriesTotal:0, filmesTotal:0, seriesMaratonadas:0, filmesVistos:0, horasSeries:0, horasFilmes:0})
   const [loading,setLoading]=useState(true)
 
-  useEffect(()=>{
-    // Cartaz oficial de Reacher - fixo
-    setPosterReacher("https://image.tmdb.org/t/p/w500/bQnnKBe3VsvXKMoNCaYmRzs1Dup.jpg")
-  },[])
+  useEffect(()=>{ setPosterReacher("https://image.tmdb.org/t/p/w500/bQnnKBe3VsvXKMoNCaYmRzs1Dup.jpg") },[])
 
   useEffect(()=>{
     const loadData = async ()=>{
@@ -128,18 +127,96 @@ export default function Perfil(){
     await supabase.from("perfis").upsert({ user_id: session.user.id, avatar_url: `emoji:${item.nome}`, nome }, { onConflict:"user_id" })
   }
 
+  // COMPARTILHAR
+  function abrirShareSelo(conquista){
+    const texto = `Acabei de conquistar o selo ${conquista.emoji} ${conquista.nome} no Maratonei App! Estou com ${streak} dias de streak 🔥 maratoneiapp.com.br`
+    setShareData({
+      tipo: 'selo',
+      titulo: conquista.nome,
+      emoji: conquista.emoji,
+      texto,
+      subtexto: `${streak} dias de ofensiva • Nível ${stats.n}`,
+      cor: "#FFD400"
+    })
+    setShowShare(true)
+  }
+
+  function abrirShareBanner(){
+    const texto = `Completei o Desafio de Setembro do Maratonei App! 🧩 Montei o cartaz de Reacher com 30 check-ins! maratoneiapp.com.br`
+    setShareData({
+      tipo: 'banner',
+      titulo: 'Desafio Setembro Completo!',
+      emoji: '🧩',
+      texto,
+      subtexto: `Reacher • 30/30 peças • ${stats.t} títulos na lista`,
+      imagem: posterReacher,
+      cor: "#22c55e"
+    })
+    setShowShare(true)
+  }
+
+  function compartilhar(tipo){
+    if(!shareData) return
+    const url = SITE_URL
+    const textoCompleto = shareData.texto
+
+    if(navigator.share && tipo==='nativo'){
+      navigator.share({ title: 'Maratonei App', text: textoCompleto, url }).catch(()=>{})
+      return
+    }
+    if(tipo==='whatsapp') window.open(`https://wa.me/?text=${encodeURIComponent(textoCompleto)}`, '_blank')
+    if(tipo==='twitter') window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(textoCompleto)}`, '_blank')
+    if(tipo==='copiar'){ navigator.clipboard.writeText(textoCompleto); alert('Link copiado!') }
+  }
+
+  async function baixarImagemShare(){
+    if(!shareData) return
+    const canvas = document.createElement('canvas')
+    canvas.width = 1080
+    canvas.height = 1350
+    const ctx = canvas.getContext('2d')
+    // fundo
+    ctx.fillStyle = '#080B1F'
+    ctx.fillRect(0,0,1080,1350)
+    // borda amarela
+    ctx.fillStyle = shareData.cor || '#FFD400'
+    ctx.fillRect(0,0,1080,12)
+    // emoji gigante
+    ctx.font = '220px serif'
+    ctx.textAlign = 'center'
+    ctx.fillText(shareData.emoji, 540, 380)
+    // titulo
+    ctx.fillStyle = '#fff'
+    ctx.font = 'bold 72px Inter, sans-serif'
+    ctx.fillText(shareData.titulo, 540, 520)
+    // subtexto
+    ctx.fillStyle = '#94a3b8'
+    ctx.font = '32px Inter, sans-serif'
+    ctx.fillText(shareData.subtexto, 540, 600)
+    // nome
+    ctx.fillStyle = '#FFD400'
+    ctx.font = 'bold 36px Inter, sans-serif'
+    ctx.fillText(`${nome} • Maratonei App`, 540, 900)
+    // site
+    ctx.fillStyle = '#ffffff55'
+    ctx.font = '28px Inter, sans-serif'
+    ctx.fillText('maratoneiapp.com.br', 540, 980)
+
+    const link = document.createElement('a')
+    link.download = `maratonei-${shareData.tipo}-${Date.now()}.png`
+    link.href = canvas.toDataURL()
+    link.click()
+  }
+
   const progresso = (stats.xp%250)/2.5
   const fezHoje = cks.includes(hojeISO())
   const iconesDesbloqueados = streakQuebrado? 0 : CONQUISTAS.filter(c=> streak>=c.min).length
   const conquistaAtual = streakQuebrado? null : CONQUISTAS.find(c=> streak>=c.min && streak<=c.max)
 
-  // GAMIFICAÇÃO CORRIGIDA: 1 check-in = 1 peça, apenas do mês atual (setembro)
-  // Se fez 1 check-in hoje, libera apenas 1 peça das 30
   const pecasDesbloqueadas = useMemo(()=>{
     const hoje = new Date()
     const mesAtual = hoje.getMonth()
     const anoAtual = hoje.getFullYear()
-    // Conta apenas check-ins do mês atual
     const checkinsDoMes = cks.filter(dataStr=>{
       const d = new Date(dataStr+"T12:00:00")
       return d.getMonth()===mesAtual && d.getFullYear()===anoAtual
@@ -183,12 +260,24 @@ export default function Perfil(){
         </div>
 
         <div style={{background:"linear-gradient(135deg,#1A2142,#12182F)", border: streakQuebrado? "1px solid #38bdf833" : "1px solid #FFD40033", borderRadius:18, padding:14}}>
-          <div style={{display:"flex", justifyContent:"space-between", alignItems:"center"}}><b style={{fontSize:14}}>🍿 Minha Maratona</b><span style={{fontSize:11, background:streakQuebrado?"#38bdf822":"#FFD40022", color:streakQuebrado?"#38bdf8":"#FFD400", padding:"3px 8px", borderRadius:99}}>{streakQuebrado? "Zerado" : `${iconesDesbloqueados}/9 ícones`}</span></div>
+          <div style={{display:"flex", justifyContent:"space-between", alignItems:"center"}}>
+            <b style={{fontSize:14}}>🍿 Minha Maratona</b>
+            <span style={{fontSize:11, background:streakQuebrado?"#38bdf822":"#FFD40022", color:streakQuebrado?"#38bdf8":"#FFD400", padding:"3px 8px", borderRadius:99}}>{streakQuebrado? "Zerado" : `${iconesDesbloqueados}/9 ícones`}</span>
+          </div>
+
+          {conquistaAtual && (
+            <div style={{marginTop:12, background:"#FFD40014", border:"1px solid #FFD40044", borderRadius:12, padding:"10px 12px", display:"flex", justifyContent:"space-between", alignItems:"center"}}>
+              <div><div style={{fontSize:11, opacity:0.6}}>Conquista atual</div><div style={{fontSize:13, fontWeight:900, marginTop:2}}>{conquistaAtual.emoji} {conquistaAtual.nome} • {streak} dias</div></div>
+              <button onClick={()=>abrirShareSelo(conquistaAtual)} style={{background:"#FFD400", color:"#000", border:0, borderRadius:999, padding:"6px 12px", fontWeight:900, fontSize:11, cursor:"pointer"}}>↗ Compartilhar</button>
+            </div>
+          )}
+
           <div style={{display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginTop:12}}>
             {CONQUISTAS.map(c=>{ const desbloq = streak>=c.min &&!streakQuebrado; return (
-              <div key={c.id} style={{background: desbloq? "#FFD40014" : "#ffffff06", border: desbloq? "1px solid #FFD40044" : "1px solid #ffffff10", borderRadius:12, padding:10, textAlign:"center", opacity: desbloq? 1 : 0.35}}>
+              <div key={c.id} onClick={()=> desbloq && abrirShareSelo(c)} style={{background: desbloq? "#FFD40014" : "#ffffff06", border: desbloq? "1px solid #FFD40044" : "1px solid #ffffff10", borderRadius:12, padding:10, textAlign:"center", opacity: desbloq? 1 : 0.35, cursor: desbloq? "pointer" : "default"}}>
                 <div style={{fontSize:22}}>{c.emoji}</div>
                 <div style={{fontSize:10, fontWeight:800, marginTop:4}}>{c.nome}</div>
+                {desbloq && <div style={{fontSize:8, color:"#FFD400", marginTop:4, fontWeight:800}}>COMPARTILHAR</div>}
               </div>
             )})}
           </div>
@@ -209,6 +298,37 @@ export default function Perfil(){
         </div>
       </main>
 
+      {showShare && shareData && (
+        <div style={{position:"fixed", inset:0, background:"rgba(0,0,0,0.9)", backdropFilter:"blur(12px)", zIndex:10002, padding:14, display:"grid", placeItems:"center"}}>
+          <div style={{width:"100%", maxWidth:400, background:"#12182F", border:"1px solid #ffffff18", borderRadius:20, padding:18}}>
+            <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14}}>
+              <b>Compartilhar conquista</b>
+              <button onClick={()=>setShowShare(false)} style={{width:32,height:32,borderRadius:999,background:"#ffffff12",border:"1px solid #ffffff15",color:"#fff"}}>✕</button>
+            </div>
+
+            <div style={{background: shareData.tipo==='banner'? "#000" : "#1A2142", border:`1px solid ${shareData.cor}44`, borderRadius:16, padding:20, textAlign:"center"}}>
+              <div style={{fontSize:64}}>{shareData.emoji}</div>
+              <div style={{fontSize:18, fontWeight:900, marginTop:8, color:"#fff"}}>{shareData.titulo}</div>
+              <div style={{fontSize:12, opacity:0.6, marginTop:4}}>{shareData.subtexto}</div>
+              <div style={{marginTop:12, fontSize:11, background:"#ffffff10", padding:"8px", borderRadius:8, wordBreak:"break-word"}}>{shareData.texto}</div>
+            </div>
+
+            <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginTop:14}}>
+              <button onClick={()=>compartilhar('whatsapp')} style={{background:"#25D366", color:"#fff", border:0, borderRadius:999, padding:"12px", fontWeight:800, fontSize:12}}>WhatsApp</button>
+              <button onClick={()=>compartilhar('twitter')} style={{background:"#fff", color:"#000", border:0, borderRadius:999, padding:"12px", fontWeight:800, fontSize:12}}>X / Twitter</button>
+              <button onClick={()=>compartilhar('copiar')} style={{background:"#ffffff12", color:"#fff", border:"1px solid #ffffff20", borderRadius:999, padding:"12px", fontWeight:800, fontSize:12}}>🔗 Copiar Link</button>
+              <button onClick={baixarImagemShare} style={{background:"#FFD400", color:"#000", border:0, borderRadius:999, padding:"12px", fontWeight:900, fontSize:12}}>⬇ Baixar Imagem</button>
+            </div>
+
+            {typeof navigator!== 'undefined' && navigator.share && (
+              <button onClick={()=>compartilhar('nativo')} style={{width:"100%", marginTop:8, background:"#FFD400", color:"#000", border:0, borderRadius:999, padding:"12px", fontWeight:900, fontSize:12}}>📲 Compartilhar no celular</button>
+            )}
+
+            <div style={{fontSize:10, opacity:0.4, textAlign:"center", marginTop:10}}>A imagem é perfeita para postar no Instagram Stories</div>
+          </div>
+        </div>
+      )}
+
       {showFoto && (
         <div style={{position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", backdropFilter:"blur(8px)", zIndex:10000, padding:14, overflowY:"auto"}}>
           <div style={{maxWidth:560, margin:"0 auto", background:"#12182F", border:"1px solid #ffffff18", borderRadius:18, padding:14}}>
@@ -224,7 +344,6 @@ export default function Perfil(){
                 </div>
               ))}
             </div>
-            <div style={{fontSize:11, opacity:0.5, marginTop:14, textAlign:"center"}}>toque para escolher a foto do seu perfil</div>
           </div>
         </div>
       )}
@@ -248,6 +367,7 @@ export default function Perfil(){
                   <div style={{fontSize:10, opacity:0.5, marginTop:4}}>{pecasDesbloqueadas}/30 peças</div>
                 </div>
               </div>
+              {pecasDesbloqueadas===30 && <button onClick={abrirShareBanner} style={{width:"100%", marginTop:10, background:"#22c55e", color:"#fff", border:0, borderRadius:10, padding:"10px", fontWeight:900, fontSize:12}}>↗ Compartilhar Desafio Completo</button>}
             </div>
             <div style={{background:"#000", borderRadius:16, overflow:"hidden", border:"1px solid #ffffff15"}}>
               <div style={{display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:2, background:"#000", padding:2}}>
