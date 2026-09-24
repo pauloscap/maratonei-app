@@ -63,5 +63,58 @@ export default function AdminPage() {
 
       </div>
     </div>
+    {/* === NOVO - ACRESCENTAR SEM MEXER NO QUE JÁ TEM === */}
+        <div style={{...card, marginBottom:'16px'}}>
+          <div style={{display:'flex', gap:'8px', marginBottom:'16px'}}>
+            {[
+              {id:'filmes', label:`🎬 Filmes (${data.topFilmesTodos?.length||0})`},
+              {id:'series', label:`📺 Séries (${data.topSeriesTodos?.length||0})`},
+              {id:'users', label:`👥 Por Usuário`},
+            ].map(tab=>(
+              <button key={tab.id} onClick={()=>setAba(tab.id)} style={{
+                background: aba===tab.id?'white':'rgba(255,255,255,0.08)',
+                color: aba===tab.id?'#0e0f23':'white',
+                border:'none', borderRadius:'999px', padding:'8px 14px',
+                fontSize:'12px', fontWeight:700, cursor:'pointer'
+              }}>{tab.label}</button>
+            ))}
+          </div>
+
+          {aba==='filmes' && (
+            <div style={{maxHeight:'400px', overflowY:'auto'}}>
+              {data.topFilmesTodos?.map((s:any,i:number)=>(
+                <div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:'12px',padding:'8px 0',borderBottom:'1px solid rgba(255,255,255,0.05)'}}>
+                  <span>{i+1}. {s.titulo}</span><span style={{opacity:0.4}}>{s.total} saves</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {aba==='series' && (
+            <div style={{maxHeight:'400px', overflowY:'auto'}}>
+              {data.topSeriesTodos?.map((s:any,i:number)=>(
+                <div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:'12px',padding:'8px 0',borderBottom:'1px solid rgba(255,255,255,0.05)'}}>
+                  <span>{i+1}. {s.titulo}</span><span style={{opacity:0.4}}>{s.total} saves</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {aba==='users' && (
+            <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))', gap:'10px'}}>
+              {data.usuariosDetalhado?.map((u:any)=>(
+                <div key={u.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',background:'rgba(0,0,0,0.2)',border:'1px solid rgba(255,255,255,0.05)',borderRadius:'12px',padding:'10px 12px'}}>
+                  <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+                    <img src={u.avatar_url||`https://ui-avatars.com/api/?name=${u.nome}`} style={{width:'28px',height:'28px',borderRadius:'999px'}}/>
+                    <span style={{fontSize:'12px',fontWeight:700}}>{u.nome}</span>
+                  </div>
+                  <div style={{fontSize:'11px',textAlign:'right'}}>
+                    <div>🎬 {u.total_filmes} filmes</div>
+                    <div>📺 {u.total_series} séries</div>
+                    <div style={{fontWeight:800,marginTop:'2px'}}>= {u.total_geral} total</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
   )
 }
