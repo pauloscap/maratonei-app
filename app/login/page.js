@@ -1,19 +1,28 @@
 'use client';
 import { useState } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);
 
 export default function LoginPage(){
   const [loading, setLoading] = useState(false);
-  const supabase = createClientComponentClient();
 
   const handleGoogleLogin = async () => {
     setLoading(true);
-    await supabase.auth.signInWithOAuth({
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { 
         redirectTo: `${window.location.origin}/auth/callback` 
       }
     });
+    if(error) {
+      console.error(error);
+      setLoading(false);
+      alert('Erro ao logar: ' + error.message);
+    }
   };
 
   return (
@@ -53,7 +62,7 @@ export default function LoginPage(){
           <div style={{color:'#94a3b8', fontSize:'12px'}}>Tudo separado</div>
         </div>
         <div style={{background:'#111a33', border:'1px solid rgba(255,255,255,0.07)', padding:'18px', borderRadius:'14px'}}>
-          <div style={{fontSize:'20px'}}>⚡️</div>
+          <div style={{fontSize:'20px'}}>⚡</div>
           <div style={{fontWeight:'700', fontSize:'14px', margin:'6px 0 2px'}}>Sem burocracia</div>
           <div style={{color:'#94a3b8', fontSize:'12px'}}>Entrou, usou</div>
         </div>
@@ -63,25 +72,18 @@ export default function LoginPage(){
         <div style={{background:'rgba(17,26,51,0.6)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'16px', padding:'28px'}}>
           <h2 style={{fontSize:'18px', fontWeight:'800', color:'white', margin:'0 0 10px'}}>O que é o Maratonei App?</h2>
           <p style={{color:'#94a3b8', fontSize:'14px', lineHeight:'1.6', margin:'0 0 20px'}}>
-            O <strong style={{color:'#e2e8f0'}}>Maratonei App</strong> é o aplicativo definitivo para quem ama maratonar séries e filmes. 
-            Cansado de esquecer onde parou ou o que queria assistir? Com o Maratonei você cria sua lista pessoal, 
-            organiza por filmes e séries e controla seu progresso com um check-list diário simples. 
-            Sem cadastro chato, sem burocracia. Entrou com Google, já pode usar.
+            O <strong style={{color:'#e2e8f0'}}>Maratonei App</strong> é o aplicativo definitivo para quem ama maratonar séries e filmes. Cansado de esquecer onde parou? Crie sua lista pessoal e controle seu progresso com check-list diário. Sem cadastro chato.
           </p>
           <h3 style={{fontSize:'15px', fontWeight:'700', color:'white', margin:'0 0 8px'}}>Como funciona?</h3>
           <p style={{color:'#94a3b8', fontSize:'13px', lineHeight:'1.6', margin:'0 0 20px'}}>
-            1. Faça login com Google em 5 segundos. 2. Adicione filmes e séries à sua watchlist. 
-            3. Marque no check-list diário o que já assistiu. Pronto.
+            1. Login com Google. 2. Adicione à watchlist. 3. Marque no check-list o que já assistiu.
           </p>
           <h3 style={{fontSize:'15px', fontWeight:'700', color:'white', margin:'0 0 8px'}}>Por que usar o MaratoneiApp.com.br?</h3>
           <p style={{color:'#94a3b8', fontSize:'13px', lineHeight:'1.6', margin:0}}>
-            Interface em azul escuro que não cansa a vista, organização inteligente e foco no que importa: 
-            você saber exatamente o que já viu e o que falta maratonar.
+            Azul escuro que não cansa a vista, organização inteligente e foco no que importa.
           </p>
         </div>
-        <p style={{textAlign:'center', marginTop:'28px', color:'#334155', fontSize:'11px'}}>
-          maratonei app • maratoneiapp.com.br • app de séries e filmes • watchlist
-        </p>
+        <p style={{textAlign:'center', marginTop:'28px', color:'#334155', fontSize:'11px'}}>maratonei app • maratoneiapp.com.br • app de séries e filmes • watchlist</p>
       </div>
     </div>
   )
