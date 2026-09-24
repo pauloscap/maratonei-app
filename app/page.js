@@ -5,6 +5,7 @@ import { BottomNav } from "../components/BottomNav"
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_KEY)
 const IDS_REMOVER = ["101","102","103","201"]
+const TITULOS_BUGADOS = ["Ever Decreasing Circles", "MyPam!", "13 de Novembro - Terror em Paris", "13 de Novembro"]
 const TMDB_KEY = process.env.NEXT_PUBLIC_TMDB_KEY || "4e44d9029b1273360df0be1de39768d1"
 const TMDB_IMG = "https://image.tmdb.org/t/p/w342"
 
@@ -49,26 +50,57 @@ export default function Home() {
   const [loading, setLoading] = useState(true)
   const [deletadas, setDeletadas] = useState(new Set())
 
+  // FUNÇÃO NOVA: força remoção definitiva só no seu perfil
+  async function removerDefinitivo(serieId, titulo){
+    if(!confirm(`Forçar remoção de "${titulo}"? Ela nunca mais vai voltar.`)) return;
+    const sid = String(serieId)
+    const novaDeletadas = new Set(deletadas)
+    novaDeletadas.add(sid)
+    setDeletadas(novaDeletadas)
+    localStorage.setItem(userId + ":deletadas", JSON.stringify([...novaDeletadas]))
+
+    // Remove do Supabase
+    await supabase.from("user_series").delete().eq("user_id", userId).eq("serie_id", sid)
+    // Remove do localStorage
+    localStorage.removeItem(userId + ":status-" + sid)
+    localStorage.removeItem(userId + ":eps-" + sid)
+    localStorage.removeItem(userId + ":total-" + sid)
+
+    // Remove da tela na hora
+    setSeries(prev => prev.filter(s => String(s.id)!== sid))
+  }
+
   async function carregarSeries(uid) {
+    // Carrega lista de deletadas salvas
+    const deletadasSalvas = JSON.parse(localStorage.getItem(uid + ":deletadas") || "[]")
+    const setDeletadasSalvas = new Set(deletadasSalvas.map(String))
+    setDeletadas(setDeletadasSalvas)
+
     const { data: doSupabase } = await supabase.from("user_series").select("*").eq("user_id", uid).order("updated_at", { ascending: false })
     const localRaw = localStorage.getItem(uid + ":minhas-series")
     const doLocal = localRaw? JSON.parse(localRaw) : []
     const mapaFinal = {}
+
     if (doSupabase) {
-      doSupabase.forEach(r=>{
+      for (const r of doSupabase){
         const sid = String(r.serie_id)
-        if (deletadas.has(sid)) return
+        // REMOVE FORÇADO: se tá na lista de deletadas ou se é título bugado
+        if (setDeletadasSalvas.has(sid) || IDS_REMOVER.includes(sid) || TITULOS_BUGADOS.some(t => (r.titulo||"").includes(t))) {
+          await supabase.from("user_series").delete().eq("user_id", uid).eq("serie_id", sid)
+          continue
+        }
         mapaFinal[sid] = {
           id: sid, titulo: r.titulo, ano: r.ano || "0000", img: r.img, q: r.q,
           status: r.status || "", origem: r.origem || "tmdb",
           eps_vistos: r.eps_vistos || [], updated_at: r.updated_at || new Date().toISOString()
         }
-      })
+      }
     }
+
     const seriesPraSubir = []
     doLocal.forEach(s=>{
       const sid = String(s.id)
-      if (!mapaFinal[sid] && IDS_REMOVER.indexOf(sid)===-1 &&!deletadas.has(sid)) {
+      if (!mapaFinal[sid] && IDS_REMOVER.indexOf(sid)===-1 &&!setDeletadasSalvas.has(sid) &&!TITULOS_BUGADOS.some(t => (s.titulo||"").includes(t))) {
         mapaFinal[sid] = {...s, updated_at: s.updated_at || new Date().toISOString()}
         seriesPraSubir.push({
           user_id: uid, serie_id: sid, titulo: s.titulo, ano: s.ano || "0000",
@@ -78,6 +110,8 @@ export default function Home() {
       }
     })
     if (seriesPraSubir.length>0) await supabase.from("user_series").upsert(seriesPraSubir, { onConflict: 'user_id,serie_id' })
+
+    // Limpeza final
     IDS_REMOVER.forEach(badId=>{
       delete mapaFinal[badId]
       localStorage.removeItem(uid + ":status-" + badId)
@@ -85,6 +119,7 @@ export default function Home() {
       localStorage.removeItem(uid + ":total-" + badId)
     })
     await supabase.from("user_series").delete().eq("user_id", uid).in("serie_id", IDS_REMOVER)
+
     let listaBase = Object.values(mapaFinal)
     const comDados = await Promise.all(listaBase.map(async s=>{
       let img = s.img
@@ -120,10 +155,10 @@ export default function Home() {
       if (savedView) setView(savedView)
       await carregarSeries(uid)
       channel = supabase.channel('user_series_realtime_' + uid)
-  .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` }, ()=>carregarSeries(uid))
-  .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` }, ()=>carregarSeries(uid))
-  .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` }, ()=>carregarSeries(uid))
-  .subscribe()
+ .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` }, ()=>carregarSeries(uid))
+ .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` }, ()=>carregarSeries(uid))
+ .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'user_series', filter: `user_id=eq.${uid}` }, ()=>carregarSeries(uid))
+ .subscribe()
       const handleFocus = ()=>carregarSeries(uid)
       window.addEventListener('focus', handleFocus)
       window.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') handleFocus() })
@@ -165,7 +200,6 @@ export default function Home() {
 
   const assistindoRaw = useMemo(()=> series.filter(s=> s.status === "assistindo"), [series])
   const assistindo = useMemo(()=> {
-    const agora = Date.now()
     return assistindoRaw.filter(s=> Date.now() - new Date(s.updated_at).getTime() <= LIMITE_DEIXOU).sort(ordenarRecente)
   }, [assistindoRaw])
   const deixeiDeLado = useMemo(()=> {
@@ -177,10 +211,11 @@ export default function Home() {
   function CardGrade({s, isDeixado}){
     const cor = isDeixado? "#f97316" : s.status==="maratonei"? "#22c55e" : s.status==="quero_assistir"? "#8b5cf6" : "#FFD400"
     return (
-      <div className="card-grade" onClick={()=> isDeixado? resgatarSerie(s) : abrir(s)}>
+      <div className="card-grade" onClick={()=> isDeixado? resgatarSerie(s) : abrir(s)} onContextMenu={(e)=>{ e.preventDefault(); removerDefinitivo(s.id, s.titulo) }}>
         <div className="poster-wrap">
           <img src={s.img} alt="" loading="lazy" />
           <div className="badge" style={{background: isDeixado? "#f97316" : undefined, color: isDeixado? "#fff": undefined}}>{isDeixado? "RESGATAR" : s.status === "quero_assistir"? "QUERO" : s.status.toUpperCase()}</div>
+          <button onClick={(e)=>{ e.stopPropagation(); removerDefinitivo(s.id, s.titulo)}} style={{position:'absolute', top:4, right:4, background:'rgba(0,0,0,0.7)', color:'#fff', border:'none', borderRadius:6, width:22, height:22, fontSize:10, cursor:'pointer'}}>✕</button>
           {s.status!== "quero_assistir" && s.status!=="" && (<div className="progress-track"><div className="progress-fill" style={{ width: s.progresso + "%", background: cor }} /></div>)}
         </div>
         <div className="titulo">{s.titulo}</div>
@@ -197,7 +232,7 @@ export default function Home() {
           {s.status!== "quero_assistir" && s.status!=="" && (<div style={{ position:"absolute", bottom:0, left:0, right:0, height:4, background:"rgba(255,255,255,0.25)" }}><div style={{ height:"100%", width: s.progresso + "%", background: cor }} /></div>)}
         </div>
         <div style={{ flex:1 }}><div style={{ fontSize:13, fontWeight:800 }}>{s.titulo}</div><div style={{ fontSize:11, opacity:0.6 }}>{s.epsVistos}/{s.totalEps || "?"} • {s.progresso}% {isDeixado? `• parado há ${Math.floor((Date.now()-new Date(s.updated_at).getTime())/(1000*60*60*24))} dias` : ""}</div>{isDeixado && <div style={{fontSize:10, color:"#f97316", fontWeight:800, marginTop:2}}>Toque para resgatar</div>}</div>
-        {isDeixado && <div style={{fontSize:10, background:"#f97316", color:"#fff", padding:"4px 8px", borderRadius:99, fontWeight:900}}>RESGATAR</div>}
+        <button onClick={(e)=>{ e.stopPropagation(); removerDefinitivo(s.id, s.titulo)}} style={{background:"#ef444422", border:"1px solid #ef4444", color:"#ef4444", borderRadius:8, padding:"6px 10px", fontSize:10, fontWeight:800}}>REMOVER</button>
       </div>
     )
   }
@@ -236,7 +271,6 @@ export default function Home() {
         {qtd===0? (
           <div style={{background:"#12182F", border:"1px dashed rgba(255,255,255,0.12)", borderRadius:12, padding:"18px 14px", textAlign:"center"}}>
             <div style={{fontSize:11, opacity:0.35}}>{titulo==="Deixei de lado"? "Nenhuma série abandonada 🎉" : `Nenhuma série em ${titulo.toLowerCase()}`}</div>
-            <div style={{fontSize:11, color:"#FFD400", marginTop:4, fontWeight:700}}>{titulo==="Deixei de lado"? "Continue assistindo para não parar aqui" : "Busque acima para adicionar"}</div>
           </div>
         ) : view==="grade"? <div className="grid-responsive">{visiveis}</div> : <div style={{ display:"grid", gap:8 }}>{expandido? listaFlat : listaFlat.slice(0,6)}</div>}
       </div>
