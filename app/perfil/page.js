@@ -5,6 +5,7 @@ import { BottomNav } from "../../components/BottomNav"
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_KEY)
 const TMDB_IMG_BIG = "https://image.tmdb.org/t/p/w500"
+const TMDB_KEY = process.env.NEXT_PUBLIC_TMDB_KEY || "4e44d9029b1273360df0be1de39768d1"
 const SITE_URL = "https://www.maratoneiapp.com.br"
 
 const hojeISO = ()=>new Date().toISOString().slice(0,10)
@@ -40,15 +41,15 @@ const CONQUISTAS = [
 
 const PERSONAGENS_EMOJI = [
   { nome:"Wandinha", emoji:"🖤", cor:"#1a1a1a" },
-  { nome:"Harry Potter", emoji:"⚡", cor:"#7a0000" },
+  { nome:"【entity-Harry Potter¦canonical_name=Harry Potter】", emoji:"⚡", cor:"#7a0000" },
   { nome:"Stitch", emoji:"👽", cor:"#2a7fff" },
   { nome:"Homem-Aranha", emoji:"🕷", cor:"#b00000" },
-  { nome:"Barbie", emoji:"💖", cor:"#ff69b4" },
+  { nome:"【entity-Barbie¦canonical_name=Barbie】", emoji:"💖", cor:"#ff69b4" },
   { nome:"Naruto", emoji:"🍥", cor:"#ff8c00" },
   { nome:"Luffy", emoji:"👒", cor:"#d00000" },
   { nome:"Pikachu", emoji:"⚡", cor:"#ffcc00" },
   { nome:"Batman", emoji:"🦇", cor:"#111111" },
-  { nome:"Deadpool", emoji:"🗡", cor:"#a00000" },
+  { nome:"【entity-Deadpool¦canonical_name=Deadpool】", emoji:"🗡", cor:"#a00000" },
   { nome:"Grogu", emoji:"👶", cor:"#7ab000" },
   { nome:"Eleven", emoji:"🧇", cor:"#e00000" },
 ]
@@ -66,11 +67,20 @@ export default function Perfil(){
   const [showPuzzle,setShowPuzzle]=useState(false)
   const [showShare,setShowShare]=useState(false)
   const [shareData,setShareData]=useState(null)
-  const [posterReacher,setPosterReacher]=useState("https://image.tmdb.org/t/p/w500/bQnnKBe3VsvXKMoNCaYmRzs1Dup.jpg")
+  const [posterOutubro,setPosterOutubro]=useState("https://image.tmdb.org/t/p/w500/5l1aTo2wKNuxlKYSb9a3r5r3w5.jpg")
   const [stats,setStats]=useState({t:0,n:1,xp:0, seriesTotal:0, filmesTotal:0, seriesMaratonadas:0, filmesVistos:0, horasSeries:0, horasFilmes:0})
   const [loading,setLoading]=useState(true)
 
-  useEffect(()=>{ setPosterReacher("https://image.tmdb.org/t/p/w500/bQnnKBe3VsvXKMoNCaYmRzs1Dup.jpg") },[])
+  useEffect(()=>{
+    async function getAHS13(){
+      try{
+        const r = await fetch(`https://api.themoviedb.org/3/tv/1413/season/13?api_key=${TMDB_KEY}&language=pt-BR`)
+        const j = await r.json()
+        if(j.poster_path) setPosterOutubro(TMDB_IMG_BIG + j.poster_path)
+      }catch{}
+    }
+    getAHS13()
+  },[])
 
   useEffect(()=>{
     const loadData = async ()=>{
@@ -127,46 +137,25 @@ export default function Perfil(){
     await supabase.from("perfis").upsert({ user_id: session.user.id, avatar_url: `emoji:${item.nome}`, nome }, { onConflict:"user_id" })
   }
 
-  // COMPARTILHAR
   function abrirShareSelo(conquista){
-    const texto = `Acabei de conquistar o selo ${conquista.emoji} ${conquista.nome} no Maratonei App! Estou com ${streak} dias de streak 🔥 maratoneiapp.com.br`
-    setShareData({
-      tipo: 'selo',
-      titulo: conquista.nome,
-      emoji: conquista.emoji,
-      texto,
-      subtexto: `${streak} dias de ofensiva • Nível ${stats.n}`,
-      cor: "#FFD400"
-    })
+    const texto = `Acabei de conquistar o selo ${conquista.emoji} ${conquista.nome} no Maratonei App! Estou com ${streak} dias de streak 🔥 Vem organizar seus filmes também: ${SITE_URL}`
+    setShareData({ tipo: 'selo', titulo: conquista.nome, emoji: conquista.emoji, texto, subtexto: `${streak} dias • Nível ${stats.n}`, cor: "#FFD400" })
     setShowShare(true)
   }
 
   function abrirShareBanner(){
-    const texto = `Completei o Desafio de Setembro do Maratonei App! 🧩 Montei o cartaz de Reacher com 30 check-ins! maratoneiapp.com.br`
-    setShareData({
-      tipo: 'banner',
-      titulo: 'Desafio Setembro Completo!',
-      emoji: '🧩',
-      texto,
-      subtexto: `Reacher • 30/30 peças • ${stats.t} títulos na lista`,
-      imagem: posterReacher,
-      cor: "#22c55e"
-    })
+    const texto = `Completei o Desafio de Outubro do Maratonei App! 🧩 Montei o cartaz de 【entity-American Horror Story¦canonical_name=American Horror Story】 - 13ª temporada com 30 check-ins! Vem organizar seus filmes também: ${SITE_URL}`
+    setShareData({ tipo: 'banner', titulo: 'Desafio Outubro Completo!', emoji: '🧩', texto, subtexto: `AHS 13ª temporada • 30/30 peças`, imagem: posterOutubro, cor: "#22c55e" })
     setShowShare(true)
   }
 
   function compartilhar(tipo){
     if(!shareData) return
-    const url = SITE_URL
-    const textoCompleto = shareData.texto
-
-    if(navigator.share && tipo==='nativo'){
-      navigator.share({ title: 'Maratonei App', text: textoCompleto, url }).catch(()=>{})
-      return
-    }
-    if(tipo==='whatsapp') window.open(`https://wa.me/?text=${encodeURIComponent(textoCompleto)}`, '_blank')
-    if(tipo==='twitter') window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(textoCompleto)}`, '_blank')
-    if(tipo==='copiar'){ navigator.clipboard.writeText(textoCompleto); alert('Link copiado!') }
+    const txt = shareData.texto
+    if(navigator.share && tipo==='nativo'){ navigator.share({ title: 'Maratonei App', text: txt, url: SITE_URL }).catch(()=>{}); return }
+    if(tipo==='whatsapp') window.open(`https://wa.me/?text=${encodeURIComponent(txt)}`, '_blank')
+    if(tipo==='twitter') window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(txt)}`, '_blank')
+    if(tipo==='copiar'){ navigator.clipboard.writeText(txt); alert('Copiado!') }
   }
 
   async function baixarImagemShare(){
@@ -175,37 +164,26 @@ export default function Perfil(){
     canvas.width = 1080
     canvas.height = 1350
     const ctx = canvas.getContext('2d')
-    // fundo
     ctx.fillStyle = '#080B1F'
     ctx.fillRect(0,0,1080,1350)
-    // borda amarela
     ctx.fillStyle = shareData.cor || '#FFD400'
     ctx.fillRect(0,0,1080,12)
-    // emoji gigante
     ctx.font = '220px serif'
     ctx.textAlign = 'center'
     ctx.fillText(shareData.emoji, 540, 380)
-    // titulo
     ctx.fillStyle = '#fff'
-    ctx.font = 'bold 72px Inter, sans-serif'
+    ctx.font = 'bold 72px sans-serif'
     ctx.fillText(shareData.titulo, 540, 520)
-    // subtexto
     ctx.fillStyle = '#94a3b8'
-    ctx.font = '32px Inter, sans-serif'
+    ctx.font = '32px sans-serif'
     ctx.fillText(shareData.subtexto, 540, 600)
-    // nome
     ctx.fillStyle = '#FFD400'
-    ctx.font = 'bold 36px Inter, sans-serif'
-    ctx.fillText(`${nome} • Maratonei App`, 540, 900)
-    // site
-    ctx.fillStyle = '#ffffff55'
-    ctx.font = '28px Inter, sans-serif'
-    ctx.fillText('maratoneiapp.com.br', 540, 980)
-
-    const link = document.createElement('a')
-    link.download = `maratonei-${shareData.tipo}-${Date.now()}.png`
-    link.href = canvas.toDataURL()
-    link.click()
+    ctx.font = 'bold 36px sans-serif'
+    ctx.fillText(`${nome} • Maratonei`, 540, 900)
+    const a = document.createElement('a')
+    a.download = `maratonei-${Date.now()}.png`
+    a.href = canvas.toDataURL()
+    a.click()
   }
 
   const progresso = (stats.xp%250)/2.5
@@ -231,7 +209,7 @@ export default function Perfil(){
     return { dias, mesNome: hoje.toLocaleString('pt-BR',{month:'long'}), ano }
   },[cks])
 
-  if(loading) return <div style={{minHeight:"100vh", background:"#080B1F", display:"grid", placeItems:"center", color:"#fff"}}>Carregando seu perfil...</div>
+  if(loading) return <div style={{minHeight:"100vh", background:"#080B1F", display:"grid", placeItems:"center", color:"#fff"}}>Carregando...</div>
 
   return(
     <div style={{minHeight:"100vh", background:"#080B1F", color:"#fff", paddingBottom:90}}>
@@ -239,7 +217,7 @@ export default function Perfil(){
         <b>Perfil</b>
         <div style={{display:"flex", gap:8}}>
           <button onClick={()=>location.href="/configuracoes"} style={{width:32, height:32, borderRadius:999, background:"#ffffff12", border:"1px solid #ffffff15", color:"#fff"}}>⚙</button>
-          <button onClick={()=>setShowPuzzle(true)} style={{background:"#FFD400", color:"#000", border:0, borderRadius:999, padding:"6px 12px", fontWeight:900, fontSize:12}}>🧩 Desafio Setembro</button>
+          <button onClick={()=>setShowPuzzle(true)} style={{background:"#FFD400", color:"#000", border:0, borderRadius:999, padding:"6px 12px", fontWeight:900, fontSize:12}}>🧩 Desafio Outubro</button>
         </div>
       </header>
 
@@ -260,18 +238,13 @@ export default function Perfil(){
         </div>
 
         <div style={{background:"linear-gradient(135deg,#1A2142,#12182F)", border: streakQuebrado? "1px solid #38bdf833" : "1px solid #FFD40033", borderRadius:18, padding:14}}>
-          <div style={{display:"flex", justifyContent:"space-between", alignItems:"center"}}>
-            <b style={{fontSize:14}}>🍿 Minha Maratona</b>
-            <span style={{fontSize:11, background:streakQuebrado?"#38bdf822":"#FFD40022", color:streakQuebrado?"#38bdf8":"#FFD400", padding:"3px 8px", borderRadius:99}}>{streakQuebrado? "Zerado" : `${iconesDesbloqueados}/9 ícones`}</span>
-          </div>
-
+          <div style={{display:"flex", justifyContent:"space-between", alignItems:"center"}}><b style={{fontSize:14}}>🍿 Minha Maratona</b><span style={{fontSize:11, background:streakQuebrado?"#38bdf822":"#FFD40022", color:streakQuebrado?"#38bdf8":"#FFD400", padding:"3px 8px", borderRadius:99}}>{streakQuebrado? "Zerado" : `${iconesDesbloqueados}/9 ícones`}</span></div>
           {conquistaAtual && (
             <div style={{marginTop:12, background:"#FFD40014", border:"1px solid #FFD40044", borderRadius:12, padding:"10px 12px", display:"flex", justifyContent:"space-between", alignItems:"center"}}>
               <div><div style={{fontSize:11, opacity:0.6}}>Conquista atual</div><div style={{fontSize:13, fontWeight:900, marginTop:2}}>{conquistaAtual.emoji} {conquistaAtual.nome} • {streak} dias</div></div>
-              <button onClick={()=>abrirShareSelo(conquistaAtual)} style={{background:"#FFD400", color:"#000", border:0, borderRadius:999, padding:"6px 12px", fontWeight:900, fontSize:11, cursor:"pointer"}}>↗ Compartilhar</button>
+              <button onClick={()=>abrirShareSelo(conquistaAtual)} style={{background:"#FFD400", color:"#000", border:0, borderRadius:999, padding:"6px 12px", fontWeight:900, fontSize:11}}>↗ Compartilhar</button>
             </div>
           )}
-
           <div style={{display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginTop:12}}>
             {CONQUISTAS.map(c=>{ const desbloq = streak>=c.min &&!streakQuebrado; return (
               <div key={c.id} onClick={()=> desbloq && abrirShareSelo(c)} style={{background: desbloq? "#FFD40014" : "#ffffff06", border: desbloq? "1px solid #FFD40044" : "1px solid #ffffff10", borderRadius:12, padding:10, textAlign:"center", opacity: desbloq? 1 : 0.35, cursor: desbloq? "pointer" : "default"}}>
@@ -305,26 +278,18 @@ export default function Perfil(){
               <b>Compartilhar conquista</b>
               <button onClick={()=>setShowShare(false)} style={{width:32,height:32,borderRadius:999,background:"#ffffff12",border:"1px solid #ffffff15",color:"#fff"}}>✕</button>
             </div>
-
-            <div style={{background: shareData.tipo==='banner'? "#000" : "#1A2142", border:`1px solid ${shareData.cor}44`, borderRadius:16, padding:20, textAlign:"center"}}>
+            <div style={{background: "#1A2142", border:`1px solid ${shareData.cor}44`, borderRadius:16, padding:20, textAlign:"center"}}>
               <div style={{fontSize:64}}>{shareData.emoji}</div>
-              <div style={{fontSize:18, fontWeight:900, marginTop:8, color:"#fff"}}>{shareData.titulo}</div>
+              <div style={{fontSize:18, fontWeight:900, marginTop:8}}>{shareData.titulo}</div>
               <div style={{fontSize:12, opacity:0.6, marginTop:4}}>{shareData.subtexto}</div>
-              <div style={{marginTop:12, fontSize:11, background:"#ffffff10", padding:"8px", borderRadius:8, wordBreak:"break-word"}}>{shareData.texto}</div>
+              <div style={{marginTop:12, fontSize:11, background:"#ffffff10", padding:"8px", borderRadius:8}}>{shareData.texto}</div>
             </div>
-
             <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginTop:14}}>
               <button onClick={()=>compartilhar('whatsapp')} style={{background:"#25D366", color:"#fff", border:0, borderRadius:999, padding:"12px", fontWeight:800, fontSize:12}}>WhatsApp</button>
               <button onClick={()=>compartilhar('twitter')} style={{background:"#fff", color:"#000", border:0, borderRadius:999, padding:"12px", fontWeight:800, fontSize:12}}>X / Twitter</button>
-              <button onClick={()=>compartilhar('copiar')} style={{background:"#ffffff12", color:"#fff", border:"1px solid #ffffff20", borderRadius:999, padding:"12px", fontWeight:800, fontSize:12}}>🔗 Copiar Link</button>
-              <button onClick={baixarImagemShare} style={{background:"#FFD400", color:"#000", border:0, borderRadius:999, padding:"12px", fontWeight:900, fontSize:12}}>⬇ Baixar Imagem</button>
+              <button onClick={()=>compartilhar('copiar')} style={{background:"#ffffff12", color:"#fff", border:"1px solid #ffffff20", borderRadius:999, padding:"12px", fontWeight:800, fontSize:12}}>🔗 Copiar</button>
+              <button onClick={baixarImagemShare} style={{background:"#FFD400", color:"#000", border:0, borderRadius:999, padding:"12px", fontWeight:900, fontSize:12}}>⬇ Imagem</button>
             </div>
-
-            {typeof navigator!== 'undefined' && navigator.share && (
-              <button onClick={()=>compartilhar('nativo')} style={{width:"100%", marginTop:8, background:"#FFD400", color:"#000", border:0, borderRadius:999, padding:"12px", fontWeight:900, fontSize:12}}>📲 Compartilhar no celular</button>
-            )}
-
-            <div style={{fontSize:10, opacity:0.4, textAlign:"center", marginTop:10}}>A imagem é perfeita para postar no Instagram Stories</div>
           </div>
         </div>
       )}
@@ -352,17 +317,17 @@ export default function Perfil(){
         <div style={{position:"fixed", inset:0, background:"rgba(0,0,0,0.9)", backdropFilter:"blur(10px)", zIndex:10001, padding:14, overflowY:"auto"}}>
           <div style={{maxWidth:560, margin:"0 auto"}}>
             <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12}}>
-              <b style={{fontSize:16}}>Desafio de setembro</b>
+              <b style={{fontSize:16}}>Desafio de outubro</b>
               <button onClick={()=>setShowPuzzle(false)} style={{width:32,height:32,borderRadius:999,background:"#ffffff12",border:"1px solid #ffffff15",color:"#fff"}}>✕</button>
             </div>
             <div style={{background:"#12182F", border:"1px solid #FFD40033", borderRadius:16, padding:12, marginBottom:12}}>
-              <div style={{fontSize:12, lineHeight:1.5, fontWeight:700}}>Desafio de setembro</div>
-              <div style={{fontSize:12, lineHeight:1.5, marginTop:4}}>Série do mês. Complete os check-ins diários para liberar as peças. Cada check-in = 1 peça do quebra-cabeça.</div>
+              <div style={{fontSize:12, lineHeight:1.5, fontWeight:700}}>Desafio de outubro</div>
+              <div style={{fontSize:12, lineHeight:1.5, marginTop:4}}>Série do mês: American Horror Story - 13ª temporada. Complete os check-ins diários para liberar as peças. Cada check-in = 1 peça.</div>
               <div style={{marginTop:10, display:"flex", gap:8, alignItems:"center"}}>
-                <img src={posterReacher} alt="Reacher" style={{width:56, height:84, borderRadius:8, objectFit:"cover", border:"1px solid #ffffff15"}} />
+                <img src={posterOutubro} alt="AHS 13" style={{width:56, height:84, borderRadius:8, objectFit:"cover", border:"1px solid #ffffff15"}} />
                 <div style={{flex:1}}>
-                  <div style={{fontSize:13, fontWeight:900}}>Reacher • Cartaz oficial Prime Video</div>
-                  <div style={{fontSize:11, opacity:0.6, marginTop:2}}>Série do mês de setembro • 30 peças para liberar</div>
+                  <div style={{fontSize:13, fontWeight:900}}>American Horror Story • 13ª temporada</div>
+                  <div style={{fontSize:11, opacity:0.6, marginTop:2}}>Série do mês de outubro • 30 peças para liberar</div>
                   <div style={{marginTop:8, height:6, background:"#ffffff14", borderRadius:99, overflow:"hidden"}}><div style={{width:`${(pecasDesbloqueadas/30)*100}%`, height:"100%", background:"#FFD400"}}/></div>
                   <div style={{fontSize:10, opacity:0.5, marginTop:4}}>{pecasDesbloqueadas}/30 peças</div>
                 </div>
@@ -382,7 +347,7 @@ export default function Perfil(){
                       overflow:"hidden",
                       background:"#111",
                       borderRadius:4,
-                      backgroundImage:`url(${posterReacher})`,
+                      backgroundImage:`url(${posterOutubro})`,
                       backgroundSize:"500% 600%",
                       backgroundPosition:`${col * 25}% ${row * 20}%`,
                       filter: liberada? "none" : "blur(12px) brightness(0.25)"
@@ -393,7 +358,7 @@ export default function Perfil(){
                 })}
               </div>
             </div>
-            {pecasDesbloqueadas===30 && <div style={{marginTop:12, background:"#22c55e", color:"#fff", borderRadius:12, padding:"12px", textAlign:"center", fontWeight:900}}>🎉 Você completou o cartaz de Reacher! Desafio de Setembro concluído!</div>}
+            {pecasDesbloqueadas===30 && <div style={{marginTop:12, background:"#22c55e", color:"#fff", borderRadius:12, padding:"12px", textAlign:"center", fontWeight:900}}>🎉 Você completou o cartaz de AHS! Desafio de Outubro concluído!</div>}
           </div>
         </div>
       )}
