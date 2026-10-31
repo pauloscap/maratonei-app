@@ -303,9 +303,14 @@ export default function DetalheFilme() {
           <img src={filme.img} alt="" style={{ width:96, height:144, borderRadius:12, objectFit:"cover", border:"2px solid #222" }} />
           <div style={{ flex:1, paddingBottom:10 }}>
             <h1 style={{ margin:0, fontSize:18, fontWeight:900 }}>{filme.titulo}</h1>
-            <div style={{ fontSize:11, opacity:0.6, marginTop:4, display:"flex", gap:8 }}>
-              <span>{detalhes.lancamento? detalhes.lancamento.slice(0,4) : ""}</span>
-              {detalhes.nota>0 && <span style={{ color:"#FFD400" }}>★ {detalhes.nota.toFixed(1)}</span>}
+            <div style={{ fontSize:11, opacity:0.75, marginTop:6, display:"flex", alignItems:"center", flexWrap:"wrap", gap:9, minHeight:16, lineHeight:1.2, overflow:"visible" }}>
+              {detalhes.lancamento && <span style={{ display:"inline-flex", alignItems:"center", lineHeight:1.2, whiteSpace:"nowrap" }}>{detalhes.lancamento.slice(0,4)}</span>}
+              {detalhes.nota>0 && (
+                <span style={{ display:"inline-flex", alignItems:"center", gap:4, color:"#FFD400", lineHeight:1.2, whiteSpace:"nowrap", overflow:"visible", padding:"1px 0" }}>
+                  <span aria-hidden="true" style={{ display:"inline-block", fontSize:12, lineHeight:1, flex:"0 0 auto" }}>★</span>
+                  <span style={{ display:"inline-block", lineHeight:1.2 }}>{detalhes.nota.toFixed(1)}</span>
+                </span>
+              )}
             </div>
           </div>
         </div>
