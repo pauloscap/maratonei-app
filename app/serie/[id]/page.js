@@ -213,7 +213,8 @@ export default function DetalheSerie() {
 
   async function salvarProgressoEpisodios(novo){
     const agora = new Date().toISOString()
-    const todosIds = temporadas.flatMap(t=>t.eps.map(e=>e.id))
+    const hoje = new Date().toISOString().slice(0,10)
+    const todosIds = temporadas.flatMap(t=>t.eps.filter(e=>!e.airdate || e.airdate<=hoje).map(e=>e.id))
     const temListaReal = todosIds.length>0 && todosIds.every(eid=>/^\d+$/.test(String(eid)))
     const concluiu = temListaReal && todosIds.every(eid=>novo.includes(eid))
     const novoStatus = concluiu ? "maratonei" : status==="maratonei" ? "assistindo" : status
@@ -235,7 +236,9 @@ export default function DetalheSerie() {
     await salvarProgressoEpisodios(novo)
   }
   async function maratonarTemp(temp){
-    const ids=temp.eps.map(e=>e.id)
+    const hoje = new Date().toISOString().slice(0,10)
+    const ids=temp.eps.filter(e=>!e.airdate || e.airdate<=hoje).map(e=>e.id)
+    if(!ids.length) return
     const todos=ids.every(i=>epsVistos.includes(i))
     const novo=todos ? epsVistos.filter(i=>!ids.includes(i)) : Array.from(new Set([...epsVistos,...ids]))
     await salvarProgressoEpisodios(novo)
@@ -244,7 +247,9 @@ export default function DetalheSerie() {
     setStatus(novo); localStorage.setItem(userId+":status-"+id, novo)
     await supabase.from("user_series").update({ status:novo, updated_at:new Date().toISOString() }).eq("user_id",userId).eq("serie_id",id)
     if(novo==="maratonei"){
-      const todosIds=temporadas.flatMap(t=>t.eps.map(e=>e.id)); const novoEps=Array.from(new Set([...epsVistos,...todosIds]))
+      const hoje = new Date().toISOString().slice(0,10)
+      const todosIds=temporadas.flatMap(t=>t.eps.filter(e=>!e.airdate || e.airdate<=hoje).map(e=>e.id))
+      const novoEps=Array.from(new Set([...epsVistos,...todosIds]))
       setEpsVistos(novoEps); localStorage.setItem(userId+":eps-"+id, JSON.stringify(novoEps))
       await supabase.from("user_series").update({ eps_vistos:novoEps, updated_at:new Date().toISOString() }).eq("user_id",userId).eq("serie_id",id)
       setShowRating(true)

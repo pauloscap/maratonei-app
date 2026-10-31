@@ -124,9 +124,35 @@ export default function Home() {
     const comDados = await Promise.all(listaBase.map(async s=>{
       let img = s.img
       if (!img) { try { const res = await buscarSeriesPTBR(s.q || s.titulo); if(res[0]) img = res[0].img } catch(e){} }
-      const st = s.status || localStorage.getItem(uid + ":status-" + s.id) || ""
+      let st = s.status || localStorage.getItem(uid + ":status-" + s.id) || ""
       const epsVistosArr = s.eps_vistos || JSON.parse(localStorage.getItem(uid + ":eps-" + s.id) || "[]")
-      const totalSalvo = Number(localStorage.getItem(uid + ":total-" + s.id) || 0)
+      let totalSalvo = Number(localStorage.getItem(uid + ":total-" + s.id) || 0)
+
+      // Séries concluídas voltam automaticamente para "assistindo" quando TMDB
+      // informa um episódio lançado depois da conclusão ou ainda não marcado.
+      if(st === "maratonei" && s.origem === "tmdb"){
+        try{
+          const tv = await fetch(`https://api.themoviedb.org/3/tv/${s.id}?api_key=${TMDB_KEY}&language=pt-BR`, {cache:"no-store"}).then(r=>r.json())
+          const ultimo = tv?.last_episode_to_air
+          const vistos = new Set(epsVistosArr.map(String))
+          const ultimoNaoVisto = ultimo?.id && !vistos.has(String(ultimo.id))
+          const lancadoDepois = ultimo?.air_date && s.updated_at &&
+            new Date(ultimo.air_date + "T00:00:00").getTime() > new Date(s.updated_at).getTime()
+          const quantidadeNova = Number(tv?.number_of_episodes || 0) > epsVistosArr.length
+          if(ultimo && (ultimoNaoVisto || lancadoDepois || quantidadeNova)){
+            st = "assistindo"
+            if(Number(tv?.number_of_episodes || 0) > 0){
+              totalSalvo = Number(tv.number_of_episodes)
+              localStorage.setItem(uid + ":total-" + s.id, String(totalSalvo))
+            }
+            const atualizado = new Date().toISOString()
+            await supabase.from("user_series").update({status:st, updated_at:atualizado}).eq("user_id",uid).eq("serie_id",s.id)
+            localStorage.setItem(uid + ":status-" + s.id, st)
+            s = {...s, status:st, updated_at:atualizado}
+          }
+        }catch(e){}
+      }
+
       let progresso = 0
       if (st === "maratonei") progresso = 100
       else if (st === "" || st === "quero_assistir") progresso = 0
