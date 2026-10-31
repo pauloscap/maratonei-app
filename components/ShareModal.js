@@ -10,6 +10,7 @@ export default function ShareModal({
   message,
   accent = "#FFD400",
   heading = "Compartilhar",
+  storyLabel = "",
   onClose,
   onShare,
   onDownload,
@@ -48,6 +49,17 @@ export default function ShareModal({
       ctx.fillRect(0, 0, 1080, 1920)
       ctx.fillStyle = accent
       ctx.fillRect(0, 0, 1080, 16)
+
+      if (storyLabel) {
+        ctx.fillStyle = accent
+        ctx.fillRect(300, 58, 480, 76)
+        ctx.fillStyle = "#080b1f"
+        ctx.textAlign = "center"
+        ctx.textBaseline = "middle"
+        ctx.font = "bold 34px Arial, sans-serif"
+        ctx.fillText(storyLabel, 540, 96)
+        ctx.textBaseline = "alphabetic"
+      }
 
       if (image) {
         try {
