@@ -27,6 +27,7 @@ export default function DetalheSerie() {
   // SHARE
   const [showShare, setShowShare] = useState(false)
   const [shareData, setShareData] = useState(null)
+  const [showCelebration, setShowCelebration] = useState(false)
 
   useEffect(() => {
     async function run() {
@@ -130,95 +131,113 @@ export default function DetalheSerie() {
 
   async function baixarImagemShare(){
     if(!shareData) return
-    const canvas = document.createElement('canvas')
-    canvas.width = 1080
-    canvas.height = 1350
-    const ctx = canvas.getContext('2d')
-    
-    // Fundo
-    const grad = ctx.createLinearGradient(0,0,0,1350)
-    grad.addColorStop(0, '#0A0F2A')
-    grad.addColorStop(1, '#12182F')
-    ctx.fillStyle = grad
-    ctx.fillRect(0,0,1080,1350)
-    
-    // Faixa cor
-    ctx.fillStyle = shareData.cor || '#FFD400'
-    ctx.fillRect(0,0,1080,14)
+    try{
+      const canvas = document.createElement('canvas')
+      canvas.width = 1080
+      canvas.height = 1920
+      const ctx = canvas.getContext('2d')
+      const grad = ctx.createLinearGradient(0,0,0,1920)
+      grad.addColorStop(0, '#111a38')
+      grad.addColorStop(1, '#080B1F')
+      ctx.fillStyle = grad
+      ctx.fillRect(0,0,1080,1920)
+      ctx.fillStyle = shareData.cor || '#FFD400'
+      ctx.fillRect(0,0,1080,14)
 
-    // Tenta desenhar poster se for episódio
-    if(shareData.img){
-      try{
-        const img = new Image()
-        img.crossOrigin = 'anonymous'
-        img.src = shareData.img
-        await new Promise((res,rej)=>{ img.onload=res; img.onerror=res; setTimeout(res,2000) })
+      const label = shareData.tipo === 'episodio'
+        ? (status === 'maratonei' ? 'MARATONEI' : 'ASSISTINDO')
+        : shareData.tipo === 'status'
+          ? (shareData.subtexto?.startsWith('MARATONEI') ? 'MARATONEI' : shareData.subtexto?.startsWith('ASSISTINDO') ? 'ASSISTINDO' : '')
+          : ''
+      if(label){
+        ctx.fillStyle = shareData.cor || '#FFD400'
+        ctx.beginPath(); ctx.roundRect(330,58,420,78,24); ctx.fill()
+        ctx.fillStyle = '#080B1F'; ctx.font = 'bold 36px Arial'; ctx.textAlign = 'center'; ctx.textBaseline='middle'
+        ctx.fillText(label,540,97); ctx.textBaseline='alphabetic'
+      }
+
+      let bmp = null
+      if(shareData.img){
+        try{
+          const response = await fetch('/api/proxy-image?url='+encodeURIComponent(shareData.img))
+          if(!response.ok) throw new Error('Imagem indisponível')
+          bmp = await createImageBitmap(await response.blob())
+        }catch{}
+      }
+      if(bmp){
+        const box = {x:54,y:190,w:972,h:920}
+        const scale = Math.max(box.w/bmp.width, box.h/bmp.height)
+        const sw = box.w/scale, sh = box.h/scale
+        const sx = (bmp.width-sw)/2, sy = (bmp.height-sh)/2
         ctx.save()
-        ctx.globalAlpha = 0.35
-        ctx.drawImage(img, 0, 80, 1080, 700)
+        ctx.beginPath(); ctx.roundRect(box.x,box.y,box.w,box.h,28); ctx.clip()
+        ctx.drawImage(bmp,sx,sy,sw,sh,box.x,box.y,box.w,box.h)
         ctx.restore()
-        const fade = ctx.createLinearGradient(0,80,0,780)
-        fade.addColorStop(0, 'rgba(10,15,42,0)')
-        fade.addColorStop(1, 'rgba(10,15,42,1)')
-        ctx.fillStyle = fade
-        ctx.fillRect(0,80,1080,700)
-      }catch{}
-    }
+        bmp.close?.()
+      } else {
+        ctx.fillStyle = '#182344'
+        ctx.beginPath(); ctx.roundRect(54,190,972,920,28); ctx.fill()
+        ctx.fillStyle='#fff'; ctx.font='150px Arial'; ctx.textAlign='center'; ctx.fillText('📺',540,680)
+      }
 
-    // Emoji
-    ctx.font = '160px serif'
-    ctx.textAlign = 'center'
-    ctx.fillText(shareData.emoji, 540, 360)
-
-    // Titulo da série
-    ctx.fillStyle = '#fff'
-    ctx.font = 'bold 52px Inter, sans-serif'
-    ctx.textAlign = 'center'
-    const tituloSerie = shareData.tipo==='episodio' ? serie.titulo : shareData.titulo
-    ctx.fillText(tituloSerie.length>26 ? tituloSerie.slice(0,26)+'...' : tituloSerie, 540, 500)
-
-    // Episódio
-    if(shareData.tipo==='episodio'){
-      ctx.fillStyle = shareData.cor
-      ctx.font = 'bold 38px Inter, sans-serif'
-      ctx.fillText(shareData.titulo.length>36 ? shareData.titulo.slice(0,36)+'...' : shareData.titulo, 540, 580)
-    }
-
-    // Subtexto
-    ctx.fillStyle = '#94a3b8'
-    ctx.font = '28px Inter, sans-serif'
-    ctx.fillText(shareData.subtexto, 540, shareData.tipo==='episodio' ? 640 : 560)
-
-    // Frase destaque
-    ctx.fillStyle = '#fff'
-    ctx.font = 'italic 26px Inter, sans-serif'
-    const frase = shareData.tipo==='episodio' ? `"estou assistindo no maratonei app"` : `"maratonando no maratonei app"`
-    ctx.fillText(frase, 540, 820)
-
-    // Footer
-    ctx.fillStyle = '#FFD400'
-    ctx.font = 'bold 32px Inter, sans-serif'
-    ctx.fillText('Maratonei App', 540, 1050)
-    ctx.fillStyle = '#ffffff55'
-    ctx.font = '24px Inter, sans-serif'
-    ctx.fillText(SITE_URL.replace('https://',''), 540, 1090)
-
-    const link = document.createElement('a')
-    link.download = `maratonei-${shareData.tipo}-${Date.now()}.png`
-    link.href = canvas.toDataURL()
-    link.click()
+      ctx.textAlign='center'
+      ctx.fillStyle='#fff'
+      ctx.font='bold 62px Arial'
+      const title = shareData.tipo==='episodio' ? serie.titulo : shareData.titulo
+      ctx.fillText(String(title||'').slice(0,32),540,1210)
+      if(shareData.tipo==='episodio'){
+        ctx.fillStyle=shareData.cor || '#a78bfa'
+        ctx.font='bold 42px Arial'
+        ctx.fillText(String(shareData.titulo||'').slice(0,38),540,1285)
+        ctx.fillStyle='#cbd5e1'; ctx.font='30px Arial'
+        ctx.fillText(String(shareData.subtexto||'').slice(0,54),540,1350)
+      } else {
+        ctx.fillStyle='#cbd5e1'; ctx.font='32px Arial'
+        ctx.fillText(String(shareData.subtexto||'').slice(0,54),540,1285)
+      }
+      ctx.fillStyle=shareData.cor || '#FFD400'
+      ctx.font='bold 38px Arial'
+      ctx.fillText('MARATONEI APP',540,1660)
+      ctx.fillStyle='rgba(255,255,255,.65)'
+      ctx.font='28px Arial'
+      ctx.fillText('maratoneiapp.com.br',540,1715)
+      const blob=await new Promise((resolve,reject)=>canvas.toBlob(v=>v?resolve(v):reject(new Error('Falha ao gerar imagem')),'image/png'))
+      const file=new File([blob],'maratonei-episodio.png',{type:'image/png'})
+      if(navigator.share && navigator.canShare?.({files:[file]})){
+        await navigator.share({files:[file],title:serie.titulo,text:shareData.texto})
+      } else {
+        const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='maratonei-episodio.png'; a.click(); URL.revokeObjectURL(a.href)
+      }
+    }catch(e){ alert('Não foi possível gerar a imagem: '+e.message) }
   }
 
+  async function salvarProgressoEpisodios(novo){
+    const agora = new Date().toISOString()
+    const todosIds = temporadas.flatMap(t=>t.eps.map(e=>e.id))
+    const concluiu = todosIds.length>0 && todosIds.every(eid=>novo.includes(eid))
+    const novoStatus = concluiu ? "maratonei" : status==="maratonei" ? "assistindo" : status
+    setEpsVistos(novo)
+    localStorage.setItem(userId+":eps-"+id, JSON.stringify(novo))
+    if(novoStatus!==status) {
+      setStatus(novoStatus)
+      localStorage.setItem(userId+":status-"+id, novoStatus)
+      if(concluiu) setShowCelebration(true)
+    }
+    await supabase.from("user_series").update({
+      eps_vistos:novo,
+      ...(novoStatus!==status ? {status:novoStatus} : {}),
+      updated_at:agora
+    }).eq("user_id",userId).eq("serie_id",id)
+  }
   async function toggleEp(eid){
-    let novo = epsVistos.includes(eid)? epsVistos.filter(x=>x!==eid) : [...epsVistos, eid]
-    setEpsVistos(novo); localStorage.setItem(userId+":eps-"+id, JSON.stringify(novo))
-    await supabase.from("user_series").update({ eps_vistos:novo, updated_at:new Date().toISOString() }).eq("user_id",userId).eq("serie_id",id)
+    const novo = epsVistos.includes(eid) ? epsVistos.filter(x=>x!==eid) : [...epsVistos,eid]
+    await salvarProgressoEpisodios(novo)
   }
   async function maratonarTemp(temp){
-    const ids=temp.eps.map(e=>e.id); const todos=ids.every(i=>epsVistos.includes(i))
-    let novo = todos? epsVistos.filter(i=>!ids.includes(i)) : Array.from(new Set([...epsVistos,...ids]))
-    setEpsVistos(novo); localStorage.setItem(userId+":eps-"+id, JSON.stringify(novo))
-    await supabase.from("user_series").update({ eps_vistos:novo, updated_at:new Date().toISOString() }).eq("user_id",userId).eq("serie_id",id)
+    const ids=temp.eps.map(e=>e.id)
+    const todos=ids.every(i=>epsVistos.includes(i))
+    const novo=todos ? epsVistos.filter(i=>!ids.includes(i)) : Array.from(new Set([...epsVistos,...ids]))
+    await salvarProgressoEpisodios(novo)
   }
   async function mudarStatus(novo){
     setStatus(novo); localStorage.setItem(userId+":status-"+id, novo)
@@ -303,6 +322,8 @@ export default function DetalheSerie() {
           heading={shareData.tipo === "episodio" ? "Compartilhe este episódio" : shareData.subtexto?.startsWith("MARATONEI") ? "Compartilhe sua conquista" : "Compartilhe sua maratona"}
           title={shareData.tipo === "episodio" ? serie.titulo : shareData.titulo}
           subtitle={shareData.subtexto}
+          storyLabel={shareData.tipo === "episodio" ? (status === "maratonei" ? "MARATONEI" : "ASSISTINDO") : shareData.subtexto?.startsWith("MARATONEI") ? "MARATONEI" : shareData.subtexto?.startsWith("ASSISTINDO") ? "ASSISTINDO" : ""}
+          storyImageMode={shareData.tipo === "episodio" ? "episode" : "poster"}
           image={shareData.img}
           emoji={shareData.emoji}
           message={shareData.texto}
@@ -313,6 +334,19 @@ export default function DetalheSerie() {
         />
       )}
 
+      {showCelebration && (
+        <div onClick={()=>setShowCelebration(false)} style={{position:"fixed",inset:0,zIndex:10050,display:"grid",placeItems:"center",padding:24,background:"rgba(5,9,25,.88)",backdropFilter:"blur(12px)",overflow:"hidden"}}>
+          <style>{`@keyframes maratoneiConfetti{0%{transform:translateY(-12vh) rotate(0deg);opacity:1}100%{transform:translateY(110vh) rotate(780deg);opacity:0}}`}</style>
+          {Array.from({length:72},(_,i)=><span key={i} style={{position:"absolute",top:"-5%",left:((i*37)%100)+"%",width:7+(i%5)*2,height:12+(i%4)*3,background:["#FFD400","#22c55e","#a78bfa","#f472b6","#38bdf8"][i%5],borderRadius:2,animation:"maratoneiConfetti "+(2.1+(i%9)*.22)+"s linear "+((i%13)*.08)+"s infinite"}} />)}
+          <div style={{position:"relative",textAlign:"center",maxWidth:360}}>
+            <div style={{fontSize:76,marginBottom:12}}>🏆</div>
+            <div style={{fontSize:13,letterSpacing:4,fontWeight:900,color:"#FFD400",marginBottom:10}}>MISSÃO CONCLUÍDA</div>
+            <div style={{fontSize:42,fontWeight:1000,lineHeight:1.05}}>MARATONEI!</div>
+            <div style={{fontSize:15,color:"#cbd5e1",marginTop:14}}>{serie?.titulo} • todos os episódios assistidos</div>
+            <button onClick={()=>setShowCelebration(false)} style={{marginTop:28,padding:"13px 28px",border:0,borderRadius:999,background:"#FFD400",color:"#080B1F",fontWeight:900}}>Continuar</button>
+          </div>
+        </div>
+      )}
       {showRating && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", backdropFilter:"blur(6px)", display:"grid", placeItems:"center", zIndex:10000, padding:16 }}>
           <div style={{ background:"#12182F", border:"1px solid rgba(255,255,255,0.12)", borderRadius:20, padding:20, width:"100%", maxWidth:340, textAlign:"center" }}>
