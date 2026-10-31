@@ -176,7 +176,7 @@ export default function DetalheSerie() {
         bmp.close?.()
       } else {
         ctx.fillStyle = '#182344'
-        ctx.beginPath(); ctx.roundRect(54,190,972,920,28); ctx.fill()
+        ctx.beginPath(); ctx.roundRect(54,190,972,620,28); ctx.fill()
         ctx.fillStyle='#fff'; ctx.font='150px Arial'; ctx.textAlign='center'; ctx.fillText('📺',540,680)
       }
 
@@ -184,16 +184,16 @@ export default function DetalheSerie() {
       ctx.fillStyle='#fff'
       ctx.font='bold 62px Arial'
       const title = shareData.tipo==='episodio' ? serie.titulo : shareData.titulo
-      ctx.fillText(String(title||'').slice(0,32),540,1210)
+      ctx.fillText(String(title||'').slice(0,32),540,1000)
       if(shareData.tipo==='episodio'){
         ctx.fillStyle=shareData.cor || '#a78bfa'
         ctx.font='bold 42px Arial'
-        ctx.fillText(String(shareData.titulo||'').slice(0,38),540,1285)
+        ctx.fillText(String(shareData.titulo||'').slice(0,38),540,1075)
         ctx.fillStyle='#cbd5e1'; ctx.font='30px Arial'
-        ctx.fillText(String(shareData.subtexto||'').slice(0,54),540,1350)
+        ctx.fillText(String(shareData.subtexto||'').slice(0,54),540,1140)
       } else {
         ctx.fillStyle='#cbd5e1'; ctx.font='32px Arial'
-        ctx.fillText(String(shareData.subtexto||'').slice(0,54),540,1285)
+        ctx.fillText(String(shareData.subtexto||'').slice(0,54),540,1075)
       }
       ctx.fillStyle=shareData.cor || '#FFD400'
       ctx.font='bold 38px Arial'
@@ -214,7 +214,8 @@ export default function DetalheSerie() {
   async function salvarProgressoEpisodios(novo){
     const agora = new Date().toISOString()
     const todosIds = temporadas.flatMap(t=>t.eps.map(e=>e.id))
-    const concluiu = todosIds.length>0 && todosIds.every(eid=>novo.includes(eid))
+    const temListaReal = todosIds.length>0 && todosIds.every(eid=>/^\\d+$/.test(String(eid)))
+    const concluiu = temListaReal && todosIds.every(eid=>novo.includes(eid))
     const novoStatus = concluiu ? "maratonei" : status==="maratonei" ? "assistindo" : status
     setEpsVistos(novo)
     localStorage.setItem(userId+":eps-"+id, JSON.stringify(novo))
