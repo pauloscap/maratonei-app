@@ -214,7 +214,7 @@ export default function DetalheSerie() {
   async function salvarProgressoEpisodios(novo){
     const agora = new Date().toISOString()
     const todosIds = temporadas.flatMap(t=>t.eps.map(e=>e.id))
-    const temListaReal = todosIds.length>0 && todosIds.every(eid=>/^\\d+$/.test(String(eid)))
+    const temListaReal = todosIds.length>0 && todosIds.every(eid=>/^\d+$/.test(String(eid)))
     const concluiu = temListaReal && todosIds.every(eid=>novo.includes(eid))
     const novoStatus = concluiu ? "maratonei" : status==="maratonei" ? "assistindo" : status
     setEpsVistos(novo)
