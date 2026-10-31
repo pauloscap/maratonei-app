@@ -228,12 +228,11 @@ export default function DetalheSerie() {
       setEpsVistos(novoEps); localStorage.setItem(userId+":eps-"+id, JSON.stringify(novoEps))
       await supabase.from("user_series").update({ eps_vistos:novoEps, updated_at:new Date().toISOString() }).eq("user_id",userId).eq("serie_id",id)
       setShowRating(true)
-      setTimeout(()=>abrirShareStatus(novo), 800)
     } else if(novo==="assistindo" || novo==="quero_assistir"){
       setTimeout(()=>abrirShareStatus(novo), 400)
     }
   }
-  async function salvarNota(nota){ setMinhaNota(nota); setShowRating(false); localStorage.setItem(userId+":nota-"+id, String(nota)); try{ await supabase.from("user_series").update({ nota, avaliacao:nota, updated_at:new Date().toISOString() }).eq("user_id",userId).eq("serie_id",id) }catch{} }
+  async function salvarNota(nota){ setMinhaNota(nota); setShowRating(false); localStorage.setItem(userId+":nota-"+id, String(nota)); try{ await supabase.from("user_series").update({ nota, avaliacao:nota, updated_at:new Date().toISOString() }).eq("user_id",userId).eq("serie_id",id) }catch{} setTimeout(()=>abrirShareStatus("maratonei"), 250) }
   async function abandonar(){ if(!confirm("Abandonar "+serie.titulo+"?")) return; setLoading(true); const {data:{session}}=await supabase.auth.getSession(); if(!session){ router.push("/login"); return } await supabase.from("user_series").delete().eq("user_id",session.user.id).eq("serie_id",serie.id); router.push("/"); router.refresh() }
 
   const totalEps = useMemo(()=>temporadas.reduce((a,t)=>a+t.eps.length,0),[temporadas])
@@ -320,7 +319,7 @@ export default function DetalheSerie() {
             <div style={{ fontSize:16, fontWeight:900, marginBottom:6 }}>Avalie {serie.titulo}</div>
             <div style={{ fontSize:12, opacity:0.6, marginBottom:14 }}>Sua nota vai para a aba Maratonei</div>
             <div style={{ display:"flex", justifyContent:"center", gap:8, marginBottom:16 }}>{[1,2,3,4,5].map(n=><button key={n} onMouseEnter={()=>setHoverNota(n)} onMouseLeave={()=>setHoverNota(0)} onClick={()=>salvarNota(n)} style={{ fontSize:36, background:"transparent", border:0, cursor:"pointer", color:(hoverNota||minhaNota)>=n?"#FFD400":"rgba(255,255,255,0.2)" }}>★</button>)}</div>
-            <div style={{ display:"flex", gap:8 }}><button onClick={()=>setShowRating(false)} style={{ flex:1, padding:10, borderRadius:12, background:"#0E1430", color:"#fff", border:"1px solid rgba(255,255,255,0.1)", cursor:"pointer" }}>Depois</button><button onClick={()=>salvarNota(minhaNota||5)} style={{ flex:1, padding:10, borderRadius:12, background:"#FFD400", color:"#000", border:0, cursor:"pointer", fontWeight:900 }}>Salvar {minhaNota||hoverNota? `${hoverNota||minhaNota}★` : ""}</button></div>
+            <div style={{ display:"flex", gap:8 }}><button onClick={()=>{ setShowRating(false); abrirShareStatus("maratonei") }} style={{ flex:1, padding:10, borderRadius:12, background:"#0E1430", color:"#fff", border:"1px solid rgba(255,255,255,0.1)", cursor:"pointer" }}>Depois</button><button onClick={()=>salvarNota(minhaNota||5)} style={{ flex:1, padding:10, borderRadius:12, background:"#FFD400", color:"#000", border:0, cursor:"pointer", fontWeight:900 }}>Salvar {minhaNota||hoverNota? `${hoverNota||minhaNota}★` : ""}</button></div>
           </div>
         </div>
       )}
