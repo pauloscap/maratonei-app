@@ -126,7 +126,7 @@ export default function Home() {
       if (!img) { try { const res = await buscarSeriesPTBR(s.q || s.titulo); if(res[0]) img = res[0].img } catch(e){} }
       let st = s.status || localStorage.getItem(uid + ":status-" + s.id) || ""
       const epsVistosArr = s.eps_vistos || JSON.parse(localStorage.getItem(uid + ":eps-" + s.id) || "[]")
-      const totalSalvo = Number(localStorage.getItem(uid + ":total-" + s.id) || 0)
+      let totalSalvo = Number(localStorage.getItem(uid + ":total-" + s.id) || 0)
 
       // Séries concluídas voltam automaticamente para "assistindo" quando TMDB
       // informa um episódio lançado depois da conclusão ou ainda não marcado.
@@ -141,6 +141,10 @@ export default function Home() {
           const quantidadeNova = Number(tv?.number_of_episodes || 0) > epsVistosArr.length
           if(ultimo && (ultimoNaoVisto || lancadoDepois || quantidadeNova)){
             st = "assistindo"
+            if(Number(tv?.number_of_episodes || 0) > 0){
+              totalSalvo = Number(tv.number_of_episodes)
+              localStorage.setItem(uid + ":total-" + s.id, String(totalSalvo))
+            }
             const atualizado = new Date().toISOString()
             await supabase.from("user_series").update({status:st, updated_at:atualizado}).eq("user_id",uid).eq("serie_id",s.id)
             localStorage.setItem(uid + ":status-" + s.id, st)
