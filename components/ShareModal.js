@@ -103,7 +103,7 @@ export default function ShareModal({
       ctx.textAlign = "center"
       ctx.fillStyle = "#ffffff"
       ctx.font = "100px serif"
-      ctx.fillText(emoji, 540, 1430)
+      ctx.fillText(emoji, 540, storyImageMode === "episode" ? 1065 : 1430)
       ctx.font = "bold 66px Arial, sans-serif"
       const safeTitle = String(title || "Minha maratona")
       const words = safeTitle.split(/\s+/)
@@ -117,12 +117,12 @@ export default function ShareModal({
         } else line = test
       }
       if (line) lines.push(line)
-      lines.slice(0, 2).forEach((item, index) => ctx.fillText(item, 540, 1535 + index * 76))
+      lines.slice(0, 2).forEach((item, index) => ctx.fillText(item, 540, (storyImageMode === "episode" ? 1165 : 1535) + index * 76))
 
       if (subtitle) {
         ctx.fillStyle = "#b8c3df"
         ctx.font = "34px Arial, sans-serif"
-        ctx.fillText(String(subtitle).slice(0, 65), 540, 1715)
+        ctx.fillText(String(subtitle).slice(0, 65), 540, storyImageMode === "episode" ? 1350 : 1715)
       }
 
       ctx.fillStyle = accent
