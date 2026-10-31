@@ -16,6 +16,7 @@ export default function ShareModal({
   downloading = false
 }) {
   const [copied, setCopied] = useState(false)
+  const [sharingStory, setSharingStory] = useState(false)
 
   useEffect(() => {
     function handleKeyDown(event) {
@@ -28,6 +29,107 @@ export default function ShareModal({
   async function handleCopy() {
     await onShare?.("copiar")
     setCopied(true)
+  }
+
+  async function handleInstagramStory() {
+    if (sharingStory) return
+    setSharingStory(true)
+    try {
+      const canvas = document.createElement("canvas")
+      canvas.width = 1080
+      canvas.height = 1920
+      const ctx = canvas.getContext("2d")
+      if (!ctx) throw new Error("Não foi possível preparar a imagem.")
+
+      const bg = ctx.createLinearGradient(0, 0, 1080, 1920)
+      bg.addColorStop(0, "#171f3d")
+      bg.addColorStop(1, "#080b1f")
+      ctx.fillStyle = bg
+      ctx.fillRect(0, 0, 1080, 1920)
+      ctx.fillStyle = accent
+      ctx.fillRect(0, 0, 1080, 16)
+
+      if (image) {
+        try {
+          const response = await fetch(`/api/proxy-image?url=${encodeURIComponent(image)}`)
+          if (!response.ok) throw new Error("Imagem indisponível")
+          const bitmap = await createImageBitmap(await response.blob())
+          const maxW = 820
+          const maxH = 1120
+          const scale = Math.min(maxW / bitmap.width, maxH / bitmap.height)
+          const w = bitmap.width * scale
+          const h = bitmap.height * scale
+          const x = (1080 - w) / 2
+          const y = 170 + (maxH - h) / 2
+          ctx.save()
+          ctx.shadowColor = "rgba(0,0,0,.45)"
+          ctx.shadowBlur = 38
+          ctx.drawImage(bitmap, x, y, w, h)
+          ctx.restore()
+          bitmap.close?.()
+        } catch {
+          // A arte continua funcional mesmo se o poster não puder ser carregado.
+        }
+      }
+
+      ctx.textAlign = "center"
+      ctx.fillStyle = "#ffffff"
+      ctx.font = "100px serif"
+      ctx.fillText(emoji, 540, 1430)
+      ctx.font = "bold 66px Arial, sans-serif"
+      const safeTitle = String(title || "Minha maratona")
+      const words = safeTitle.split(/\s+/)
+      const lines = []
+      let line = ""
+      for (const word of words) {
+        const test = line ? line + " " + word : word
+        if (ctx.measureText(test).width > 900 && line) {
+          lines.push(line)
+          line = word
+        } else line = test
+      }
+      if (line) lines.push(line)
+      lines.slice(0, 2).forEach((item, index) => ctx.fillText(item, 540, 1535 + index * 76))
+
+      if (subtitle) {
+        ctx.fillStyle = "#b8c3df"
+        ctx.font = "34px Arial, sans-serif"
+        ctx.fillText(String(subtitle).slice(0, 65), 540, 1715)
+      }
+
+      ctx.fillStyle = accent
+      ctx.font = "bold 36px Arial, sans-serif"
+      ctx.fillText("MARATONEI APP", 540, 1820)
+      ctx.fillStyle = "rgba(255,255,255,.65)"
+      ctx.font = "26px Arial, sans-serif"
+      ctx.fillText("maratoneiapp.com.br", 540, 1865)
+
+      const blob = await new Promise((resolve, reject) => {
+        canvas.toBlob(value => value ? resolve(value) : reject(new Error("Falha ao gerar a imagem.")), "image/png")
+      })
+      const file = new File([blob], "maratonei-story.png", { type: "image/png" })
+      const shareData = { files: [file], title: title || "Maratonei App", text: message || "Confira minha maratona no Maratonei App!" }
+
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share(shareData)
+      } else {
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement("a")
+        link.href = url
+        link.download = "maratonei-story.png"
+        document.body.appendChild(link)
+        link.click()
+        link.remove()
+        URL.revokeObjectURL(url)
+        window.alert("A imagem do Story foi salva. Abra o Instagram, crie um Story e selecione a imagem na galeria.")
+      }
+    } catch (error) {
+      if (error?.name !== "AbortError") {
+        window.alert("Não foi possível abrir o compartilhamento. Você pode baixar a imagem e publicá-la nos Stories.")
+      }
+    } finally {
+      setSharingStory(false)
+    }
   }
 
   return (
@@ -87,6 +189,9 @@ export default function ShareModal({
 
         <div style={{ marginTop: 17 }}>
           <div style={{ fontSize: 11, fontWeight: 800, color: "#cbd5e1", marginBottom: 9 }}>COMPARTILHAR EM</div>
+          <button type="button" onClick={handleInstagramStory} disabled={sharingStory} style={{ width: "100%", minHeight: 50, marginBottom: 9, border: 0, borderRadius: 13, background: "linear-gradient(110deg,#feda75,#fa7e1e,#d62976,#962fbf,#4f5bd5)", color: "#fff", fontSize: 13, fontWeight: 900, cursor: sharingStory ? "wait" : "pointer", opacity: sharingStory ? .7 : 1 }}>
+            {sharingStory ? "Preparando Story…" : "◎ Compartilhar nos Stories do Instagram"}
+          </button>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9 }}>
             <button type="button" onClick={() => onShare?.("whatsapp")} style={{ minHeight: 46, border: 0, borderRadius: 13, background: "#20bd65", color: "#fff", fontSize: 12, fontWeight: 900, cursor: "pointer" }}>WhatsApp</button>
             <button type="button" onClick={() => onShare?.("twitter")} style={{ minHeight: 46, border: "1px solid rgba(255,255,255,.16)", borderRadius: 13, background: "#080b14", color: "#fff", fontSize: 12, fontWeight: 900, cursor: "pointer" }}>X / Twitter</button>
