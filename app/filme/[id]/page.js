@@ -227,7 +227,6 @@ export default function DetalheFilme() {
     if(novoStatus==="ja_assisti"){
       setSalvando(false)
       setShowRating(true)
-      setTimeout(()=>abrirShare(novoStatus), 600)
       return
     }
     if(novoStatus==="quero_assistir"){
@@ -256,7 +255,7 @@ export default function DetalheFilme() {
         updated_at: agora
       }, { onConflict:"user_id,filme_id" })
     }catch{}
-    setTimeout(()=>{ window.location.href="/filmes" }, 500)
+    setTimeout(()=>abrirShare("ja_assisti"), 250)
   }
 
   async function abandonar() {
@@ -363,7 +362,7 @@ export default function DetalheFilme() {
           <div style={{ background:"#12182F", borderRadius:20, padding:20, width:"100%", maxWidth:340, textAlign:"center" }}>
             <div style={{ fontSize:16, fontWeight:900, marginBottom:14 }}>Avalie {filme.titulo}</div>
             <div style={{ display:"flex", justifyContent:"center", gap:8, marginBottom:16 }}>{[1,2,3,4,5].map(n=><button key={n} onMouseEnter={()=>setHoverNota(n)} onMouseLeave={()=>setHoverNota(0)} onClick={()=>salvarNota(n)} style={{ fontSize:36, background:"transparent", border:0, cursor:"pointer", color: (hoverNota||minhaNota)>=n? "#FFD400" : "rgba(255,255,255,0.2)" }}>★</button>)}</div>
-            <div style={{ display:"flex", gap:8 }}><button onClick={()=>{ setShowRating(false); window.location.href="/filmes" }} style={{ flex:1, padding:10, borderRadius:12, background:"#0E1430", color:"#fff", border:"1px solid #333" }}>Depois</button><button onClick={()=>salvarNota(minhaNota||5)} style={{ flex:1, padding:10, borderRadius:12, background:"#22c55e", color:"#fff", border:0, fontWeight:900 }}>Salvar</button></div>
+            <div style={{ display:"flex", gap:8 }}><button onClick={()=>{ setShowRating(false); abrirShare("ja_assisti") }} style={{ flex:1, padding:10, borderRadius:12, background:"#0E1430", color:"#fff", border:"1px solid #333" }}>Depois</button><button onClick={()=>salvarNota(minhaNota||5)} style={{ flex:1, padding:10, borderRadius:12, background:"#22c55e", color:"#fff", border:0, fontWeight:900 }}>Salvar</button></div>
           </div>
         </div>
       )}
