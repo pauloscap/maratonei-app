@@ -150,6 +150,22 @@ export default function DetalheFilme() {
       ctx.fillStyle = shareData.cor
       ctx.fillRect(0,0,canvas.width,16)
 
+      const statusLabel = shareData.tipo === "quero_assistir"
+        ? "QUERO ASSISTIR"
+        : shareData.tipo === "ja_assisti"
+          ? "JÁ ASSISTI"
+          : ""
+      if(statusLabel){
+        ctx.fillStyle = shareData.cor
+        ctx.fillRect(300, 42, 480, 72)
+        ctx.fillStyle = "#080B1F"
+        ctx.textAlign = "center"
+        ctx.textBaseline = "middle"
+        ctx.font = "bold 34px sans-serif"
+        ctx.fillText(statusLabel, 540, 78)
+        ctx.textBaseline = "alphabetic"
+      }
+
       // Carrega poster via proxy (resolve CORS)
       let bmp = null
       try{
@@ -346,6 +362,7 @@ export default function DetalheFilme() {
         <ShareModal
           heading={shareData.tipo === "ja_assisti" ? "Compartilhe sua sessão" : shareData.tipo === "quero_assistir" ? "Convide para assistir" : "Compartilhe este filme"}
           title={shareData.titulo}
+          storyLabel={shareData.tipo === "quero_assistir" ? "QUERO ASSISTIR" : shareData.tipo === "ja_assisti" ? "JÁ ASSISTI" : ""}
           subtitle={shareData.subtexto}
           image={shareData.img}
           emoji={shareData.emoji}
