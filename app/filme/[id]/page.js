@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react"
 import { createClient } from "@supabase/supabase-js"
 import { useParams } from "next/navigation"
+import ShareModal from "../../../components/ShareModal"
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_KEY)
 const TMDB_KEY = process.env.NEXT_PUBLIC_TMDB_KEY || "4e44d9029b1273360df0be1de39768d1"
@@ -128,7 +129,7 @@ export default function DetalheFilme() {
     }
     if(rede==='whatsapp') window.open(`https://wa.me/?text=${encodeURIComponent(txt)}`, '_blank')
     if(rede==='twitter') window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(txt)}`, '_blank')
-    if(rede==='copiar'){ navigator.clipboard.writeText(txt); alert('Link copiado com CTA!') }
+    if(rede==='copiar'){ navigator.clipboard.writeText(txt).catch(()=>{}) }
   }
 
   async function baixarImagemShare(formato = 'story'){
@@ -343,31 +344,19 @@ export default function DetalheFilme() {
       </div>
 
       {showShare && shareData && (
-        <div style={{position:"fixed", inset:0, background:"rgba(0,0,0,0.92)", backdropFilter:"blur(12px)", zIndex:10002, padding:14, display:"grid", placeItems:"center"}}>
-          <div style={{width:"100%", maxWidth:400, background:"#12182F", border:"1px solid #ffffff18", borderRadius:20, padding:18}}>
-            <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14}}>
-              <b>Compartilhar filme</b>
-              <button onClick={()=>setShowShare(false)} style={{width:32,height:32,borderRadius:999,background:"#ffffff12",border:"1px solid #ffffff15",color:"#fff"}}>✕</button>
-            </div>
-            <div style={{background: "#0A0F2A", border:`1px solid ${shareData.cor}44`, borderRadius:16, padding:16, textAlign:"center"}}>
-              <div style={{width:90, height:135, margin:"0 auto", borderRadius:10, overflow:"hidden", background:"#000", border:`2px solid ${shareData.cor}55`}}><img src={shareData.img} style={{width:"100%", height:"100%", objectFit:"cover"}} /></div>
-              <div style={{fontSize:28, marginTop:10}}>{shareData.emoji}</div>
-              <div style={{fontSize:15, fontWeight:900, marginTop:6}}>{shareData.titulo}</div>
-              <div style={{fontSize:11, opacity:0.6, marginTop:4}}>{shareData.subtexto}</div>
-              <div style={{marginTop:10, fontSize:11, background:"#ffffff10", padding:"8px", borderRadius:8, whiteSpace:"pre-wrap"}}>{shareData.texto}</div>
-            </div>
-            <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginTop:14}}>
-              <button onClick={()=>compartilhar('whatsapp')} style={{background:"#25D366", color:"#fff", border:0, borderRadius:999, padding:"12px", fontWeight:800, fontSize:12}}>WhatsApp</button>
-              <button onClick={()=>compartilhar('twitter')} style={{background:"#fff", color:"#000", border:0, borderRadius:999, padding:"12px", fontWeight:800, fontSize:12}}>X / Twitter</button>
-              <button onClick={()=>compartilhar('copiar')} style={{background:"#ffffff12", color:"#fff", border:"1px solid #ffffff20", borderRadius:999, padding:"12px", fontWeight:800, fontSize:12}}>🔗 Copiar Link</button>
-              <button onClick={()=>baixarImagemShare('feed')} disabled={baixando} style={{background:"#FFD400", color:"#000", border:0, borderRadius:999, padding:"12px", fontWeight:900, fontSize:12}}>{baixando?'...':'⬇ Feed'}</button>
-            </div>
-            <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginTop:8}}>
-              <button onClick={()=>baixarImagemShare('story')} disabled={baixando} style={{background:"#8b5cf6", color:"#fff", border:0, borderRadius:999, padding:"12px", fontWeight:900, fontSize:12}}>{baixando?'Gerando...':'📸 Instagram Story'}</button>
-              <button onClick={()=>compartilhar('nativo')} style={{background:"#ffffff15", color:"#fff", border:"1px solid #ffffff20", borderRadius:999, padding:"12px", fontWeight:800, fontSize:12}}>📲 Mais</button>
-            </div>
-          </div>
-        </div>
+        <ShareModal
+          heading={shareData.tipo === "ja_assisti" ? "Compartilhe sua sessão" : shareData.tipo === "quero_assistir" ? "Convide para assistir" : "Compartilhe este filme"}
+          title={shareData.titulo}
+          subtitle={shareData.subtexto}
+          image={shareData.img}
+          emoji={shareData.emoji}
+          message={shareData.texto}
+          accent={shareData.cor}
+          onClose={() => setShowShare(false)}
+          onShare={compartilhar}
+          onDownload={() => baixarImagemShare("story")}
+          downloading={baixando}
+        />
       )}
       {showRating && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", display:"grid", placeItems:"center", zIndex:10000, padding:16 }}>
