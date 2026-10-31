@@ -15,7 +15,7 @@ export default function DetalheFilme() {
   const [filme, setFilme] = useState(null)
   const [status, setStatus] = useState("")
   const [salvando, setSalvando] = useState(false)
-  const [detalhes, setDetalhes] = useState({ sinopse:"", nota:0, votos:0, providers:[], lancamento:"" })
+  const [detalhes, setDetalhes] = useState({ sinopse:"", nota:0, votos:0, providers:[], lancamento:"", emCartaz:false, providerLink:"" })
   const [showRating, setShowRating] = useState(false)
   const [minhaNota, setMinhaNota] = useState(0)
   const [hoverNota, setHoverNota] = useState(0)
@@ -45,9 +45,13 @@ export default function DetalheFilme() {
         if(stLocal) setStatus(stLocal)
       }
       try{
-        const [det, prov] = await Promise.all([
+        const [det, prov, nowPlayingPages] = await Promise.all([
           fetch(`https://api.themoviedb.org/3/movie/${id}?api_key=${TMDB_KEY}&language=pt-BR`).then(r=>r.json()),
-          fetch(`https://api.themoviedb.org/3/movie/${id}/watch/providers?api_key=${TMDB_KEY}`).then(r=>r.json())
+          fetch(`https://api.themoviedb.org/3/movie/${id}/watch/providers?api_key=${TMDB_KEY}`).then(r=>r.json()),
+          Promise.all([1,2,3,4,5].map(page =>
+            fetch(`https://api.themoviedb.org/3/movie/now_playing?api_key=${TMDB_KEY}&language=pt-BR&region=BR&page=${page}`)
+              .then(r=>r.json()).catch(()=>({results:[]}))
+          ))
         ])
         if(det && det.title){
           f = {...f, titulo: det.title, img: det.poster_path? `${TMDB_IMG}${det.poster_path}` : f.img, banner: det.backdrop_path? `${TMDB_IMG}${det.backdrop_path}` : f.img, data_lancamento: det.release_date }
@@ -59,7 +63,18 @@ export default function DetalheFilme() {
             const all = [...(br.flatrate||[]),...(br.rent||[]),...(br.buy||[])]
             providers = [...new Map(all.map(p=>[p.provider_id,p])).values()].slice(0,8)
           }
-          setDetalhes({ sinopse: det.overview || "", nota: det.vote_average || 0, votos: det.vote_count || 0, providers, lancamento: det.release_date || "" })
+          const emCartaz = nowPlayingPages.some(page =>
+            (page.results || []).some(movie => String(movie.id) === id)
+          )
+          setDetalhes({
+            sinopse: det.overview || "",
+            nota: det.vote_average || 0,
+            votos: det.vote_count || 0,
+            providers,
+            lancamento: det.release_date || "",
+            emCartaz,
+            providerLink: br?.link || ""
+          })
         }
       }catch(e){}
     }
@@ -280,11 +295,47 @@ export default function DetalheFilme() {
         </div>
       </div>
       <div style={{ maxWidth:680, margin:"0 auto", padding:"44px 14px 20px" }}>
-        {(detalhes.sinopse || detalhes.providers.length>0) && (
+        {(detalhes.sinopse || detalhes.providers.length>0 || detalhes.emCartaz) && (
           <div style={{ background:"#12182F", border:"1px solid #1e274f", borderRadius:16, padding:14, marginBottom:14 }}>
             {detalhes.sinopse && <div style={{ fontSize:12, lineHeight:1.5, opacity:0.85 }}>{detalhes.sinopse}</div>}
           </div>
         )}
+
+        <section style={{ background:"#12182F", border:"1px solid #1e274f", borderRadius:16, padding:14, marginBottom:14 }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, marginBottom:12 }}>
+            <h2 style={{ margin:0, fontSize:14, fontWeight:900 }}>Onde assistir</h2>
+            <span style={{ fontSize:10, opacity:0.5 }}>Brasil</span>
+          </div>
+          {detalhes.emCartaz && (
+            <div style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 12px", marginBottom:10, borderRadius:12, background:"#182b24", border:"1px solid #24543b" }}>
+              <span style={{ fontSize:22 }}>🎟️</span>
+              <div>
+                <div style={{ fontSize:12, fontWeight:900, color:"#86efac" }}>Em cartaz nos cinemas</div>
+                <div style={{ fontSize:10, opacity:0.7, marginTop:2 }}>O filme aparece na seleção atual de lançamentos em cartaz no Brasil</div>
+              </div>
+            </div>
+          )}
+          {detalhes.providers.length>0 ? (
+            <>
+              <div style={{ fontSize:10, opacity:0.55, marginBottom:8 }}>Disponível para assistir por streaming, aluguel ou compra:</div>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(76px,1fr))", gap:10 }}>
+                {detalhes.providers.map(p => (
+                  <a key={p.provider_id} href={detalhes.providerLink || "https://www.themoviedb.org/"} target="_blank" rel="noopener noreferrer" title={p.provider_name}
+                    style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:6, padding:8, borderRadius:12, background:"#0b1026", border:"1px solid #ffffff12", color:"#fff", textDecoration:"none", minWidth:0 }}>
+                    {p.logo_path
+                      ? <img src={`https://image.tmdb.org/t/p/w92${p.logo_path}`} alt="" style={{ width:42, height:42, borderRadius:10, objectFit:"cover" }} />
+                      : <span style={{ width:42, height:42, display:"grid", placeItems:"center", borderRadius:10, background:"#202944", fontSize:16 }}>▶</span>}
+                    <span style={{ fontSize:10, fontWeight:800, textAlign:"center", lineHeight:1.2 }}>{p.provider_name}</span>
+                  </a>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div style={{ fontSize:11, opacity:0.65, lineHeight:1.5 }}>
+              {detalhes.emCartaz ? "Não encontramos opções de streaming confirmadas no momento." : "Nenhuma opção de streaming ou aluguel foi confirmada no Brasil no momento."}
+            </div>
+          )}
+        </section>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
           <button disabled={salvando} onClick={()=> mudar("quero_assistir")} style={{ height:48, borderRadius:12, fontWeight:900, fontSize:13, background: status==="quero_assistir"? "#FFD400" : "#12182F", color: status==="quero_assistir"? "#000" : "#fff", border:"1px solid #222", cursor:"pointer" }}>{status==="quero_assistir"?"★ Quero Assistir":"Quero Assistir"}</button>
           <button disabled={salvando} onClick={()=> mudar("ja_assisti")} style={{ height:48, borderRadius:12, fontWeight:900, fontSize:13, background: status==="ja_assisti"? "#22c55e" : "#12182F", color:"#fff", border:"1px solid #222", cursor:"pointer" }}>{status==="ja_assisti"?"✓ Já Assisti":"Já Assisti"}</button>
