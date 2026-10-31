@@ -11,6 +11,7 @@ export default function ShareModal({
   accent = "#FFD400",
   heading = "Compartilhar",
   storyLabel = "",
+  storyImageMode = "poster",
   onClose,
   onShare,
   onDownload,
@@ -66,18 +67,33 @@ export default function ShareModal({
           const response = await fetch(`/api/proxy-image?url=${encodeURIComponent(image)}`)
           if (!response.ok) throw new Error("Imagem indisponível")
           const bitmap = await createImageBitmap(await response.blob())
-          const maxW = 820
-          const maxH = 1120
-          const scale = Math.min(maxW / bitmap.width, maxH / bitmap.height)
-          const w = bitmap.width * scale
-          const h = bitmap.height * scale
-          const x = (1080 - w) / 2
-          const y = 170 + (maxH - h) / 2
-          ctx.save()
-          ctx.shadowColor = "rgba(0,0,0,.45)"
-          ctx.shadowBlur = 38
-          ctx.drawImage(bitmap, x, y, w, h)
-          ctx.restore()
+          if (storyImageMode === "episode") {
+            const x = 48, y = 190, w = 984, h = 900
+            const scale = Math.max(w / bitmap.width, h / bitmap.height)
+            const sw = w / scale, sh = h / scale
+            const sx = (bitmap.width - sw) / 2, sy = (bitmap.height - sh) / 2
+            ctx.save()
+            ctx.shadowColor = "rgba(0,0,0,.5)"
+            ctx.shadowBlur = 34
+            ctx.beginPath()
+            ctx.roundRect(x, y, w, h, 30)
+            ctx.clip()
+            ctx.drawImage(bitmap, sx, sy, sw, sh, x, y, w, h)
+            ctx.restore()
+          } else {
+            const maxW = 820
+            const maxH = 1120
+            const scale = Math.min(maxW / bitmap.width, maxH / bitmap.height)
+            const w = bitmap.width * scale
+            const h = bitmap.height * scale
+            const x = (1080 - w) / 2
+            const y = 170 + (maxH - h) / 2
+            ctx.save()
+            ctx.shadowColor = "rgba(0,0,0,.45)"
+            ctx.shadowBlur = 38
+            ctx.drawImage(bitmap, x, y, w, h)
+            ctx.restore()
+          }
           bitmap.close?.()
         } catch {
           // A arte continua funcional mesmo se o poster não puder ser carregado.
@@ -180,7 +196,7 @@ export default function ShareModal({
         </header>
 
         <div style={{ display: "flex", gap: 14, alignItems: "center", padding: 12, borderRadius: 18, background: "rgba(255,255,255,.045)", border: "1px solid rgba(255,255,255,.08)" }}>
-          <div style={{ width: 86, height: 122, flex: "0 0 86px", borderRadius: 12, overflow: "hidden", background: "#080d20", border: `1px solid ${accent}66` }}>
+          <div style={{ width: storyImageMode === "episode" ? 112 : 86, height: storyImageMode === "episode" ? 72 : 122, flex: storyImageMode === "episode" ? "0 0 112px" : "0 0 86px", borderRadius: 12, overflow: "hidden", background: "#080d20", border: `1px solid ${accent}66` }}>
             {image ? <img src={image} alt={title || ""} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} /> : <div style={{ height: "100%", display: "grid", placeItems: "center", fontSize: 30 }}>{emoji}</div>}
           </div>
           <div style={{ minWidth: 0, flex: 1 }}>
