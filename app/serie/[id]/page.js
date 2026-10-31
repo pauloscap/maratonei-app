@@ -2,6 +2,7 @@
 import { useEffect, useState, useMemo } from "react"
 import { createClient } from "@supabase/supabase-js"
 import { useParams, useRouter } from "next/navigation"
+import ShareModal from "../../../components/ShareModal"
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_KEY)
 const TMDB_KEY = process.env.NEXT_PUBLIC_TMDB_KEY || "4e44d9029b1273360df0be1de39768d1"
@@ -91,6 +92,7 @@ export default function DetalheSerie() {
       texto: textoMap[novoStatus] || `Estou assistindo ${serie.titulo} no Maratonei App! ${SITE_URL}`,
       subtexto: `${novoStatus.toUpperCase()} • ${temporadas.length} temp`,
       img: serie.img,
+      link: SITE_URL + '/serie/' + id,
       cor: novoStatus==='maratonei'? '#22c55e' : '#FFD400'
     })
     setShowShare(true)
@@ -105,6 +107,7 @@ export default function DetalheSerie() {
       texto,
       subtexto: `${serie.titulo} • Temporada ${tempNumero}`,
       img: ep.img || serie.img,
+      link: SITE_URL + '/serie/' + id + '?temporada=' + tempNumero + '&episodio=' + ep.numero,
       ep: ep,
       temp: tempNumero,
       cor: '#8b5cf6'
@@ -114,7 +117,7 @@ export default function DetalheSerie() {
 
   function compartilhar(tipo){
     if(!shareData) return
-    const url = SITE_URL
+    const url = shareData.link || (SITE_URL + '/serie/' + id)
     const txt = shareData.texto
     if(navigator.share && tipo==='nativo'){
       navigator.share({ title: serie.titulo, text: txt, url }).catch(()=>{})
@@ -122,7 +125,7 @@ export default function DetalheSerie() {
     }
     if(tipo==='whatsapp') window.open(`https://wa.me/?text=${encodeURIComponent(txt)}`, '_blank')
     if(tipo==='twitter') window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(txt)}`, '_blank')
-    if(tipo==='copiar'){ navigator.clipboard.writeText(txt); alert('Copiado!') }
+    if(tipo==='copiar'){ navigator.clipboard.writeText(txt).catch(()=>{}) }
   }
 
   async function baixarImagemShare(){
@@ -226,7 +229,7 @@ export default function DetalheSerie() {
       await supabase.from("user_series").update({ eps_vistos:novoEps, updated_at:new Date().toISOString() }).eq("user_id",userId).eq("serie_id",id)
       setShowRating(true)
       setTimeout(()=>abrirShareStatus(novo), 800)
-    } else if(novo==="assistindo"){
+    } else if(novo==="assistindo" || novo==="quero_assistir"){
       setTimeout(()=>abrirShareStatus(novo), 400)
     }
   }
@@ -297,35 +300,18 @@ export default function DetalheSerie() {
       </div>
 
       {showShare && shareData && (
-        <div style={{position:"fixed", inset:0, background:"rgba(0,0,0,0.9)", backdropFilter:"blur(12px)", zIndex:10002, padding:14, display:"grid", placeItems:"center"}}>
-          <div style={{width:"100%", maxWidth:400, background:"#12182F", border:"1px solid #ffffff18", borderRadius:20, padding:18}}>
-            <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14}}>
-              <b>{shareData.tipo==='episodio'?'Compartilhar episódio':'Compartilhar conquista'}</b>
-              <button onClick={()=>setShowShare(false)} style={{width:32,height:32,borderRadius:999,background:"#ffffff12",border:"1px solid #ffffff15",color:"#fff"}}>✕</button>
-            </div>
-
-            <div style={{background: "#0A0F2A", border:`1px solid ${shareData.cor}44`, borderRadius:16, padding:16, textAlign:"center"}}>
-              <div style={{width:80, height:120, margin:"0 auto", borderRadius:10, overflow:"hidden", background:"#000"}}><img src={shareData.img} style={{width:"100%", height:"100%", objectFit:"cover"}} /></div>
-              <div style={{fontSize:32, marginTop:10}}>{shareData.emoji}</div>
-              <div style={{fontSize:15, fontWeight:900, marginTop:6, color:"#fff"}}>{shareData.tipo==='episodio'? serie.titulo : shareData.titulo}</div>
-              {shareData.tipo==='episodio' && <div style={{fontSize:12, fontWeight:700, color:shareData.cor, marginTop:4}}>{shareData.titulo}</div>}
-              <div style={{fontSize:11, opacity:0.6, marginTop:6}}>{shareData.subtexto}</div>
-              <div style={{marginTop:10, fontSize:11, background:"#ffffff10", padding:"8px", borderRadius:8}}>{shareData.texto}</div>
-            </div>
-
-            <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginTop:14}}>
-              <button onClick={()=>compartilhar('whatsapp')} style={{background:"#25D366", color:"#fff", border:0, borderRadius:999, padding:"12px", fontWeight:800, fontSize:12}}>WhatsApp</button>
-              <button onClick={()=>compartilhar('twitter')} style={{background:"#fff", color:"#000", border:0, borderRadius:999, padding:"12px", fontWeight:800, fontSize:12}}>X / Twitter</button>
-              <button onClick={()=>compartilhar('copiar')} style={{background:"#ffffff12", color:"#fff", border:"1px solid #ffffff20", borderRadius:999, padding:"12px", fontWeight:800, fontSize:12}}>🔗 Copiar</button>
-              <button onClick={baixarImagemShare} style={{background:"#FFD400", color:"#000", border:0, borderRadius:999, padding:"12px", fontWeight:900, fontSize:12}}>⬇ Imagem</button>
-            </div>
-
-            {typeof navigator!== 'undefined' && navigator.share && (
-              <button onClick={()=>compartilhar('nativo')} style={{width:"100%", marginTop:8, background:shareData.cor, color: shareData.cor==='#FFD400'?'#000':'#fff', border:0, borderRadius:999, padding:"12px", fontWeight:900, fontSize:12}}>📲 Compartilhar</button>
-            )}
-            <div style={{fontSize:10, opacity:0.4, textAlign:"center", marginTop:10}}>Imagem perfeita para Stories do Instagram</div>
-          </div>
-        </div>
+        <ShareModal
+          heading={shareData.tipo === "episodio" ? "Compartilhe este episódio" : shareData.subtexto?.startsWith("MARATONEI") ? "Compartilhe sua conquista" : "Compartilhe sua maratona"}
+          title={shareData.tipo === "episodio" ? serie.titulo : shareData.titulo}
+          subtitle={shareData.subtexto}
+          image={shareData.img}
+          emoji={shareData.emoji}
+          message={shareData.texto}
+          accent={shareData.cor}
+          onClose={() => setShowShare(false)}
+          onShare={compartilhar}
+          onDownload={baixarImagemShare}
+        />
       )}
 
       {showRating && (
