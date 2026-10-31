@@ -68,7 +68,7 @@ export default function ShareModal({
           if (!response.ok) throw new Error("Imagem indisponível")
           const bitmap = await createImageBitmap(await response.blob())
           if (storyImageMode === "episode") {
-            const x = 48, y = 190, w = 984, h = 900
+            const x = 48, y = 230, w = 984, h = 620
             const scale = Math.max(w / bitmap.width, h / bitmap.height)
             const sw = w / scale, sh = h / scale
             const sx = (bitmap.width - sw) / 2, sy = (bitmap.height - sh) / 2
