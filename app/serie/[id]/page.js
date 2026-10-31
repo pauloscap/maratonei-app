@@ -165,7 +165,7 @@ export default function DetalheSerie() {
         }catch{}
       }
       if(bmp){
-        const box = {x:54,y:190,w:972,h:920}
+        const box = {x:54,y:190,w:972,h:620}
         const scale = Math.max(box.w/bmp.width, box.h/bmp.height)
         const sw = box.w/scale, sh = box.h/scale
         const sx = (bmp.width-sw)/2, sy = (bmp.height-sh)/2
