@@ -84,14 +84,14 @@ export default function DetalheSerie() {
     const shareUrl = SITE_URL + "/compartilhar/serie/" + id
     const textoMap = {
       assistindo: `Comecei a assistir ${serie.titulo} no Maratonei App 🍿 Bora maratonar comigo? ${shareUrl}`,
-      maratonei: `Maratonei ${serie.titulo}! 🏆 Acabei de completar no Maratonei App. ${minhaNota? `Minha nota: ${minhaNota}★` : ''} ${SITE_URL}`,
-      quero_assistir: `Coloquei ${serie.titulo} na minha lista pra assistir no Maratonei App! ${SITE_URL}`
+      maratonei: `Maratonei ${serie.titulo}! 🏆 Acabei de completar no Maratonei App. ${minhaNota? `Minha nota: ${minhaNota}★` : ''} ${shareUrl}`,
+      quero_assistir: `Coloquei ${serie.titulo} na minha lista pra assistir no Maratonei App! ${shareUrl}`
     }
     setShareData({
       tipo: 'status',
       titulo: serie.titulo,
       emoji: novoStatus==='maratonei'?'🏆': novoStatus==='assistindo'?'👀':'📌',
-      texto: textoMap[novoStatus] || `Estou assistindo ${serie.titulo} no Maratonei App! ${SITE_URL}`,
+      texto: textoMap[novoStatus] || `Estou assistindo ${serie.titulo} no Maratonei App! ${shareUrl}`,
       subtexto: `${novoStatus.toUpperCase()} • ${temporadas.length} temp`,
       img: serie.img,
       link: shareUrl,
