@@ -38,7 +38,7 @@ A variável `NEXT_PUBLIC_SUPABASE_URL` já é usada pelo aplicativo. Não criar 
 Depois de aplicar a migration e publicar o endpoint:
 1. No Dashboard do Supabase, abrir Database → Webhooks.
 2. Criar webhook para tabela `public.notification_email_outbox`, evento `INSERT`.
-3. Método `POST), URL `https://maratoneiapp.com.br/api/webhooks/notification-email`.
+3. Método `POST`, URL `https://maratoneiapp.com.br/api/webhooks/notification-email`.
 4. Adicionar header `Authorization: Bearer <mesmo valor de SUPABASE_EMAIL_WEBHOOK_SECRET>`.
 5. Salvar e testar com uma conta que tenha optado por receber uma notificação.
 
