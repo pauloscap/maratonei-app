@@ -46,9 +46,10 @@ export default function DetalheSerie() {
       setEpsVistos(row.eps_vistos || [])
       if(row.nota || row.avaliacao) setMinhaNota(row.nota || row.avaliacao)
       try {
-        let lista = [], updates = {}, sinopse="", notaTmdb=0, votos=0, providers=[]
+        let lista = [], updates = {}, sinopse="", notaTmdb=0, votos=0, providers=[], detalhesTMDB=null
         if (s.origem === "tmdb") {
           const details = await fetch(`https://api.themoviedb.org/3/tv/${id}?api_key=${TMDB_KEY}&language=pt-BR`, { cache: 'no-store' }).then(r=>r.json())
+          detalhesTMDB = details
           if (details?.name) {
             sinopse = details.overview || ""; notaTmdb = details.vote_average || 0; votos = details.vote_count || 0
             const newImg = details.poster_path? `https://image.tmdb.org/t/p/w500${details.poster_path}` : s.img
@@ -75,16 +76,24 @@ export default function DetalheSerie() {
         const idsLancados = lista.flatMap(t=>t.eps.filter(ep=>!ep.airdate || ep.airdate<=hoje).map(ep=>String(ep.id)))
         const vistosNormalizados = new Set((row.eps_vistos || []).map(String))
         const concluiuLancados = idsLancados.length>0 && idsLancados.every(eid=>vistosNormalizados.has(eid))
-        if(concluiuLancados && row.status!=="maratonei"){
+        // No hiato de uma série em continuidade, sem próximo episódio anunciado,
+        // conclui-se automaticamente o ciclo de episódios atualmente disponível.
+        const semProximoEpisodio = detalhesTMDB?.status === "Returning Series" && !detalhesTMDB?.next_episode_to_air
+        const cicloDisponivelConcluido = semProximoEpisodio && idsLancados.length>0
+        // Episódio lançado depois da atualização do status reabre a série.
+        const dataStatus = row.updated_at?.slice(0,10) || ""
+        const episodioNovoDesdeStatus = lista.some(t=>t.eps.some(ep=>
+          ep.airdate && ep.airdate<=hoje && dataStatus && ep.airdate>dataStatus
+        ))
+        const deveMaratonei = concluiuLancados || cicloDisponivelConcluido
+        const novoStatusAuto = row.status==="maratonei" && episodioNovoDesdeStatus
+          ? "assistindo"
+          : deveMaratonei ? "maratonei" : row.status
+        if(novoStatusAuto !== row.status && (novoStatusAuto==="maratonei" || novoStatusAuto==="assistindo")){
           const atualizado = new Date().toISOString()
-          await supabase.from("user_series").update({status:"maratonei",updated_at:atualizado}).eq("user_id",uid).eq("serie_id",id)
-          localStorage.setItem(uid+":status-"+id,"maratonei")
-          setStatus("maratonei")
-        } else if(!concluiuLancados && row.status==="maratonei" && idsLancados.some(eid=>!vistosNormalizados.has(eid))){
-          const atualizado = new Date().toISOString()
-          await supabase.from("user_series").update({status:"assistindo",updated_at:atualizado}).eq("user_id",uid).eq("serie_id",id)
-          localStorage.setItem(uid+":status-"+id,"assistindo")
-          setStatus("assistindo")
+          await supabase.from("user_series").update({status:novoStatusAuto,updated_at:atualizado}).eq("user_id",uid).eq("serie_id",id)
+          localStorage.setItem(uid+":status-"+id,novoStatusAuto)
+          setStatus(novoStatusAuto)
         }
         setTemporadas(lista.length? lista : [{ numero:1, eps:[{ id:id+"-1", numero:1, nome:"Episódio 1", resumo:"", img:"" }]}])
         setAberta(null)
