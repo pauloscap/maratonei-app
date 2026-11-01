@@ -67,19 +67,19 @@ export default function Perfil(){
   const [showPuzzle,setShowPuzzle]=useState(false)
   const [showShare,setShowShare]=useState(false)
   const [shareData,setShareData]=useState(null)
-  const [posterOutubro,setPosterOutubro]=useState("https://image.tmdb.org/t/p/w500/5l1aTo2wKNuxlKYSb9a3r5r3w5.jpg")
+  const [posterOutubro,setPosterOutubro]=useState("")
   const [stats,setStats]=useState({t:0,n:1,xp:0, seriesTotal:0, filmesTotal:0, seriesMaratonadas:0, filmesVistos:0, horasSeries:0, horasFilmes:0})
   const [loading,setLoading]=useState(true)
 
   useEffect(()=>{
-    async function getAHS13(){
+    async function getRingsOfPowerSeason3(){
       try{
-        const r = await fetch(`https://api.themoviedb.org/3/tv/1413/season/13?api_key=${TMDB_KEY}&language=pt-BR`)
+        const r = await fetch(`https://api.themoviedb.org/3/tv/84773/season/3?api_key=${TMDB_KEY}&language=pt-BR`)
         const j = await r.json()
         if(j.poster_path) setPosterOutubro(TMDB_IMG_BIG + j.poster_path)
       }catch{}
     }
-    getAHS13()
+    getRingsOfPowerSeason3()
   },[])
 
   useEffect(()=>{
@@ -144,8 +144,8 @@ export default function Perfil(){
   }
 
   function abrirShareBanner(){
-    const texto = `Completei o Desafio de Outubro do Maratonei App! 🧩 Montei o cartaz de 【entity-American Horror Story¦canonical_name=American Horror Story】 - 13ª temporada com 30 check-ins! Vem organizar seus filmes também: ${SITE_URL}`
-    setShareData({ tipo: 'banner', titulo: 'Desafio Outubro Completo!', emoji: '🧩', texto, subtexto: `AHS 13ª temporada • 30/30 peças`, imagem: posterOutubro, cor: "#22c55e" })
+    const texto = `Completei o Desafio de Outubro do Maratonei App! 🧩 Montei o cartaz de Os Anéis de Poder - 3ª temporada com 30 check-ins! Vem organizar seus filmes também: ${SITE_URL}`
+    setShareData({ tipo: 'banner', titulo: 'Desafio Outubro Completo!', emoji: '🧩', texto, subtexto: `Os Anéis de Poder • 3ª temporada • 30/30 peças`, imagem: posterOutubro, cor: "#22c55e" })
     setShowShare(true)
   }
 
@@ -323,11 +323,11 @@ export default function Perfil(){
             </div>
             <div style={{background:"#12182F", border:"1px solid #FFD40033", borderRadius:16, padding:12, marginBottom:12}}>
               <div style={{fontSize:12, lineHeight:1.5, fontWeight:700}}>Desafio de outubro</div>
-              <div style={{fontSize:12, lineHeight:1.5, marginTop:4}}>Série do mês: American Horror Story - 13ª temporada. Complete os check-ins diários para liberar as peças. Cada check-in = 1 peça.</div>
+              <div style={{fontSize:12, lineHeight:1.5, marginTop:4}}>Série do mês: Os Anéis de Poder - 3ª temporada. Complete os check-ins diários para liberar as peças. Cada check-in = 1 peça.</div>
               <div style={{marginTop:10, display:"flex", gap:8, alignItems:"center"}}>
-                <img src={posterOutubro} alt="AHS 13" style={{width:56, height:84, borderRadius:8, objectFit:"cover", border:"1px solid #ffffff15"}} />
+                <img src={posterOutubro} alt="Os Anéis de Poder - 3ª temporada" style={{width:56, height:84, borderRadius:8, objectFit:"cover", border:"1px solid #ffffff15"}} />
                 <div style={{flex:1}}>
-                  <div style={{fontSize:13, fontWeight:900}}>American Horror Story • 13ª temporada</div>
+                  <div style={{fontSize:13, fontWeight:900}}>Os Anéis de Poder • 3ª temporada</div>
                   <div style={{fontSize:11, opacity:0.6, marginTop:2}}>Série do mês de outubro • 30 peças para liberar</div>
                   <div style={{marginTop:8, height:6, background:"#ffffff14", borderRadius:99, overflow:"hidden"}}><div style={{width:`${(pecasDesbloqueadas/30)*100}%`, height:"100%", background:"#FFD400"}}/></div>
                   <div style={{fontSize:10, opacity:0.5, marginTop:4}}>{pecasDesbloqueadas}/30 peças</div>
@@ -359,7 +359,7 @@ export default function Perfil(){
                 })}
               </div>
             </div>
-            {pecasDesbloqueadas===30 && <div style={{marginTop:12, background:"#22c55e", color:"#fff", borderRadius:12, padding:"12px", textAlign:"center", fontWeight:900}}>🎉 Você completou o cartaz de AHS! Desafio de Outubro concluído!</div>}
+            {pecasDesbloqueadas===30 && <div style={{marginTop:12, background:"#22c55e", color:"#fff", borderRadius:12, padding:"12px", textAlign:"center", fontWeight:900}}>🎉 Você completou o cartaz de Os Anéis de Poder! Desafio de Outubro concluído!</div>}
           </div>
         </div>
       )}
