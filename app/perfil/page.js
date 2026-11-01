@@ -215,9 +215,10 @@ export default function Perfil(){
     <div style={{minHeight:"100vh", background:"#080B1F", color:"#fff", paddingBottom:90}}>
       <header style={{height:56, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 16px", borderBottom:"1px solid #ffffff0f", background:"#080B1F", position:"sticky", top:0, zIndex:10}}>
         <b>Perfil</b>
-        <div style={{display:"flex", gap:8}}>
+        <div style={{display:"flex", gap:7, alignItems:"center"}}>
+          <button onClick={()=>user?.id && (location.href="/perfil/"+user.id)} style={{background:"#ffffff12", color:"#fff", border:"1px solid #ffffff20", borderRadius:999, padding:"7px 10px", fontWeight:800, fontSize:11}}>👤 Perfil público</button>
           <button onClick={()=>location.href="/configuracoes"} style={{width:32, height:32, borderRadius:999, background:"#ffffff12", border:"1px solid #ffffff15", color:"#fff"}}>⚙</button>
-          <button onClick={()=>setShowPuzzle(true)} style={{background:"#FFD400", color:"#000", border:0, borderRadius:999, padding:"6px 12px", fontWeight:900, fontSize:12}}>🧩 Desafio Outubro</button>
+          <button onClick={()=>setShowPuzzle(true)} style={{background:"#FFD400", color:"#000", border:0, borderRadius:999, padding:"6px 10px", fontWeight:900, fontSize:11}}>🧩 Desafio</button>
         </div>
       </header>
 
