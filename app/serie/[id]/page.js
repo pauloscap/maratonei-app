@@ -81,8 +81,9 @@ export default function DetalheSerie() {
 
   // SHARE FUNCTIONS
   function abrirShareStatus(novoStatus){
+    const shareUrl = SITE_URL + "/compartilhar/serie/" + id
     const textoMap = {
-      assistindo: `Comecei a assistir ${serie.titulo} no Maratonei App 🍿 Bora maratonar comigo? ${SITE_URL}`,
+      assistindo: `Comecei a assistir ${serie.titulo} no Maratonei App 🍿 Bora maratonar comigo? ${shareUrl}`,
       maratonei: `Maratonei ${serie.titulo}! 🏆 Acabei de completar no Maratonei App. ${minhaNota? `Minha nota: ${minhaNota}★` : ''} ${SITE_URL}`,
       quero_assistir: `Coloquei ${serie.titulo} na minha lista pra assistir no Maratonei App! ${SITE_URL}`
     }
@@ -93,14 +94,15 @@ export default function DetalheSerie() {
       texto: textoMap[novoStatus] || `Estou assistindo ${serie.titulo} no Maratonei App! ${SITE_URL}`,
       subtexto: `${novoStatus.toUpperCase()} • ${temporadas.length} temp`,
       img: serie.img,
-      link: SITE_URL + '/compartilhar/serie/' + id,
+      link: shareUrl,
       cor: novoStatus==='maratonei'? '#22c55e' : '#FFD400'
     })
     setShowShare(true)
   }
 
   function abrirShareEpisodio(ep, tempNumero){
-    const texto = `Estou assistindo a série ${serie.titulo} - T${tempNumero} E${ep.numero} "${ep.nome}" no Maratonei App 📺 ${SITE_URL}`
+    const shareUrl = SITE_URL + "/compartilhar/serie/" + id + "?temporada=" + tempNumero + "&episodio=" + ep.numero
+    const texto = `Estou assistindo a série ${serie.titulo} - T${tempNumero} E${ep.numero} "${ep.nome}" no Maratonei App 📺 ${shareUrl}`
     setShareData({
       tipo: 'episodio',
       titulo: `T${tempNumero} E${ep.numero} - ${ep.nome}`,
@@ -108,7 +110,7 @@ export default function DetalheSerie() {
       texto,
       subtexto: `${serie.titulo} • Temporada ${tempNumero}`,
       img: ep.img || serie.img,
-      link: SITE_URL + '/compartilhar/serie/' + id + '?temporada=' + tempNumero + '&episodio=' + ep.numero,
+      link: shareUrl,
       ep: ep,
       temp: tempNumero,
       cor: '#8b5cf6'
