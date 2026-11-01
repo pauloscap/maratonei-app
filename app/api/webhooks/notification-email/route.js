@@ -105,17 +105,14 @@ export async function POST(request) {
 
     return Response.json({ sent: true })
   } catch (error) {
-    const attempts = item.attempts + 1
-    const retryMinutes = Math.min(60, 2 ** attempts)
     await supabase
       .from('notification_email_outbox')
       .update({
-        status: attempts >= 5 ? 'failed' : 'pending',
-        available_at: new Date(Date.now() + retryMinutes * 60_000).toISOString(),
+        status: 'failed',
         last_error: String(error?.message || error).slice(0, 1000)
       })
       .eq('id', outboxId)
 
-    return Response.json({ sent: false, retrying: attempts < 5 }, { status: 502 })
+    return Response.json({ sent: false }, { status: 502 })
   }
 }
