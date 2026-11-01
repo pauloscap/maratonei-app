@@ -16,7 +16,7 @@ export default function AuthCallback() {
     const goToSocial = () => {
       if (redirected) return;
       redirected = true;
-      router.replace('/feed');
+      router.replace('/');
     };
 
     const checkSession = async () => {
@@ -36,7 +36,7 @@ export default function AuthCallback() {
     <div style={{minHeight:'100vh', background:'#080e1f', color:'white', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Inter, sans-serif'}}>
       <div style={{textAlign:'center'}}>
         <div style={{fontSize:'24px', marginBottom:'12px'}}>🔄</div>
-        <div style={{fontWeight:'700'}}>Entrando no Maratonei Social...</div>
+        <div style={{fontWeight:'700'}}>Entrando no Maratonei...</div>
         <div style={{color:'#94a3b8', fontSize:'13px', marginTop:'4px'}}>Só um segundo</div>
       </div>
     </div>
