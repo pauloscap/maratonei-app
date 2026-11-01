@@ -16,6 +16,11 @@ export default function BuscaPage() {
   const [busca, setBusca] = useState("")
   const [resultados, setResultados] = useState([])
   const [buscando, setBuscando] = useState(false)
+  const [pessoas, setPessoas] = useState([])
+  const [pessoasLoading, setPessoasLoading] = useState(true)
+  const [buscaPessoa, setBuscaPessoa] = useState("")
+  const [seguindoIds, setSeguindoIds] = useState([])
+  const [followLoading, setFollowLoading] = useState("")
 
   useEffect(() => {
     async function load() {
@@ -38,6 +43,66 @@ export default function BuscaPage() {
     }
     load()
   }, [])
+
+  useEffect(() => {
+    let active = true
+    async function carregarPessoas() {
+      setPessoasLoading(true)
+      const [{ data: sessionData }, { data: profilesData, error: profilesError }] = await Promise.all([
+        supabase.auth.getSession(),
+        supabase.from("profiles").select("id,username,nome,avatar_url,bio").limit(40)
+      ])
+      if (!active) return
+      const viewerId = sessionData?.session?.user?.id || null
+      setUserId(viewerId || "anon")
+      if (profilesError) {
+        setPessoas([])
+        setPessoasLoading(false)
+        return
+      }
+      let rows = profilesData || []
+      if (viewerId) rows = rows.filter(p => p.id !== viewerId)
+      const ids = rows.map(p => p.id)
+      let legacy = []
+      if (ids.length) {
+        const { data } = await supabase.from("perfis").select("user_id,nome,avatar_url,xp").in("user_id", ids)
+        legacy = data || []
+      }
+      if (!active) return
+      const legacyById = Object.fromEntries(legacy.map(p => [p.user_id, p]))
+      const normalized = rows.map(p => {
+        const old = legacyById[p.id]
+        return {
+          ...p,
+          nome: p.nome || old?.nome || p.username || "Maratoneiro",
+          avatar: p.avatar_url || old?.avatar_url || "",
+          xp: old?.xp || 0
+        }
+      })
+      setPessoas(normalized)
+      if (viewerId && ids.length) {
+        const { data: relations } = await supabase.from("seguidores").select("seguindo_id").eq("seguidor_id", viewerId).in("seguindo_id", ids)
+        if (active) setSeguindoIds((relations || []).map(r => r.seguindo_id))
+      }
+      if (active) setPessoasLoading(false)
+    }
+    carregarPessoas()
+    return () => { active = false }
+  }, [])
+
+  async function toggleSeguirPessoa(id) {
+    if (userId === "anon") { window.location.href = "/login"; return }
+    if (!id || id === userId || followLoading) return
+    setFollowLoading(id)
+    const isFollowing = seguindoIds.includes(id)
+    const result = isFollowing
+      ? await supabase.from("seguidores").delete().eq("seguidor_id", userId).eq("seguindo_id", id)
+      : await supabase.from("seguidores").insert({ seguidor_id: userId, seguindo_id: id })
+    if (!result.error || result.error.code === "23505") {
+      setSeguindoIds(current => isFollowing ? current.filter(x => x !== id) : [...current, id])
+    }
+    setFollowLoading("")
+  }
 
   useEffect(() => {
     if(!busca.trim()){ setResultados([]); return }
@@ -126,9 +191,37 @@ export default function BuscaPage() {
   return (
     <div style={{ minHeight:"100vh", background:"#080F25", color:"#fff", paddingBottom:90, fontFamily:"Inter,Sora,sans-serif" }}>
       <header style={{ height:60, padding:"0 16px", display:"flex", alignItems:"center", borderBottom:"1px solid #ffffff10", position:"sticky", top:0, background:"rgba(8,15,37,.9)", backdropFilter:"blur(12px)", zIndex:10 }}>
-        <h1 style={{ fontSize:18, fontWeight:800, fontFamily:"Sora,sans-serif" }}>Busca</h1>
+        <h1 style={{ fontSize:18, fontWeight:800, fontFamily:"Sora,sans-serif" }}>Descobrir</h1>
       </header>
       <main style={{ maxWidth:1100, margin:"0 auto", padding:"16px 12px" }}>
+        <section style={{marginBottom:28,background:"linear-gradient(145deg,#151f40,#10172e)",border:"1px solid #ffffff16",borderRadius:18,padding:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap",marginBottom:12}}>
+            <div>
+              <h2 style={{fontSize:17,fontWeight:900,margin:0}}>👥 Descubra maratoneiros</h2>
+              <p style={{fontSize:11,color:"#9CAACB",margin:"5px 0 0"}}>Encontre pessoas e acompanhe o que elas assistem.</p>
+            </div>
+            <span style={{fontSize:10,color:"#FFD400",fontWeight:800}}>COMUNIDADE</span>
+          </div>
+          <input value={buscaPessoa} onChange={e=>setBuscaPessoa(e.target.value)} placeholder="Buscar por nome ou @usuário..." style={{width:"100%",boxSizing:"border-box",height:42,borderRadius:12,border:"1px solid #ffffff20",background:"#080F25",color:"#fff",padding:"0 13px",outline:"none",marginBottom:14}} />
+          {pessoasLoading ? <p style={{fontSize:12,color:"#9CAACB"}}>Carregando comunidade...</p> : (
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:10}}>
+              {pessoas.filter(p => !buscaPessoa.trim() || (p.nome||"").toLowerCase().includes(buscaPessoa.toLowerCase()) || (p.username||"").toLowerCase().includes(buscaPessoa.toLowerCase().replace(/^@/,""))).slice(0,12).map(p => (
+                <div key={p.id} style={{display:"flex",alignItems:"center",gap:10,padding:10,borderRadius:14,background:"#ffffff08",border:"1px solid #ffffff10"}}>
+                  <div style={{width:42,height:42,borderRadius:"50%",overflow:"hidden",background:"#29365d",display:"grid",placeItems:"center",flexShrink:0}}>
+                    {p.avatar?.startsWith("http") ? <img src={p.avatar} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/> : <span style={{fontSize:21}}>{p.avatar?.startsWith("emoji:") ? p.avatar.slice(6) : (p.nome||"M").slice(0,1).toUpperCase()}</span>}
+                  </div>
+                  <div style={{minWidth:0,flex:1}}>
+                    <a href={"/perfil/"+p.id} style={{color:"#fff",fontSize:12,fontWeight:800,textDecoration:"none",display:"block",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.nome}</a>
+                    <span style={{fontSize:10,color:"#9CAACB"}}>{p.username ? "@"+p.username : "Maratoneiro"}</span>
+                  </div>
+                  <button onClick={()=>toggleSeguirPessoa(p.id)} disabled={followLoading===p.id} style={{border:seguindoIds.includes(p.id)?"1px solid #FFD400":"none",borderRadius:999,padding:"7px 10px",fontSize:10,fontWeight:900,background:seguindoIds.includes(p.id)?"#202A49":"#FFD400",color:seguindoIds.includes(p.id)?"#FFD400":"#080B1F",whiteSpace:"nowrap"}}>{followLoading===p.id?"...":seguindoIds.includes(p.id)?"Seguindo":"Seguir +"}</button>
+                </div>
+              ))}
+            </div>
+          )}
+          {!pessoasLoading && pessoas.filter(p => !buscaPessoa.trim() || (p.nome||"").toLowerCase().includes(buscaPessoa.toLowerCase()) || (p.username||"").toLowerCase().includes(buscaPessoa.toLowerCase().replace(/^@/,""))).length===0 && <p style={{fontSize:12,color:"#9CAACB"}}>Nenhum perfil encontrado para essa busca.</p>}
+        </section>
+
         <div style={{ display:"flex", alignItems:"center", gap:10, background:"#121B3A", border:"1px solid #ffffff18", height:46, borderRadius:999, padding:"0 16px", marginBottom:20 }}>
           <span style={{ opacity:0.5 }}>🔍</span>
           <input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar série ou filme..." style={{ flex:1, background:"transparent", border:0, outline:"none", color:"#fff", fontSize:14 }} />

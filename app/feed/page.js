@@ -1,255 +1,116 @@
-'use client'
+"use client"
+import { useEffect, useMemo, useState } from "react"
+import Link from "next/link"
+import { createClient } from "@supabase/supabase-js"
+import { BottomNav } from "../../components/BottomNav"
 
-import { useEffect, useState } from 'react'
-import { createClient } from '@supabase/supabase-js'
-import { useRouter } from 'next/navigation'
-import Link from 'next/link'
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_KEY)
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_KEY
-)
-
-export default function Feed() {
-  const [user, setUser] = useState(null)
-  const [atividades, setAtividades] = useState([])
-  const [abaAtiva, setAbaAtiva] = useState('seguindo')
-  const [loading, setLoading] = useState(true)
-  const router = useRouter()
+export default function FeedPage() {
+  const [tab,setTab] = useState("seguindo")
+  const [userId,setUserId] = useState(null)
+  const [following,setFollowing] = useState([])
+  const [items,setItems] = useState([])
+  const [loading,setLoading] = useState(true)
+  const [error,setError] = useState("")
 
   useEffect(() => {
-    checkUser()
-  }, [])
+    let active = true
+    async function load() {
+      setLoading(true)
+      const { data: auth } = await supabase.auth.getSession()
+      const viewer = auth?.session?.user?.id || null
+      if (!active) return
+      setUserId(viewer)
+      if (!viewer) { setLoading(false); return }
 
-  useEffect(() => {
-    if (user) buscarFeed()
-  }, [user, abaAtiva])
-
-  async function checkUser() {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
-      router.push('/login')
-    } else {
-      setUser(session.user)
-    }
-  }
-
-  async function buscarFeed() {
-    let userIds = []
-
-    if (abaAtiva === 'seguindo') {
-      // Busca quem o usuário segue
-      const { data: seguindo } = await supabase
-    .from('seguidores')
-    .select('seguindo_id')
-    .eq('seguidor_id', user.id)
-
-      userIds = seguindo?.map(s => s.seguindo_id) || []
-
-      if (userIds.length === 0) {
-        setAtividades([])
+      const { data: relations, error: relationError } = await supabase
+        .from("seguidores").select("seguindo_id").eq("seguidor_id",viewer)
+      if (!active) return
+      if (relationError) {
+        setError("Não foi possível carregar quem você segue.")
         setLoading(false)
         return
       }
+      const ids = (relations || []).map(row => row.seguindo_id)
+      setFollowing(ids)
+
+      // A timeline usa check-ins existentes. Não consulta user_episodios,
+      // tabela que ainda precisa de políticas RLS antes de ser usada no feed.
+      const { data: checkins, error: checkinError } = await supabase
+        .from("checkins").select("id,user_id,data,created_at")
+        .order("created_at",{ascending:false}).limit(60)
+      if (!active) return
+      if (checkinError) {
+        setError("Não foi possível carregar as atividades. As permissões de leitura podem precisar de configuração.")
+        setLoading(false)
+        return
+      }
+      const rows = checkins || []
+      const profileIds = [...new Set(rows.map(row => row.user_id).filter(Boolean))]
+      let profiles = []
+      if (profileIds.length) {
+        const { data } = await supabase.from("profiles")
+          .select("id,username,nome,avatar_url").in("id",profileIds)
+        profiles = data || []
+      }
+      if (!active) return
+      const profileMap = Object.fromEntries(profiles.map(p => [p.id,p]))
+      setItems(rows.map(row => ({...row,profile:profileMap[row.user_id] || null})))
+      setLoading(false)
     }
+    load()
+    return () => { active = false }
+  },[])
 
-    // 1. Busca episódios
-    let queryEps = supabase
- .from('user_episodios')
- .select('user_id, serie_id, temporada_numero, episodio_numero, created_at')
- .order('created_at', { ascending: false })
- .limit(50)
+  const visible = useMemo(() => tab === "seguindo"
+    ? items.filter(item => following.includes(item.user_id))
+    : items, [items,following,tab])
 
-    if (abaAtiva === 'seguindo') {
-      queryEps = queryEps.in('user_id', userIds)
-    }
-
-    const { data: episodios } = await queryEps
-
-    // 2. Busca avaliações
-    let queryAval = supabase
- .from('user_avaliacoes')
- .select('user_id, serie_id, temporada_numero, episodio_numero, nota, comentario, created_at')
- .order('created_at', { ascending: false })
- .limit(50)
-
-    if (abaAtiva === 'seguindo') {
-      queryAval = queryAval.in('user_id', userIds)
-    }
-
-    const { data: avaliacoes } = await queryAval
-
-    // 3. Busca perfis e séries
-    const todosUserIds = [...new Set([...episodios?.map(e => e.user_id) || [],...avaliacoes?.map(a => a.user_id) || []])]
-    const seriesIds = [...new Set([...episodios?.map(e => e.serie_id) || [],...avaliacoes?.map(a => a.serie_id) || []])]
-
-    const { data: perfis } = await supabase
- .from('profiles')
- .select('id, nome, avatar_url, username')
- .in('id', todosUserIds)
-
-    const { data: series } = await supabase
- .from('series')
- .select('id, titulo, poster')
- .in('id', seriesIds)
-
-    // 4. Monta mapa
-    const perfisMap = {}
-    perfis?.forEach(p => { perfisMap[p.id] = p })
-
-    const seriesMap = {}
-    series?.forEach(s => { seriesMap[s.id] = s })
-
-    // 5. Combina atividades
-    const feed = []
-
-    episodios?.forEach(ep => {
-      feed.push({
-        tipo: 'assistiu',
-        user: perfisMap[ep.user_id],
-        serie: seriesMap[ep.serie_id],
-        temporada: ep.temporada_numero,
-        episodio: ep.episodio_numero,
-        created_at: ep.created_at
-      })
-    })
-
-    avaliacoes?.forEach(av => {
-      feed.push({
-        tipo: 'avaliou',
-        user: perfisMap[av.user_id],
-        serie: seriesMap[av.serie_id],
-        temporada: av.temporada_numero,
-        episodio: av.episodio_numero,
-        nota: av.nota,
-        comentario: av.comentario,
-        created_at: av.created_at
-      })
-    })
-
-    // 6. Ordena por data
-    feed.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-    setAtividades(feed.slice(0, 30))
-    setLoading(false)
+  const dateLabel = value => {
+    if (!value) return "Data não informada"
+    const date = new Date(value)
+    return Number.isNaN(date.getTime()) ? "Data não informada" :
+      date.toLocaleString("pt-BR",{dateStyle:"medium",timeStyle:"short"})
   }
 
-  function tempoAtras(data) {
-    const agora = new Date()
-    const diff = agora - new Date(data)
-    const minutos = Math.floor(diff / 60000)
-    const horas = Math.floor(minutos / 60)
-    const dias = Math.floor(horas / 24)
-
-    if (dias > 0) return `${dias}d atrás`
-    if (horas > 0) return `${horas}h atrás`
-    if (minutos > 0) return `${minutos}min atrás`
-    return 'agora'
-  }
-
-  if (!user) return <main className="main"><div className="card">Redirecionando...</div></main>
-  if (loading) return <main className="main"><div className="card">Carregando feed...</div></main>
-
-  const Aba = ({ valor, texto }) => (
-    <button
-      onClick={() => setAbaAtiva(valor)}
-      style={{
-        flex: 1,
-        background: abaAtiva === valor? '#FACC15' : '#1E293B',
-        color: abaAtiva === valor? '#000' : '#94A3B8',
-        border: 'none',
-        padding: '12px',
-        fontSize: '14px',
-        fontWeight: abaAtiva === valor? 'bold' : 'normal',
-        cursor: 'pointer'
-      }}
-    >
-      {texto}
-    </button>
-  )
-
-  return (
-    <main className="main">
-      <Link href="/" style={{color: '#FACC15', textDecoration: 'none', marginBottom: '16px', display: 'block'}}>
-        ← Voltar
-      </Link>
-
-      <h1 style={{color: '#FACC15', marginBottom: '16px', fontSize: '28px'}}>📱 Feed</h1>
-
-      <div style={{display: 'flex', marginBottom: '24px', borderRadius: '8px', overflow: 'hidden'}}>
-        <Aba valor="seguindo" texto="Seguindo" />
-        <Aba valor="global" texto="Global" />
+  return <main style={{minHeight:"100vh",background:"#080F25",color:"#fff",paddingBottom:100,fontFamily:"Inter,sans-serif"}}>
+    <header style={{padding:"22px 18px 16px",borderBottom:"1px solid #ffffff12",background:"#0b1430"}}>
+      <div style={{maxWidth:760,margin:"0 auto"}}>
+        <p style={{color:"#FFD400",fontSize:10,fontWeight:900,letterSpacing:2,margin:"0 0 6px"}}>MARATONEI SOCIAL</p>
+        <h1 style={{fontSize:25,fontWeight:900,margin:0}}>Amigos</h1>
+        <p style={{color:"#9CAACB",fontSize:12,margin:"7px 0 0"}}>Acompanhe as maratonas e descubra o que a comunidade está assistindo.</p>
       </div>
-
-      {atividades.length === 0? (
-        <div className="card" style={{textAlign: 'center', color: '#64748B'}}>
-          {abaAtiva === 'seguindo'?
-            'Você ainda não segue ninguém. Vá pro Ranking e siga amigos!' :
-            'Ninguém assistiu nada ainda. Seja o primeiro!'
-          }
+    </header>
+    <section style={{maxWidth:760,margin:"0 auto",padding:"16px 14px"}}>
+      <div role="tablist" aria-label="Feed" style={{display:"flex",gap:8,padding:4,borderRadius:14,background:"#111b38",marginBottom:16}}>
+        <button role="tab" aria-selected={tab==="seguindo"} onClick={()=>setTab("seguindo")} style={{flex:1,border:0,borderRadius:10,padding:12,fontWeight:900,fontSize:12,background:tab==="seguindo"?"#FFD400":"transparent",color:tab==="seguindo"?"#080F25":"#AAB4CE"}}>Seguindo</button>
+        <button role="tab" aria-selected={tab==="paraVoce"} onClick={()=>setTab("paraVoce")} style={{flex:1,border:0,borderRadius:10,padding:12,fontWeight:900,fontSize:12,background:tab==="paraVoce"?"#FFD400":"transparent",color:tab==="paraVoce"?"#080F25":"#AAB4CE"}}>Para você</button>
+      </div>
+      {!userId && !loading && <div style={{padding:22,borderRadius:18,background:"#111b38",textAlign:"center"}}>
+        <div style={{fontSize:30}}>🍿</div><h2 style={{fontSize:17,margin:"10px 0 6px"}}>Entre para fazer parte da comunidade</h2>
+        <p style={{color:"#AAB4CE",fontSize:12,lineHeight:1.6}}>Faça login para acompanhar pessoas e participar do Maratonei Social.</p>
+        <Link href="/login" style={{display:"inline-block",marginTop:8,padding:"11px 20px",borderRadius:999,background:"#FFD400",color:"#080F25",fontWeight:900,textDecoration:"none",fontSize:12}}>Entrar</Link>
+      </div>}
+      {loading && <p style={{color:"#AAB4CE",textAlign:"center",padding:30}}>Carregando atividades...</p>}
+      {error && <p role="alert" style={{color:"#FCA5A5",padding:14,background:"#451a2b",borderRadius:12,fontSize:12}}>{error}</p>}
+      {!loading && userId && visible.length===0 && <div style={{padding:24,borderRadius:18,background:"#111b38",border:"1px solid #ffffff12",textAlign:"center"}}>
+        <div style={{fontSize:34}}>🎬</div>
+        <h2 style={{fontSize:17,margin:"10px 0 6px"}}>{tab==="seguindo"?"Seu feed está começando":"A comunidade está aquecendo"}</h2>
+        <p style={{color:"#AAB4CE",fontSize:12,lineHeight:1.6}}>{tab==="seguindo"?"Siga outros maratoneiros para ver as atividades deles por aqui.":"Ainda não há check-ins visíveis para mostrar. Volte em breve para descobrir as maratonas da comunidade."}</p>
+        <Link href="/busca" style={{display:"inline-block",marginTop:8,color:"#FFD400",fontWeight:900,fontSize:12,textDecoration:"none"}}>Descobrir pessoas →</Link>
+      </div>}
+      {!loading && visible.map(item => <article key={item.id} style={{display:"flex",gap:12,padding:15,marginBottom:10,borderRadius:16,background:"#111b38",border:"1px solid #ffffff12"}}>
+        <div style={{width:42,height:42,borderRadius:"50%",background:"#28365d",display:"grid",placeItems:"center",flexShrink:0,overflow:"hidden"}}>
+          {item.profile?.avatar_url?.startsWith("http") ? <img src={item.profile.avatar_url} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/> : <span style={{fontWeight:900,color:"#FFD400"}}>{(item.profile?.nome||item.profile?.username||"M").slice(0,1).toUpperCase()}</span>}
         </div>
-      ) : (
-        atividades.map((atv, index) => (
-          <div key={index} className="card" style={{marginBottom: '16px'}}>
-            <div style={{display: 'flex', gap: '12px', marginBottom: '12px'}}>
-              <Link href={`/perfil/${atv.user?.id}`}>
-                <img
-                  src={atv.user?.avatar_url || 'https://via.placeholder.com/40'}
-                  alt={atv.user?.nome}
-                  style={{width: '40px', height: '40px', borderRadius: '50%', cursor: 'pointer'}}
-                />
-              </Link>
-              <div style={{flex: 1}}>
-                <p style={{color: '#fff', fontSize: '14px', marginBottom: '2px'}}>
-                  <Link href={`/perfil/${atv.user?.id}`} style={{color: '#FACC15', textDecoration: 'none', fontWeight: 'bold'}}>
-                    {atv.user?.nome || 'Anônimo'}
-                  </Link>
-                  {atv.tipo === 'assistiu'? ' assistiu ' : ' avaliou '}
-                  <Link href={`/serie/${atv.serie?.id}`} style={{color: '#FACC15', textDecoration: 'none'}}>
-                    {atv.serie?.titulo}
-                  </Link>
-                </p>
-                <p style={{color: '#94A3B8', fontSize: '12px'}}>
-                  T{atv.temporada}E{atv.episodio} • {tempoAtras(atv.created_at)}
-                </p>
-              </div>
-            </div>
-
-            {atv.tipo === 'avaliou' && (
-              <div style={{background: '#1E293B', padding: '12px', borderRadius: '8px'}}>
-                <div style={{marginBottom: '8px'}}>
-                  {Array.from({ length: 5 }, (_, i) => (
-                    <span key={i} style={{color: i < atv.nota? '#FACC15' : '#334155', fontSize: '16px'}}>
-                      ⭐
-                    </span>
-                  ))}
-                </div>
-                {atv.comentario && (
-                  <p style={{color: '#94A3B8', fontSize: '14px', lineHeight: '1.5'}}>
-                    "{atv.comentario}"
-                  </p>
-                )}
-              </div>
-            )}
-
-            {atv.serie?.poster && (
-              <Link href={`/serie/${atv.serie?.id}`}>
-                <img
-                  src={`https://image.tmdb.org/t/p/w200${atv.serie.poster}`}
-                  alt={atv.serie.titulo}
-                  style={{
-                    width: '100%',
-                    height: '120px',
-                    objectFit: 'cover',
-                    borderRadius: '8px',
-                    marginTop: '12px',
-                    cursor: 'pointer'
-                  }}
-                />
-              </Link>
-            )}
-          </div>
-        ))
-      )}
-    </main>
-  )
+        <div style={{minWidth:0,flex:1}}>
+          <p style={{margin:"1px 0 5px",fontSize:12,color:"#E8ECF8",lineHeight:1.5}}><Link href={"/perfil/"+item.user_id} style={{color:"#FFD400",fontWeight:900,textDecoration:"none"}}>{item.profile?.nome||item.profile?.username||"Maratoneiro"}</Link>{" fez um check-in"}</p>
+          <p style={{margin:0,color:"#8997B8",fontSize:10}}>{dateLabel(item.created_at||item.data)}</p>
+        </div>
+        <span aria-hidden="true" style={{fontSize:20}}>🍿</span>
+      </article>)}
+    </section>
+    <BottomNav/>
+  </main>
 }
