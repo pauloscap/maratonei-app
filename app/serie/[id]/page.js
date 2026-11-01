@@ -80,7 +80,6 @@ export default function DetalheSerie() {
           await supabase.from("user_series").update({status:"maratonei",updated_at:atualizado}).eq("user_id",uid).eq("serie_id",id)
           localStorage.setItem(uid+":status-"+id,"maratonei")
           setStatus("maratonei")
-          setShowCelebration(true)
         } else if(!concluiuLancados && row.status==="maratonei" && idsLancados.some(eid=>!vistosNormalizados.has(eid))){
           const atualizado = new Date().toISOString()
           await supabase.from("user_series").update({status:"assistindo",updated_at:atualizado}).eq("user_id",uid).eq("serie_id",id)
@@ -229,7 +228,7 @@ export default function DetalheSerie() {
     }catch(e){ alert('Não foi possível gerar a imagem: '+e.message) }
   }
 
-  async function salvarProgressoEpisodios(novo){
+  async function salvarProgressoEpisodios(novo, celebrarAoConcluir = false){
     const agora = new Date().toISOString()
     const hoje = new Date().toISOString().slice(0,10)
     const todosIds = temporadas.flatMap(t=>t.eps.filter(e=>!e.airdate || e.airdate<=hoje).map(e=>String(e.id)))
@@ -241,7 +240,7 @@ export default function DetalheSerie() {
     if(novoStatus!==status) {
       setStatus(novoStatus)
       localStorage.setItem(userId+":status-"+id, novoStatus)
-      if(concluiu) setShowCelebration(true)
+      if(concluiu && celebrarAoConcluir) setShowCelebration(true)
     }
     await supabase.from("user_series").update({
       eps_vistos:novo,
@@ -251,7 +250,7 @@ export default function DetalheSerie() {
   }
   async function toggleEp(eid){
     const novo = epsVistos.includes(eid) ? epsVistos.filter(x=>x!==eid) : [...epsVistos,eid]
-    await salvarProgressoEpisodios(novo)
+    await salvarProgressoEpisodios(novo, true)
   }
   async function maratonarTemp(temp){
     const hoje = new Date().toISOString().slice(0,10)
