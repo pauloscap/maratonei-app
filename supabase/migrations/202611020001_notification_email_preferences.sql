@@ -148,30 +148,3 @@ for each row execute function public.enqueue_notification_email();
 create index if not exists notification_email_outbox_pending_idx
   on public.notification_email_outbox (available_at, created_at)
   where status = 'pending';
-
-create or replace function public.claim_notification_email_batch(batch_size integer default 20)
-returns setof public.notification_email_outbox
-language sql
-security definer
-set search_path = public, pg_temp
-as $$
-  with picked as (
-    select id
-    from public.notification_email_outbox
-    where status = 'pending'
-      and available_at <= now()
-      and attempts < 5
-    order by created_at
-    for update skip locked
-    limit greatest(1, least(batch_size, 100))
-  )
-  update public.notification_email_outbox o
-  set status = 'processing',
-      attempts = o.attempts + 1
-  from picked
-  where o.id = picked.id
-  returning o.*;
-$$;
-
-revoke all on function public.claim_notification_email_batch(integer) from public, anon, authenticated;
-grant execute on function public.claim_notification_email_batch(integer) to service_role;
