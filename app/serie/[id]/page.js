@@ -71,6 +71,22 @@ export default function DetalheSerie() {
         setDetalhes({ sinopse, nota:notaTmdb, votos, providers })
         const totalCalc = lista.reduce((a,t)=>a+t.eps.length,0)
         localStorage.setItem(uid+":total-"+id, String(totalCalc))
+        const hoje = new Date().toISOString().slice(0,10)
+        const idsLancados = lista.flatMap(t=>t.eps.filter(ep=>!ep.airdate || ep.airdate<=hoje).map(ep=>String(ep.id)))
+        const vistosNormalizados = new Set((row.eps_vistos || []).map(String))
+        const concluiuLancados = idsLancados.length>0 && idsLancados.every(eid=>vistosNormalizados.has(eid))
+        if(concluiuLancados && row.status!=="maratonei"){
+          const atualizado = new Date().toISOString()
+          await supabase.from("user_series").update({status:"maratonei",updated_at:atualizado}).eq("user_id",uid).eq("serie_id",id)
+          localStorage.setItem(uid+":status-"+id,"maratonei")
+          setStatus("maratonei")
+          setShowCelebration(true)
+        } else if(!concluiuLancados && row.status==="maratonei" && idsLancados.some(eid=>!vistosNormalizados.has(eid))){
+          const atualizado = new Date().toISOString()
+          await supabase.from("user_series").update({status:"assistindo",updated_at:atualizado}).eq("user_id",uid).eq("serie_id",id)
+          localStorage.setItem(uid+":status-"+id,"assistindo")
+          setStatus("assistindo")
+        }
         setTemporadas(lista.length? lista : [{ numero:1, eps:[{ id:id+"-1", numero:1, nome:"Episódio 1", resumo:"", img:"" }]}])
         setAberta(null)
       } catch(e){ setTemporadas([{ numero:1, eps:[{ id:id+"-1", numero:1, nome:"Episódio 1", resumo:"", img:"" }]}]); setAberta(null) }
@@ -216,9 +232,9 @@ export default function DetalheSerie() {
   async function salvarProgressoEpisodios(novo){
     const agora = new Date().toISOString()
     const hoje = new Date().toISOString().slice(0,10)
-    const todosIds = temporadas.flatMap(t=>t.eps.filter(e=>!e.airdate || e.airdate<=hoje).map(e=>e.id))
-    const temListaReal = todosIds.length>0 && todosIds.every(eid=>/^\d+$/.test(String(eid)))
-    const concluiu = temListaReal && todosIds.every(eid=>novo.includes(eid))
+    const todosIds = temporadas.flatMap(t=>t.eps.filter(e=>!e.airdate || e.airdate<=hoje).map(e=>String(e.id)))
+    const vistosNormalizados = new Set(novo.map(String))
+    const concluiu = todosIds.length>0 && todosIds.every(eid=>vistosNormalizados.has(eid))
     const novoStatus = concluiu ? "maratonei" : status==="maratonei" ? "assistindo" : status
     setEpsVistos(novo)
     localStorage.setItem(userId+":eps-"+id, JSON.stringify(novo))
