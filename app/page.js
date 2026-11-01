@@ -19,11 +19,12 @@ const atalhos = [
 export default function HomeSocial() {
   const [nome, setNome] = useState("Maratoneiro");
   const [foto, setFoto] = useState("");
+  const [naoLidas, setNaoLidas] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
-    supabase.auth.getSession().then(({ data }) => {
+    supabase.auth.getSession().then(async ({ data }) => {
       if (!active) return;
       const user = data.session?.user;
       if (!user) {
@@ -33,7 +34,15 @@ export default function HomeSocial() {
       const metadata = user.user_metadata || {};
       setNome(metadata.full_name || metadata.name || user.email?.split("@")[0] || "Maratoneiro");
       setFoto(metadata.avatar_url || metadata.picture || "");
-      setLoading(false);
+      const { count } = await supabase
+        .from("notificacoes")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("lida", false);
+      if (active) {
+        setNaoLidas(count || 0);
+        setLoading(false);
+      }
     });
     return () => { active = false; };
   }, []);
@@ -52,9 +61,18 @@ export default function HomeSocial() {
             <div style={{fontSize:9,color:"#8D9AB8",letterSpacing:2,fontWeight:800}}>SUA VIDA EM MARATONAS</div>
           </div>
         </div>
-        <Link href="/perfil" aria-label="Abrir perfil" style={{width:40,height:40,borderRadius:"50%",overflow:"hidden",border:"1px solid #FFD40066",background:"#172344",display:"grid",placeItems:"center",color:"#FFD400",fontWeight:900,textDecoration:"none"}}>
-          {foto ? <img src={foto} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/> : nome.slice(0,1).toUpperCase()}
-        </Link>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <Link href="/notificacoes" aria-label={naoLidas > 0 ? `Notificações, ${naoLidas} não lidas` : "Notificações"} title="Notificações" style={{position:"relative",width:40,height:40,borderRadius:"50%",border:"1px solid #ffffff20",background:"#172344",display:"grid",placeItems:"center",color:"#FFD400",textDecoration:"none"}}>
+            <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />
+              <path d="M10 21h4" />
+            </svg>
+            {naoLidas > 0 && <span style={{position:"absolute",top:-3,right:-3,minWidth:17,height:17,padding:"0 4px",borderRadius:99,background:"#F04452",color:"#fff",fontSize:9,fontWeight:900,display:"grid",placeItems:"center",border:"2px solid #080F25"}}>{naoLidas > 9 ? "9+" : naoLidas}</span>}
+          </Link>
+          <Link href="/perfil" aria-label="Abrir perfil" style={{width:40,height:40,borderRadius:"50%",overflow:"hidden",border:"1px solid #FFD40066",background:"#172344",display:"grid",placeItems:"center",color:"#FFD400",fontWeight:900,textDecoration:"none"}}>
+            {foto ? <img src={foto} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/> : nome.slice(0,1).toUpperCase()}
+          </Link>
+        </div>
       </header>
 
       <section style={{maxWidth:900,margin:"0 auto",padding:"28px 18px 18px"}}>
