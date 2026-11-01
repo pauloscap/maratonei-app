@@ -72,6 +72,30 @@ begin
     return new;
   end if;
 
+  -- A tabela de notificações existente aceita inserts amplos; valide a origem
+  -- antes de transformar qualquer linha em um e-mail externo.
+  if auth.uid() is null or new.autor_id is distinct from auth.uid() then
+    return new;
+  end if;
+
+  if new.tipo = 'seguiu' and not exists (
+    select 1 from public.seguidores f
+    where f.seguidor_id = new.autor_id
+      and f.seguindo_id = new.user_id
+  ) then
+    return new;
+  end if;
+
+  if new.tipo = 'comentou' and not exists (
+    select 1 from public.comentarios_episodios c
+    where c.user_id = new.autor_id
+      and c.serie_id = new.serie_id
+      and c.temporada_numero = new.temporada_numero
+      and c.episodio_numero = new.episodio_numero
+  ) then
+    return new;
+  end if;
+
   select
     case
       when new.tipo = 'seguiu' then coalesce(p.email_seguidor, false)
