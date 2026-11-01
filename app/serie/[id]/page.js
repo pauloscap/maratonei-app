@@ -93,7 +93,7 @@ export default function DetalheSerie() {
       texto: textoMap[novoStatus] || `Estou assistindo ${serie.titulo} no Maratonei App! ${SITE_URL}`,
       subtexto: `${novoStatus.toUpperCase()} • ${temporadas.length} temp`,
       img: serie.img,
-      link: SITE_URL + '/serie/' + id,
+      link: SITE_URL + '/compartilhar/serie/' + id,
       cor: novoStatus==='maratonei'? '#22c55e' : '#FFD400'
     })
     setShowShare(true)
@@ -108,7 +108,7 @@ export default function DetalheSerie() {
       texto,
       subtexto: `${serie.titulo} • Temporada ${tempNumero}`,
       img: ep.img || serie.img,
-      link: SITE_URL + '/serie/' + id + '?temporada=' + tempNumero + '&episodio=' + ep.numero,
+      link: SITE_URL + '/compartilhar/serie/' + id + '?temporada=' + tempNumero + '&episodio=' + ep.numero,
       ep: ep,
       temp: tempNumero,
       cor: '#8b5cf6'
