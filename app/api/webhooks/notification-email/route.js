@@ -1,17 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
-import { randomUUID } from 'node:crypto'
+import { buildRawEmail, escapeHtml, isValidRecipient, resolveActionUrl } from '../../../../lib/email/notification-email'
 
 export const runtime = 'nodejs'
-
-function escapeHtml(value = '') {
-  return String(value).replace(/[&<>"']/g, (char) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-  })[char])
-}
-
-function mimeBase64(value) {
-  return Buffer.from(value, 'utf8').toString('base64').replace(/.{1,76}/g, '$&\r\n').trim()
-}
 
 async function getGmailAccessToken() {
   const body = new URLSearchParams({
@@ -31,32 +21,6 @@ async function getGmailAccessToken() {
     throw new Error('Google OAuth token refresh failed (' + response.status + ')')
   }
   return data.access_token
-}
-
-function buildRawEmail({ from, to, subject, text, html }) {
-  const boundary = 'maratonei_' + randomUUID()
-  const encodedSubject = Buffer.from(subject, 'utf8').toString('base64')
-  const parts = [
-    'From: Maratonei App <' + from + '>',
-    'To: ' + to,
-    'Subject: =?UTF-8?B?' + encodedSubject + '?=',
-    'MIME-Version: 1.0',
-    'Content-Type: multipart/alternative; boundary="' + boundary + '"',
-    '',
-    '--' + boundary,
-    'Content-Type: text/plain; charset="UTF-8"',
-    'Content-Transfer-Encoding: base64',
-    mimeBase64(text),
-    '',
-    '--' + boundary,
-    'Content-Type: text/html; charset="UTF-8"',
-    'Content-Transfer-Encoding: base64',
-    mimeBase64(html),
-    '',
-    '--' + boundary + '--',
-    ''
-  ].join('\r\n')
-  return Buffer.from(parts, 'utf8').toString('base64url')
 }
 
 export async function POST(request) {
@@ -123,19 +87,7 @@ export async function POST(request) {
   }
 
   const payload = item.payload || {}
-  const destination = typeof payload.destination === 'string' ? payload.destination : '/'
-  const safePath = destination.startsWith('/') &&
-    !destination.startsWith('//') &&
-    !destination.includes(String.fromCharCode(92)) ? destination : '/'
-
-  let actionUrl
-  try {
-    const base = new URL(appUrl)
-    actionUrl = new URL(safePath, base.origin)
-    if (actionUrl.origin !== base.origin) actionUrl = new URL('/', base.origin)
-  } catch {
-    actionUrl = new URL('https://maratoneiapp.com.br/')
-  }
+  const actionUrl = resolveActionUrl(payload.destination, appUrl)
 
   const subject = String(payload.subject || 'Você tem uma novidade no Maratonei').slice(0, 180)
   const message = String(payload.message || 'Acesse o Maratonei para conferir sua novidade.').slice(0, 1000)
@@ -145,7 +97,7 @@ export async function POST(request) {
 
   try {
     const recipient = String(item.recipient_email || '').trim()
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient) || /[\r\n]/.test(recipient)) {
+    if (!isValidRecipient(recipient)) {
       throw new Error('Invalid recipient email')
     }
 
