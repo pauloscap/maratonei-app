@@ -62,8 +62,7 @@ alter table public.checkins enable row level security;
 alter table public.user_filmes enable row level security;
 alter table public.user_series enable row level security;
 
--- Check-ins: a policy de proprietário existente controla escrita e leitura
--- privada; a view abaixo publica somente os metadados do check-in.
+-- Check-ins permanecem privados e disponíveis apenas ao próprio usuário.
 drop policy if exists checkins_owner_all on public.checkins;
 drop policy if exists "user só vê o seu" on public.checkins;
 create policy checkins_owner_all on public.checkins
@@ -120,12 +119,6 @@ drop view if exists public.feed_series;
 -- Views executam com os privilégios do proprietário (security_invoker=false por
 -- padrão); pertencentes a postgres, publicam somente os campos abaixo e contornam
 -- RLS apenas nessa projeção.
-create view public.feed_checkins
-with (security_barrier = true)
-as
-select id, user_id, data, created_at
-from public.checkins;
-
 create view public.feed_filmes
 with (security_barrier = true)
 as
@@ -174,17 +167,16 @@ select a.id, a.user_id, a.serie_id, a.temporada_numero,
 from public.user_avaliacoes a
 left join public.series s on s.id = a.serie_id;
 
-alter view public.feed_checkins owner to postgres;
 alter view public.feed_filmes owner to postgres;
 alter view public.feed_series owner to postgres;
 alter view public.feed_episode_progress owner to postgres;
 alter view public.feed_episode_comments owner to postgres;
 alter view public.feed_episode_ratings owner to postgres;
 
-revoke all on public.feed_checkins, public.feed_filmes, public.feed_series,
+revoke all on public.feed_filmes, public.feed_series,
   public.feed_episode_progress, public.feed_episode_comments,
   public.feed_episode_ratings from public;
-grant select on public.feed_checkins, public.feed_filmes, public.feed_series,
+grant select on public.feed_filmes, public.feed_series,
   public.feed_episode_progress, public.feed_episode_comments,
   public.feed_episode_ratings to anon, authenticated;
 
