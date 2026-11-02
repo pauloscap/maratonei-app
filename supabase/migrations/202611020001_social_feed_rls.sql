@@ -121,10 +121,21 @@ using (auth.uid() = user_id);
 create or replace view public.feed_series
 with (security_barrier = true)
 as
-select id, user_id, serie_id, titulo, img, status, eps_vistos, updated_at
+select
+  id,
+  user_id,
+  serie_id,
+  titulo,
+  img,
+  status,
+  jsonb_array_length(coalesce(eps_vistos, '[]'::jsonb)) as episodios_vistos,
+  updated_at
 from public.user_series
 where status in ('assistindo', 'maratonei');
 
+-- A view é intencionalmente uma projeção pública filtrada, executada pelo
+-- proprietário da view; não expõe a tabela base nem os status privados.
+alter view public.feed_series owner to postgres;
 grant select on public.feed_series to anon, authenticated;
 revoke select on public.user_series from anon;
 
