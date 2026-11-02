@@ -13,6 +13,15 @@ revoke execute on function public.get_profiles_count() from public, anon, authen
 revoke execute on function public.handle_new_user() from public, anon, authenticated;
 revoke execute on function public.rls_auto_enable() from public, anon, authenticated;
 
+-- EXECUTE é concedido a PUBLIC por padrão no nível global. Um REVOKE
+-- apenas no schema não remove essa concessão global herdada.
+alter default privileges for role postgres
+revoke execute on functions from public, anon, authenticated;
+
+alter default privileges for role supabase_admin
+revoke execute on functions from public, anon, authenticated;
+
+-- Defesa explícita para funções criadas no schema public.
 alter default privileges for role postgres in schema public
 revoke execute on functions from public, anon, authenticated;
 
