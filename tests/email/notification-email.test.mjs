@@ -33,5 +33,5 @@ test('MIME message is base64url encoded and includes both text and HTML alternat
   assert.ok(decoded.includes('multipart/alternative'))
   assert.ok(decoded.includes('text/plain; charset="UTF-8"'))
   assert.ok(decoded.includes('text/html; charset="UTF-8"'))
-  assert.match(decoded, /Novidade no Maratonei/)
+  assert.ok(decoded.includes('Subject: =?UTF-8?B?' + Buffer.from('Novidade no Maratonei', 'utf8').toString('base64') + '?='))
 })
