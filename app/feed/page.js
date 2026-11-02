@@ -53,7 +53,7 @@ export default function FeedPage() {
           .order("updated_at", { ascending: false })
           .limit(60),
         supabase.from("feed_series")
-          .select("id,user_id,serie_id,titulo,img,status,eps_vistos,updated_at")
+          .select("id,user_id,serie_id,titulo,img,status,episodios_vistos,updated_at")
           .in("status", ["assistindo", "maratonei"])
           .order("updated_at", { ascending: false })
           .limit(60),
@@ -95,8 +95,8 @@ export default function FeedPage() {
           date: row.updated_at,
           href: "/serie/" + row.serie_id,
           action: row.status === "maratonei" ? "maratonou a série" : "está assistindo à série",
-          detail: Array.isArray(row.eps_vistos) && row.eps_vistos.length
-            ? row.eps_vistos.length + " episódios marcados como vistos"
+          detail: Number(row.episodios_vistos) > 0
+            ? row.episodios_vistos + " episódios marcados como vistos"
             : null
         })),
         ...(ratingsResult.data || []).map(row => ({
