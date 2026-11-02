@@ -88,3 +88,6 @@ Depois de migration e endpoint aprovados e publicados, o desenho previsto é um 
 - A fila não concede acesso direto a usuários comuns.
 - A chave administrativa e os tokens OAuth ficam exclusivamente no servidor.
 - Não há campanha de marketing nem envio a quem não ativou a categoria correspondente.
+## Integração contínua
+
+O workflow `.github/workflows/notification-email-tests.yml` executa `npm run test:email` com Node.js 20 em pushes desta branch e em pull requests direcionados à `main`. Ele não recebe segredos e não se conecta ao Supabase nem ao Gmail. O resultado da execução deve ser conferido no GitHub Actions antes de considerar a suíte aprovada.
