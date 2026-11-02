@@ -36,6 +36,16 @@ A conta remetente prevista é `contatomaratoneiapp@gmail.com`. O endpoint usa so
 
 O projeto Google está em modo **Teste**. A duração do refresh token e os requisitos de verificação precisam ser confirmados nas regras vigentes do Google antes de qualquer operação pública. Não presumir que o token de teste seja permanente.
 
+## Testes automatizados locais
+
+Os utilitários puros de e-mail foram isolados em `lib/email/notification-email.mjs`. Para executar as verificações sem acessar Supabase nem Gmail:
+
+```bash
+npm run test:email
+```
+
+A suíte cobre escape de HTML, validação do endereço destinatário contra injeção de cabeçalhos, restrição dos links ao domínio configurado e estrutura MIME multipart/base64url. Esses testes não enviam mensagens nem alteram dados.
+
 ## Pré-requisitos antes de ativar
 
 1. Revisar o esquema e a migration com base no banco real, sem aplicar alterações.
