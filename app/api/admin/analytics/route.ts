@@ -59,10 +59,10 @@ export async function GET(req: Request) {
     supabase.from('watchlist').select('serie_id', { count: 'exact', head: true }),
     supabase.from('series').select('id', { count: 'exact', head: true }),
     fetchAll(supabase.from('profiles').select('id,nome,username,avatar_url,criado_em').order('criado_em', { ascending: false })),
-    fetchAll(supabase.from('watchlist').select('serie_id,user_id')),
-    fetchAll(supabase.from('series').select('id,id_tmdb,tmdb_id,titulo,generos')),
-    fetchAll(supabase.from('user_filmes').select('user_id,titulo,filme_id')),
-    fetchAll(supabase.from('user_series').select('user_id,titulo,serie_id')),
+    fetchAll(supabase.from('watchlist').select('serie_id,user_id').order('user_id').order('serie_id')),
+    fetchAll(supabase.from('series').select('id,id_tmdb,tmdb_id,titulo,generos').order('id')),
+    fetchAll(supabase.from('user_filmes').select('user_id,titulo,filme_id').order('user_id').order('filme_id')),
+    fetchAll(supabase.from('user_series').select('user_id,titulo,serie_id').order('user_id').order('serie_id')),
   ])
 
   const errors = [

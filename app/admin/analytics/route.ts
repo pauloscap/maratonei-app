@@ -37,9 +37,9 @@ export async function GET(req: Request) {
   const supabase = createClient(url, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } })
 
   const [profilesResult, watchResult, seriesResult] = await Promise.all([
-    fetchAll(supabase.from('profiles').select('id')),
-    fetchAll(supabase.from('watchlist').select('serie_id')),
-    fetchAll(supabase.from('series').select('id,titulo,generos')),
+    fetchAll(supabase.from('profiles').select('id').order('id')),
+    fetchAll(supabase.from('watchlist').select('serie_id').order('serie_id')),
+    fetchAll(supabase.from('series').select('id,titulo,generos').order('id')),
   ])
   if ([profilesResult.error, watchResult.error, seriesResult.error].some(Boolean)) {
     return Response.json({ error: 'Falha ao consultar estatísticas' }, { status: 500 })
