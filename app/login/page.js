@@ -58,6 +58,8 @@ export default function LoginPage(){
         <p style={{textAlign:'center', marginTop:'28px', color:'#334155', fontSize:'11px'}}>maratonei app • maratoneiapp.com.br • app de séries e filmes • watchlist</p>
         <nav aria-label="Links institucionais" style={{textAlign:'center', marginTop:'12px', fontSize:'12px'}}>
           <a href="/politica-de-privacidade" style={{color:'#94a3b8', textDecoration:'underline'}}>Política de Privacidade</a>
+          <span style={{color:'#475569', margin:'0 8px'}}>·</span>
+          <a href="/termos-de-uso" style={{color:'#94a3b8', textDecoration:'underline'}}>Termos de Uso</a>
         </nav>
       </div>
     </div>
