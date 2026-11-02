@@ -3,12 +3,8 @@
 
 begin;
 
--- Catálogo de séries e temporadas é público para leitura.
--- Escrita do catálogo deve ocorrer por rotas/serviços confiáveis.
-drop policy if exists "Permite tudo em series" on public.series;
-drop policy if exists "libera series" on public.series;
--- Mantém "Qualquer um pode ler" (SELECT true).
-
+-- Temporadas são públicas para leitura. Remove a policy ALL que também
+-- permitia escrita pública; mantém "Permitir leitura pública".
 drop policy if exists "libera temporadas" on public.temporadas;
 -- Mantém "Permitir leitura pública" (SELECT true).
 
