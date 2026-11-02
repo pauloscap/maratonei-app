@@ -8,7 +8,7 @@ async function requireAdmin(req: Request) {
 
   const authClient = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_KEY!
+    (process.env.NEXT_PUBLIC_SUPABASE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)!
   )
   const { data, error } = await authClient.auth.getUser(token)
   if (error || !data.user) return null
