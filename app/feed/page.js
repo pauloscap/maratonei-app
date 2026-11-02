@@ -57,9 +57,8 @@ export default function FeedPage() {
           .in("status", ["assistindo", "maratonei"])
           .order("updated_at", { ascending: false })
           .limit(60),
-        supabase.from("user_episodios")
-          .select("id,user_id,serie_id,temporada_numero,episodio_numero,assistido,created_at")
-          .eq("assistido", true)
+        supabase.from("feed_episodios")
+          .select("id,user_id,serie_id,temporada_numero,episodio_numero,created_at")
           .order("created_at", { ascending: false })
           .limit(60),
         supabase.from("user_avaliacoes")
