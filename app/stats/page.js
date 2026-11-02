@@ -70,7 +70,8 @@ export default function Stats() {
     const totalEps = rows.reduce((total, row) => {
       return total + (Array.isArray(row.eps_vistos) ? row.eps_vistos.length : 0)
     }, 0)
-    const seriesUnicas = [...new Set(rows.map(row => row.serie_id))]
+    const seriesComProgresso = rows.filter(row => row.status === 'assistindo' || row.status === 'maratonei' || (Array.isArray(row.eps_vistos) && row.eps_vistos.length > 0))
+    const seriesUnicas = [...new Set(seriesComProgresso.map(row => row.serie_id))]
     const concluidas = rows.filter(row => row.status === 'maratonei').length
     const emAndamento = rows.filter(row => row.status === 'assistindo').length
     const tempoTotal = totalEps * 45
@@ -166,7 +167,7 @@ export default function Stats() {
           {stats.sequencia} {stats.sequencia === 1? 'dia' : 'dias'}
         </div>
         <p style={{color: '#64748B', fontSize: '12px', marginTop: '8px'}}>
-          {stats.sequencia > 0? 'Continue marcando todo dia!' : 'Marque um episódio pra começar'}
+          {stats.sequencia > 0? 'Continue marcando todo dia!' : 'Faça um check-in para começar'}
         </p>
       </div>
     </main>
