@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buildRawEmail, escapeHtml, isValidRecipient, resolveActionUrl } from '../../lib/email/notification-email.js'
+import { buildRawEmail, escapeHtml, isValidRecipient, resolveActionUrl } from '../../lib/email/notification-email.mjs'
 
 test('HTML escaping neutralizes markup and quotes', () => {
   assert.equal(escapeHtml('<script a="x">&\'ok\'</script>'), '&lt;script a=&quot;x&quot;&gt;&amp;&#39;ok&#39;&lt;/script&gt;')
@@ -30,8 +30,8 @@ test('MIME message is base64url encoded and includes both text and HTML alternat
   })
   const decoded = Buffer.from(raw, 'base64url').toString('utf8')
   assert.match(raw, /^[A-Za-z0-9_-]+$/)
-  assert.match(decoded, /multipart\\/alternative/)
-  assert.match(decoded, /text\\/plain; charset="UTF-8"/)
-  assert.match(decoded, /text\\/html; charset="UTF-8"/)
+  assert.ok(decoded.includes('multipart/alternative'))
+  assert.ok(decoded.includes('text/plain; charset="UTF-8"'))
+  assert.ok(decoded.includes('text/html; charset="UTF-8"'))
   assert.match(decoded, /Novidade no Maratonei/)
 })
