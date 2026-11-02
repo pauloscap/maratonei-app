@@ -48,8 +48,7 @@ export default function FeedPage() {
       // Somente ações públicas entram na timeline. Check-ins e listas de desejos ficam fora.
       const results = await Promise.all([
         supabase.from("feed_filmes")
-          .select("id,user_id,filme_id,titulo,img,status,updated_at")
-          .eq("status", "ja_assisti")
+          .select("id,user_id,filme_id,titulo,img,updated_at")
           .order("updated_at", { ascending: false })
           .limit(60),
         supabase.from("feed_series")
