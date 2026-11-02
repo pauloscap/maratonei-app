@@ -8,7 +8,7 @@ export async function GET(req: Request) {
 
   const authClient = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_KEY!
+    (process.env.NEXT_PUBLIC_SUPABASE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)!
   )
   const { data: authData, error: authError } = await authClient.auth.getUser(token)
   if (authError || !authData.user) {
