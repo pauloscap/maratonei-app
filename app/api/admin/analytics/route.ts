@@ -1,60 +1,108 @@
 import { createClient } from '@supabase/supabase-js'
+
 export const dynamic = 'force-dynamic'
 
-export async function GET(){
-  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+async function requireAdmin(req: Request) {
+  const token = req.headers.get('authorization')?.match(/^Bearer\s+(.+)$/i)?.[1]
+  if (!token) return null
 
-  const { count: totalUsuarios } = await supabase.from('profiles').select('*',{count:'exact',head:true})
-  const { count: totalWatchlist } = await supabase.from('watchlist').select('*',{count:'exact',head:true})
-  const { count: totalSeries } = await supabase.from('series').select('*',{count:'exact',head:true})
+  const authClient = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_KEY!
+  )
+  const { data, error } = await authClient.auth.getUser(token)
+  if (error || !data.user) return null
 
-  const { data: profiles } = await supabase.from('profiles').select('id,nome,username,avatar_url,criado_em')
-  const { data: watch } = await supabase.from('watchlist').select('serie_id, user_id')
-  const { data: allSeries } = await supabase.from('series').select('id,id_tmdb,tmdb_id,titulo,generos')
-  const { data: filmes } = await supabase.from('user_filmes').select('user_id, titulo, filme_id')
-  const { data: seriesU } = await supabase.from('user_series').select('user_id, titulo, serie_id')
+  const admins = (process.env.ADMIN_USER_IDS || '')
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean)
 
-  // MAPA QUE ACEITA TUDO: id, id_tmdb, tmdb_id, string e number
+  if (!admins.includes(data.user.id)) return null
+  return data.user
+}
+
+export async function GET(req: Request) {
+  const user = await requireAdmin(req)
+  if (!user) return Response.json({ error: 'Não autorizado' }, { status: 401 })
+
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+
+  const [
+    { count: totalUsuarios, error: usersCountError },
+    { count: totalWatchlist, error: watchCountError },
+    { count: totalSeries, error: seriesCountError },
+    { data: profiles, error: profilesError },
+    { data: watch, error: watchError },
+    { data: allSeries, error: allSeriesError },
+    { data: filmes, error: filmesError },
+    { data: seriesU, error: seriesUserError },
+  ] = await Promise.all([
+    supabase.from('profiles').select('*', { count: 'exact', head: true }),
+    supabase.from('watchlist').select('*', { count: 'exact', head: true }),
+    supabase.from('series').select('*', { count: 'exact', head: true }),
+    supabase.from('profiles').select('id,nome,username,avatar_url,criado_em'),
+    supabase.from('watchlist').select('serie_id,user_id'),
+    supabase.from('series').select('id,id_tmdb,tmdb_id,titulo,generos'),
+    supabase.from('user_filmes').select('user_id,titulo,filme_id'),
+    supabase.from('user_series').select('user_id,titulo,serie_id'),
+  ])
+
+  if ([usersCountError, watchCountError, seriesCountError, profilesError, watchError, allSeriesError, filmesError, seriesUserError].some(Boolean)) {
+    return Response.json({ error: 'Falha ao consultar estatísticas' }, { status: 500 })
+  }
+
   const map = new Map<string, any>()
-  allSeries?.forEach((s:any)=>{
+  allSeries?.forEach((s: any) => {
     map.set(String(s.id), s)
     map.set(String(s.id_tmdb), s)
-    if(s.tmdb_id) map.set(String(s.tmdb_id), s)
-    map.set(String(Number(s.id_tmdb)), s)
+    if (s.tmdb_id) map.set(String(s.tmdb_id), s)
   })
-  const getSerie = (sid:any) => map.get(String(sid))
+  const getSerie = (id: any) => map.get(String(id))
 
-  // TOP 5
-  const countTop:any = {}
-  watch?.forEach((w:any)=>{
-    const t = getSerie(w.serie_id)?.titulo
-    if(t) countTop[t]=(countTop[t]||0)+1
+  const countTop: Record<string, number> = {}
+  watch?.forEach((w: any) => {
+    const title = getSerie(w.serie_id)?.titulo
+    if (title) countTop[title] = (countTop[title] || 0) + 1
   })
-  // fallback se watchlist falhar
-  if(Object.keys(countTop).length===0){
-    filmes?.forEach((f:any)=> countTop[f.titulo]=(countTop[f.titulo]||0)+1)
-    seriesU?.forEach((s:any)=> countTop[s.titulo]=(countTop[s.titulo]||0)+1)
+  if (!Object.keys(countTop).length) {
+    filmes?.forEach((f: any) => { countTop[f.titulo] = (countTop[f.titulo] || 0) + 1 })
+    seriesU?.forEach((s: any) => { countTop[s.titulo] = (countTop[s.titulo] || 0) + 1 })
   }
-  const topSeries = Object.entries(countTop).map(([titulo,total])=>({titulo,total})).sort((a:any,b:any)=> (b.total as number)-(a.total as number)).slice(0,5)
 
-  // GÊNEROS - AGORA CONTA OS 221
-  const gen:any = {}
-  watch?.forEach((w:any)=>{
-    const generos = getSerie(w.serie_id)?.generos || []
-    generos.forEach((g:string)=>{ if(g) gen[g]=(gen[g]||0)+1 })
+  const topSeries = Object.entries(countTop)
+    .map(([titulo, total]) => ({ titulo, total }))
+    .sort((a, b) => b.total - a.total).slice(0, 5)
+
+  const genres: Record<string, number> = {}
+  watch?.forEach((w: any) => {
+    const values = getSerie(w.serie_id)?.generos || []
+    values.forEach((g: string) => { if (g) genres[g] = (genres[g] || 0) + 1 })
   })
-  const generosMaisVistos = Object.entries(gen).map(([genero,total])=>({genero,total})).sort((a:any,b:any)=> (b.total as number)-(a.total as number)).slice(0,8)
+  const generosMaisVistos = Object.entries(genres)
+    .map(([genero, total]) => ({ genero, total }))
+    .sort((a, b) => b.total - a.total).slice(0, 8)
 
-  const countFilmes:any = {}; filmes?.forEach((f:any)=> countFilmes[f.titulo]=(countFilmes[f.titulo]||0)+1)
-  const countSeries:any = {}; seriesU?.forEach((s:any)=> countSeries[s.titulo]=(countSeries[s.titulo]||0)+1)
-  const topFilmesTodos = Object.entries(countFilmes).map(([titulo,total])=>({titulo,total})).sort((a:any,b:any)=> (b.total as number)-(a.total as number))
-  const topSeriesTodos = Object.entries(countSeries).map(([titulo,total])=>({titulo,total})).sort((a:any,b:any)=> (b.total as number)-(a.total as number))
+  const countTitles = (items: any[]) => {
+    const counts: Record<string, number> = {}
+    items?.forEach((item: any) => { counts[item.titulo] = (counts[item.titulo] || 0) + 1 })
+    return Object.entries(counts).map(([titulo, total]) => ({ titulo, total }))
+      .sort((a, b) => b.total - a.total)
+  }
+  const topFilmesTodos = countTitles(filmes || [])
+  const topSeriesTodos = countTitles(seriesU || [])
 
-  const usuariosDetalhado = profiles?.map((p:any)=>({
-   ...p,
-    total_filmes: filmes?.filter((f:any)=>f.user_id===p.id).length||0,
-    total_series: seriesU?.filter((s:any)=>s.user_id===p.id).length||0,
-  })).map((u:any)=>({...u, total_geral: u.total_filmes+u.total_series})).sort((a:any,b:any)=>b.total_geral-a.total_geral)
+  const usuariosDetalhado = profiles?.map((p: any) => {
+    const total_filmes = filmes?.filter((f: any) => f.user_id === p.id).length || 0
+    const total_series = seriesU?.filter((s: any) => s.user_id === p.id).length || 0
+    return { ...p, total_filmes, total_series, total_geral: total_filmes + total_series }
+  }).sort((a: any, b: any) => b.total_geral - a.total_geral)
 
-  return Response.json({ totalUsuarios, totalWatchlist, totalSeries, topSeries, generosMaisVistos, usuarios: profiles, topFilmesTodos, topSeriesTodos, usuariosDetalhado })
+  return Response.json({
+    totalUsuarios, totalWatchlist, totalSeries, topSeries, generosMaisVistos,
+    usuarios: profiles, topFilmesTodos, topSeriesTodos, usuariosDetalhado,
+  })
 }
