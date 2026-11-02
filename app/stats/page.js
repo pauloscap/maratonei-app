@@ -41,9 +41,25 @@ export default function Stats() {
   }
 
   async function calcularStats() {
-    const { data: eps } = await supabase
- .from('user_episodios')
- .select('serie_id, created_at')
+    const { data: eps, error: epsError } = await supabase
+      .from('user_episodios')
+      .select('serie_id, created_at')
+      .eq('user_id', user.id)
+      .eq('assistido', true)
+
+    if (epsError) {
+      console.error('Erro ao carregar episódios do usuário:', epsError)
+      setStats({
+        totalEps: 0,
+        totalSeries: 0,
+        concluidas: 0,
+        emAndamento: 0,
+        tempoTotal: 0,
+        sequencia: 0
+      })
+      setLoading(false)
+      return
+    }
 
     const totalEps = eps?.length || 0
     const seriesUnicas = [...new Set(eps?.map(e => e.serie_id) || [])]
