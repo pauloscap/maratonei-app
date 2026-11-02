@@ -4,6 +4,11 @@
 
 begin;
 
+-- Funções SECURITY DEFINER usam search_path fixo; as referências de
+-- tabela já estão qualificadas no corpo das funções.
+alter function public.get_profiles_count() set search_path = pg_catalog;
+alter function public.handle_new_user() set search_path = pg_catalog;
+
 revoke execute on function public.get_profiles_count() from public, anon, authenticated;
 revoke execute on function public.handle_new_user() from public, anon, authenticated;
 revoke execute on function public.rls_auto_enable() from public, anon, authenticated;
