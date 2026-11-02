@@ -41,51 +41,71 @@ export default function Stats() {
   }
 
   async function calcularStats() {
-    const { data: eps } = await supabase
- .from('user_episodios')
- .select('serie_id, created_at')
+    const [
+      { data: seriesRows, error: seriesError },
+      { data: checkins, error: checkinsError }
+    ] = await Promise.all([
+      supabase
+        .from('user_series')
+        .select('serie_id, status, eps_vistos')
+        .eq('user_id', user.id),
+      supabase
+        .from('checkins')
+        .select('data')
+        .eq('user_id', user.id)
+        .order('data', { ascending: false })
+    ])
 
-    const totalEps = eps?.length || 0
-    const seriesUnicas = [...new Set(eps?.map(e => e.serie_id) || [])]
-
-    const { data: temporadas } = await supabase.from('temporadas').select('serie_id, episodios')
-
-    let concluidas = 0
-    let emAndamento = 0
-
-    for (const serieId of seriesUnicas) {
-      const epsSerie = eps.filter(e => e.serie_id === serieId).length
-      const totalEpsSerie = temporadas
-   .filter(t => t.serie_id === serieId)
-   .reduce((acc, t) => acc + t.episodios, 0)
-
-      if (epsSerie >= totalEpsSerie && totalEpsSerie > 0) {
-        concluidas++
-      } else if (epsSerie > 0) {
-        emAndamento++
-      }
+    if (seriesError) {
+      console.error('Erro ao carregar séries do usuário:', seriesError)
+      setLoading(false)
+      return
     }
 
+    if (checkinsError) {
+      console.warn('Não foi possível calcular a sequência de check-ins:', checkinsError)
+    }
+
+    const rows = seriesRows || []
+    const totalEps = rows.reduce((total, row) => {
+      return total + (Array.isArray(row.eps_vistos) ? row.eps_vistos.length : 0)
+    }, 0)
+    const seriesComProgresso = rows.filter(row => row.status === 'assistindo' || row.status === 'maratonei' || (Array.isArray(row.eps_vistos) && row.eps_vistos.length > 0))
+    const seriesUnicas = [...new Set(seriesComProgresso.map(row => row.serie_id))]
+    const concluidas = rows.filter(row => row.status === 'maratonei').length
+    const emAndamento = rows.filter(row => row.status === 'assistindo').length
     const tempoTotal = totalEps * 45
 
+    // A sequência é baseada nos check-ins privados do próprio usuário,
+    // não em user_episodios, que o fluxo atual do app não grava.
+    const dateKeys = [...new Set((checkins || []).map(row => row.data).filter(Boolean))]
+      .sort((a, b) => b.localeCompare(a))
+
+    const utcDay = value => {
+      const [year, month, day] = String(value).slice(0, 10).split('-').map(Number)
+      return Date.UTC(year, month - 1, day)
+    }
+
+    const now = new Date()
+    const todayKey = [
+      now.getFullYear(),
+      String(now.getMonth() + 1).padStart(2, '0'),
+      String(now.getDate()).padStart(2, '0')
+    ].join('-')
+    const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1)
+    const yesterdayKey = [
+      yesterday.getFullYear(),
+      String(yesterday.getMonth() + 1).padStart(2, '0'),
+      String(yesterday.getDate()).padStart(2, '0')
+    ].join('-')
+
     let sequencia = 0
-    if (eps && eps.length > 0) {
-      const datas = eps.map(e => new Date(e.created_at).toDateString())
-      const datasUnicas = [...new Set(datas)].sort((a, b) => new Date(b) - new Date(a))
-
-      const hoje = new Date().toDateString()
-      const ontem = new Date(Date.now() - 86400000).toDateString()
-
-      if (datasUnicas[0] === hoje || datasUnicas[0] === ontem) {
-        sequencia = 1
-        for (let i = 1; i < datasUnicas.length; i++) {
-          const diff = (new Date(datasUnicas[i-1]) - new Date(datasUnicas[i])) / 86400000
-          if (diff === 1) {
-            sequencia++
-          } else {
-            break
-          }
-        }
+    if (dateKeys.length && (dateKeys[0] === todayKey || dateKeys[0] === yesterdayKey)) {
+      sequencia = 1
+      for (let i = 1; i < dateKeys.length; i++) {
+        const diff = (utcDay(dateKeys[i - 1]) - utcDay(dateKeys[i])) / 86400000
+        if (diff === 1) sequencia++
+        else break
       }
     }
 
@@ -147,7 +167,7 @@ export default function Stats() {
           {stats.sequencia} {stats.sequencia === 1? 'dia' : 'dias'}
         </div>
         <p style={{color: '#64748B', fontSize: '12px', marginTop: '8px'}}>
-          {stats.sequencia > 0? 'Continue marcando todo dia!' : 'Marque um episódio pra começar'}
+          {stats.sequencia > 0? 'Continue marcando todo dia!' : 'Faça um check-in para começar'}
         </p>
       </div>
     </main>
