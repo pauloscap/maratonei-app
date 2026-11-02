@@ -1,16 +1,75 @@
 "use client"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
+import { createClient } from "@supabase/supabase-js"
 
 export default function AdminPage() {
   const [data, setData] = useState<any>(null)
   const [aba, setAba] = useState('filmes')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
-  useEffect(() => { fetch("/api/admin/analytics").then(r=>r.json()).then(setData) }, [])
+  const loadData = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      )
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError) throw sessionError
+      const token = sessionData.session?.access_token
+      if (!token) {
+        setData(null)
+        setError('Sua sessão não foi encontrada. Entre com sua conta Google para acessar o painel.')
+        return
+      }
 
-  if (!data) return <div style={{minHeight:'100vh',background:'#0e0f23',color:'white',display:'flex',alignItems:'center',justifyContent:'center'}}>Carregando base real...</div>
+      const response = await fetch("/api/admin/analytics", {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store',
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          setError(response.status === 403
+            ? 'Sua conta não tem permissão de administradora.'
+            : 'Sua sessão expirou ou não foi autorizada. Entre novamente.')
+        } else {
+          setError(result.error || 'Não foi possível carregar as estatísticas.')
+        }
+        setData(null)
+        return
+      }
+      setData(result)
+    } catch (err: any) {
+      setData(null)
+      setError(err?.message || 'Ocorreu um erro ao carregar o painel.')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { loadData() }, [loadData])
+
+  const card:any = { background:'#1a1c36', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'20px', padding:'20px' }
+
+  if (loading) return <div style={{minHeight:'100vh',background:'#0e0f23',color:'white',display:'flex',alignItems:'center',justifyContent:'center'}}>Carregando painel administrativo...</div>
+  if (error) return (
+    <div style={{minHeight:'100vh',background:'#0e0f23',color:'white',display:'flex',alignItems:'center',justifyContent:'center',padding:'24px',fontFamily:'Inter,sans-serif'}}>
+      <div style={{...card,maxWidth:'480px',width:'100%',textAlign:'center'}}>
+        <h1 style={{fontSize:'24px',fontWeight:900,marginTop:0}}>Maratonei Admin</h1>
+        <p style={{color:'#cbd5e1',lineHeight:1.6}}>{error}</p>
+        <div style={{display:'flex',gap:'10px',justifyContent:'center',flexWrap:'wrap'}}>
+          <button onClick={loadData} style={{background:'white',color:'#0e0f23',border:0,borderRadius:'999px',padding:'10px 18px',fontWeight:800,cursor:'pointer'}}>Tentar novamente</button>
+          <a href="/login" style={{color:'#c4b5fd',padding:'10px 12px'}}>Ir para login</a>
+        </div>
+      </div>
+    </div>
+  )
+  if (!data) return null
 
   const top = data.topSeries?.[0]
-  const card:any = { background:'#1a1c36', border:'1px solid rgba(255,255,255,0.06)', borderRadius:'20px', padding:'20px' }
 
   return (
     <div style={{minHeight:'100vh',background:'#0e0f23',color:'white',padding:'24px',fontFamily:'Inter,sans-serif'}}>
@@ -18,15 +77,15 @@ export default function AdminPage() {
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
           <div>
             <h1 style={{fontSize:'30px',fontWeight:900,margin:0}}>Maratonei Admin</h1>
-            <p style={{color:'rgba(255,255,255,0.5)',fontSize:'12px',marginTop:'4px'}}>maratoneiapp.vercel.app • base real do Supabase</p>
+            <p style={{color:'rgba(255,255,255,0.5)',fontSize:'12px',marginTop:'4px'}}>maratoneiapp.com.br • base real do Supabase</p>
           </div>
-          <button onClick={()=>location.reload()} style={{background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'999px',padding:'8px 16px',color:'white',fontSize:'12px',cursor:'pointer'}}>Atualizar</button>
+          <button onClick={loadData} style={{background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'999px',padding:'8px 16px',color:'white',fontSize:'12px',cursor:'pointer'}}>Atualizar</button>
         </div>
 
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:'16px',marginTop:'20px',marginBottom:'16px'}}>
-          <div style={card}><div style={{fontSize:'11px',opacity:0.4,fontWeight:700}}>USUÁRIOS</div><div style={{fontSize:'36px',fontWeight:900,marginTop:'6px'}}>{data.totalUsuarios}</div><div style={{fontSize:'11px',color:'#34d399',marginTop:'6px'}}>● online</div></div>
+          <div style={card}><div style={{fontSize:'11px',opacity:0.4,fontWeight:700}}>USUÁRIOS</div><div style={{fontSize:'36px',fontWeight:900,marginTop:'6px'}}>{data.totalUsuarios}</div><div style={{fontSize:'11px',color:'#34d399',marginTop:'6px'}}>● cadastrados</div></div>
           <div style={card}><div style={{fontSize:'11px',opacity:0.4,fontWeight:700}}>WATCHLIST</div><div style={{fontSize:'36px',fontWeight:900,marginTop:'6px'}}>{data.totalWatchlist}</div><div style={{fontSize:'11px',opacity:0.4,marginTop:'6px'}}>total salvo</div></div>
-          <div style={card}><div style={{fontSize:'11px',opacity:0.4,fontWeight:700}}>MÉDIA / USER</div><div style={{fontSize:'36px',fontWeight:900,marginTop:'6px'}}>{(data.totalWatchlist / (data.totalUsuarios||1)).toFixed(1)}</div><div style={{fontSize:'11px',opacity:0.4,marginTop:'6px'}}>filmes por pessoa</div></div>
+          <div style={card}><div style={{fontSize:'36px',fontWeight:900,marginTop:'6px'}}>{(data.totalWatchlist / (data.totalUsuarios||1)).toFixed(1)}</div><div style={{fontSize:'11px',opacity:0.4,fontWeight:700}}>MÉDIA / USER</div><div style={{fontSize:'11px',opacity:0.4,marginTop:'6px'}}>itens por pessoa</div></div>
           <div style={card}><div style={{fontSize:'11px',opacity:0.4,fontWeight:700}}>TOP 1 AGORA</div><div style={{fontSize:'13px',fontWeight:700,marginTop:'8px'}}>{top?.titulo||'—'}</div><div style={{fontSize:'11px',opacity:0.4,marginTop:'4px'}}>{top?.total||0} saves</div></div>
         </div>
 
@@ -39,11 +98,11 @@ export default function AdminPage() {
               </div>
             ))}
           </div>
-          <div style={card}><div style={{fontWeight:800,marginBottom:'14px'}}>🎭 Gêneros mais vistos - BASE REAL</div>
+          <div style={card}><div style={{fontWeight:800,marginBottom:'14px'}}>🎭 Gêneros mais vistos</div>
             {data.generosMaisVistos?.map((g:any,i:number)=>(
               <div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:'13px',padding:'8px 0',borderBottom:'1px solid rgba(255,255,255,0.06)'}}><span style={{opacity:0.8}}>{g.genero}</span><span style={{fontWeight:800}}>{g.total}x</span></div>
             ))}
-            <div style={{fontSize:'10px',opacity:0.25,marginTop:'16px'}}>Hoje: {data.totalUsuarios} users • {data.totalWatchlist} watchlists • {data.totalSeries} títulos</div>
+            <div style={{fontSize:'10px',opacity:0.25,marginTop:'16px'}}>Hoje: {data.totalUsuarios} usuários • {data.totalWatchlist} watchlists • {data.totalSeries} títulos</div>
           </div>
         </div>
 
@@ -52,7 +111,7 @@ export default function AdminPage() {
             {[
               {id:'filmes', label:`🎬 Filmes (${data.topFilmesTodos?.length||0})`},
               {id:'series', label:`📺 Séries (${data.topSeriesTodos?.length||0})`},
-              {id:'users', label:`👥 Por Usuário`},
+              {id:'users', label:'👥 Por Usuário'},
             ].map(tab=>(
               <button key={tab.id} onClick={()=>setAba(tab.id)} style={{
                 background: aba===tab.id?'white':'rgba(255,255,255,0.08)',
@@ -63,41 +122,22 @@ export default function AdminPage() {
             ))}
           </div>
 
-          {aba==='filmes' && (
-            <div style={{maxHeight:'400px', overflowY:'auto'}}>
-              {data.topFilmesTodos?.map((s:any,i:number)=>(
-                <div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:'12px',padding:'8px 0',borderBottom:'1px solid rgba(255,255,255,0.05)'}}>
-                  <span>{i+1}. {s.titulo}</span><span style={{opacity:0.4}}>{s.total} saves</span>
-                </div>
-              ))}
-            </div>
-          )}
-          {aba==='series' && (
-            <div style={{maxHeight:'400px', overflowY:'auto'}}>
-              {data.topSeriesTodos?.map((s:any,i:number)=>(
-                <div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:'12px',padding:'8px 0',borderBottom:'1px solid rgba(255,255,255,0.05)'}}>
-                  <span>{i+1}. {s.titulo}</span><span style={{opacity:0.4}}>{s.total} saves</span>
-                </div>
-              ))}
-            </div>
-          )}
-          {aba==='users' && (
-            <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(260px, 1fr))', gap:'10px'}}>
-              {data.usuariosDetalhado?.map((u:any)=>(
-                <div key={u.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',background:'rgba(0,0,0,0.2)',border:'1px solid rgba(255,255,255,0.05)',borderRadius:'12px',padding:'10px 12px'}}>
-                  <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
-                    <img src={u.avatar_url||`https://ui-avatars.com/api/?name=${encodeURIComponent(u.nome||'U')}`} style={{width:'28px',height:'28px',borderRadius:'999px',objectFit:'cover'}}/>
-                    <span style={{fontSize:'12px',fontWeight:700}}>{u.nome||u.username}</span>
-                  </div>
-                  <div style={{fontSize:'11px',textAlign:'right'}}>
-                    <div>🎬 {u.total_filmes} filmes</div>
-                    <div>📺 {u.total_series} séries</div>
-                    <div style={{fontWeight:800,marginTop:'2px'}}>= {u.total_geral} total</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          {aba==='filmes' && <div style={{maxHeight:'400px', overflowY:'auto'}}>
+            {data.topFilmesTodos?.map((s:any,i:number)=>(
+              <div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:'12px',padding:'8px 0',borderBottom:'1px solid rgba(255,255,255,0.05)'}}><span>{i+1}. {s.titulo}</span><span style={{opacity:0.4}}>{s.total} saves</span></div>
+            ))}
+          </div>}
+          {aba==='series' && <div style={{maxHeight:'400px', overflowY:'auto'}}>
+            {data.topSeriesTodos?.map((s:any,i:number)=>(
+              <div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:'12px',padding:'8px 0',borderBottom:'1px solid rgba(255,255,255,0.05)'}}><span>{i+1}. {s.titulo}</span><span style={{opacity:0.4}}>{s.total} saves</span></div>
+            ))}
+          </div>}
+          {aba==='users' && <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(260px, 1fr))', gap:'10px'}}>
+            {data.usuariosDetalhado?.map((u:any)=>(<div key={u.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',background:'rgba(0,0,0,0.2)',border:'1px solid rgba(255,255,255,0.05)',borderRadius:'12px',padding:'10px 12px'}}>
+              <div style={{display:'flex',alignItems:'center',gap:'8px'}}><img src={u.avatar_url||`https://ui-avatars.com/api/?name=${encodeURIComponent(u.nome||'U')}`} style={{width:'28px',height:'28px',borderRadius:'999px',objectFit:'cover'}} alt=""/><span style={{fontSize:'12px',fontWeight:700}}>{u.nome||u.username}</span></div>
+              <div style={{fontSize:'11px',textAlign:'right'}}><div>🎬 {u.total_filmes} filmes</div><div>📺 {u.total_series} séries</div><div style={{fontWeight:800,marginTop:'2px'}}>= {u.total_geral} total</div></div>
+            </div>))}
+          </div>}
         </div>
 
         <div style={{...card, padding:'20px'}}>
@@ -105,16 +145,12 @@ export default function AdminPage() {
           <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(220px, 1fr))', gap:'10px'}}>
             {data.usuarios?.map((u:any)=>(
               <div key={u.id} style={{display:'flex', alignItems:'center', gap:'10px', background:'rgba(0,0,0,0.2)', border:'1px solid rgba(255,255,255,0.05)', borderRadius:'14px', padding:'10px 12px'}}>
-                <img src={u.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.nome||u.username||'U')}&background=random`} style={{width:'36px',height:'36px',borderRadius:'999px',objectFit:'cover'}} />
-                <div style={{overflow:'hidden'}}>
-                  <div style={{fontSize:'12px',fontWeight:700, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>{u.nome || u.username || 'Usuário'}</div>
-                  <div style={{fontSize:'10px',opacity:0.4}}>{u.criado_em? new Date(u.criado_em).toLocaleDateString('pt-BR') : ''}</div>
-                </div>
+                <img src={u.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.nome||u.username||'U')}&background=random`} style={{width:'36px',height:'36px',borderRadius:'999px',objectFit:'cover'}} alt=""/>
+                <div style={{overflow:'hidden'}}><div style={{fontSize:'12px',fontWeight:700, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>{u.nome || u.username || 'Usuário'}</div><div style={{fontSize:'10px',opacity:0.4}}>{u.criado_em? new Date(u.criado_em).toLocaleDateString('pt-BR') : ''}</div></div>
               </div>
             ))}
           </div>
         </div>
-
       </div>
     </div>
   )
