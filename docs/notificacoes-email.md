@@ -21,6 +21,9 @@ Esta funcionalidade permanece em uma pull request **draft**. O código, a migrat
 ## Estado de segurança / autorização
 
 - A migration `supabase/migrations/202611020001_notification_email_preferences.sql` está apenas no GitHub e **não foi aplicada**.
+- A tabela de preferências concede explicitamente SELECT/INSERT/UPDATE apenas a `authenticated`, com RLS limitando cada linha ao próprio `auth.uid()`; `anon` não recebe privilégios.
+- A fila não concede privilégios a `anon` ou `authenticated`; acesso administrativo fica restrito a `service_role`.
+- A função de trigger é `SECURITY DEFINER`, fixa o `search_path` e tem EXECUTE revogado para `PUBLIC`, `anon` e `authenticated`; ela deve ser invocada somente pelo trigger.
 - Nenhum Database Webhook foi criado.
 - Nenhuma variável Gmail está configurada em Production.
 - As credenciais Gmail existentes estão limitadas ao ambiente Preview e à branch de trabalho, mas Preview aponta para o projeto Supabase real. Portanto, não executar testes que escrevam no banco de Preview.
