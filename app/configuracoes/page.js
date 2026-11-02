@@ -12,6 +12,8 @@ export default function ConfigPage(){
   const [user,setUser]=useState(null)
   const [nome,setNome]=useState("")
   const [loading,setLoading]=useState(false)
+  const [emailPrefs,setEmailPrefs]=useState({email_seguidor:false,email_comentario:false})
+  const [savingEmailPrefs,setSavingEmailPrefs]=useState(false)
 
   useEffect(()=>{
     const n = localStorage.getItem("perfil-nome") || ""
@@ -21,7 +23,32 @@ export default function ConfigPage(){
 
   async function checkUser(){
     const { data:{ session } } = await supabase.auth.getSession()
-    if(session?.user){ setUser(session.user) }
+    if(session?.user){
+      setUser(session.user)
+      const { data, error } = await supabase
+        .from("notification_email_preferences")
+        .select("email_seguidor,email_comentario")
+        .eq("user_id", session.user.id)
+        .maybeSingle()
+      if (!error && data) {
+        setEmailPrefs({ email_seguidor:!!data.email_seguidor, email_comentario:!!data.email_comentario })
+      }
+    }
+  }
+
+  async function salvarPreferenciasEmail(){
+    if (!user) return
+    setSavingEmailPrefs(true)
+    const { error } = await supabase
+      .from("notification_email_preferences")
+      .upsert({ user_id:user.id, ...emailPrefs, updated_at:new Date().toISOString() }, { onConflict:"user_id" })
+    setSavingEmailPrefs(false)
+    if (error) {
+      console.error(error)
+      alert("Não foi possível salvar. A configuração de notificações por e-mail ainda pode não estar ativada no servidor.")
+      return
+    }
+    alert("Preferências de e-mail salvas!")
   }
 
   async function signInWithGoogle(){
@@ -80,6 +107,20 @@ export default function ConfigPage(){
               <div style={{fontSize:12, opacity:.5, marginBottom:8}}>Nome de exibição</div>
               <div style={{display:"flex", gap:8}}><input value={nome} onChange={e=>setNome(e.target.value)} style={{flex:1, background:"#ffffff0f", border:"1px solid #ffffff15", borderRadius:10, padding:"10px 12px", color:"#fff"}}/><button onClick={salvarNome} style={{background:"#FFD400", color:"#000", border:0, borderRadius:10, padding:"0 14px", fontWeight:900}}>Salvar</button></div>
             </div>
+
+            <section style={{background:"#12182F", border:"1px solid #ffffff10", borderRadius:16, padding:16}}>
+              <h2 style={{fontSize:16, fontWeight:900, margin:"0 0 6px", color:"#FACC15"}}>Notificações por e-mail</h2>
+              <p style={{fontSize:12, lineHeight:1.5, color:"#94A3B8", margin:"0 0 14px"}}>Escolha quais avisos do Maratonei você também deseja receber em {user.email}.</p>
+              <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"10px 0",borderBottom:"1px solid #ffffff12",fontSize:14}}>
+                <span>Novo seguidor</span>
+                <input type="checkbox" checked={emailPrefs.email_seguidor} onChange={e=>setEmailPrefs(p=>({...p,email_seguidor:e.target.checked}))} style={{width:20,height:20,accentColor:"#FACC15"}}/>
+              </label>
+              <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"10px 0",fontSize:14}}>
+                <span>Comentários nos episódios</span>
+                <input type="checkbox" checked={emailPrefs.email_comentario} onChange={e=>setEmailPrefs(p=>({...p,email_comentario:e.target.checked}))} style={{width:20,height:20,accentColor:"#FACC15"}}/>
+              </label>
+              <button onClick={salvarPreferenciasEmail} disabled={savingEmailPrefs} style={{width:"100%",marginTop:12,height:42,background:"#FFD400",color:"#000",border:0,borderRadius:10,fontWeight:900,opacity:savingEmailPrefs ? .65 : 1}}>{savingEmailPrefs?"Salvando...":"Salvar preferências"}</button>
+            </section>
 
             <button onClick={limpar} style={{height:44, background:"#ff3b3b14", border:"1px solid #ff3b3b22", color:"#ff6b6b", borderRadius:12, fontWeight:700}}>🗑️ Limpar histórico local</button>
             <button onClick={logout} style={{height:44, background:"#fff", color:"#000", border:0, borderRadius:12, fontWeight:900}}>Sair da conta</button>
