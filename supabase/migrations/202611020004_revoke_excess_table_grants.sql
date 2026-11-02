@@ -30,16 +30,15 @@ revoke insert, update, delete on tables from anon;
 alter default privileges for role supabase_admin in schema public
 revoke insert, update, delete on tables from anon;
 
--- Nas tabelas de atividade, anon consulta somente as colunas que
--- compõem as views públicas. Revogar SELECT em nível de tabela também
--- remove grants SELECT por coluna anteriores.
-revoke select on table public.user_filmes, public.user_series from anon;
-
-grant select (id, user_id, filme_id, titulo, img, status, updated_at)
-on table public.user_filmes to anon;
-
-grant select (id, user_id, serie_id, titulo, img, status, eps_vistos, updated_at)
-on table public.user_series to anon;
+-- As tabelas de atividade não são consultadas diretamente por anon.
+-- A leitura pública ocorre exclusivamente pelas views limitadas criadas na
+-- migration social. Revogar também os grants de coluna que possam ter sido
+-- concedidos anteriormente: REVOKE SELECT em nível de tabela não os remove.
+revoke select on table public.user_filmes, public.user_series from anon, public;
+revoke select (id, user_id, filme_id, titulo, img, status, updated_at)
+on table public.user_filmes from anon, public;
+revoke select (id, user_id, serie_id, titulo, img, status, eps_vistos, updated_at)
+on table public.user_series from anon, public;
 
 -- Sequências: não conceder USAGE em massa. O helper legado de inclusão
 -- de séries usa series_id_seq; as demais sequências não têm consumidor
