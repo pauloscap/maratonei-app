@@ -21,7 +21,7 @@ create or replace function public.set_episode_progress_watched_at()
 returns trigger
 language plpgsql
 set search_path = pg_catalog
-as $
+as $$
 begin
   if new.source = 'live' then
     new.watched_at := pg_catalog.now();
@@ -30,7 +30,7 @@ begin
   end if;
   return new;
 end;
-$;
+$$;
 
 revoke all on function public.set_episode_progress_watched_at() from public, anon, authenticated;
 drop trigger if exists set_episode_progress_watched_at on public.user_episode_progress;
