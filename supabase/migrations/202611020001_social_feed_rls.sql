@@ -53,6 +53,12 @@ for select
 to authenticated
 using (auth.uid() = user_id);
 
+create policy "filmes_feed_publico"
+on public.user_filmes
+for select
+to anon, authenticated
+using (status = 'ja_assisti');
+
 create policy "filmes_insercao_propria"
 on public.user_filmes
 for insert
@@ -73,14 +79,13 @@ to authenticated
 using (auth.uid() = user_id);
 
 create or replace view public.feed_filmes
-with (security_barrier = true)
+with (security_invoker = true, security_barrier = true)
 as
 select id, user_id, filme_id, titulo, img, updated_at
 from public.user_filmes
 where status = 'ja_assisti';
 
--- View pública filtrada; a tabela base continua privada por proprietário.
-alter view public.feed_filmes owner to postgres;
+-- A view respeita as policies RLS e os grants de coluna da role chamadora.
 grant select on public.feed_filmes to anon, authenticated;
 revoke select on public.user_filmes from anon;
 
@@ -100,6 +105,12 @@ on public.user_series
 for select
 to authenticated
 using (auth.uid() = user_id);
+
+create policy "series_feed_publico"
+on public.user_series
+for select
+to anon, authenticated
+using (status in ('assistindo', 'maratonei'));
 
 create policy "series_insercao_propria"
 on public.user_series
@@ -121,7 +132,7 @@ to authenticated
 using (auth.uid() = user_id);
 
 create or replace view public.feed_series
-with (security_barrier = true)
+with (security_invoker = true, security_barrier = true)
 as
 select
   id,
@@ -135,9 +146,7 @@ select
 from public.user_series
 where status in ('assistindo', 'maratonei');
 
--- A view é intencionalmente uma projeção pública filtrada, executada pelo
--- proprietário da view; não expõe a tabela base nem os status privados.
-alter view public.feed_series owner to postgres;
+-- A view respeita as policies RLS e os grants de coluna da role chamadora.
 grant select on public.feed_series to anon, authenticated;
 revoke select on public.user_series from anon;
 
