@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { buildRawEmail, escapeHtml, isValidRecipient, resolveActionUrl } from '../../../../lib/email/notification-email'
+import { buildRawEmail, escapeHtml, isValidRecipient, resolveActionUrl } from '../../../../lib/email/notification-email.mjs'
 
 export const runtime = 'nodejs'
 
