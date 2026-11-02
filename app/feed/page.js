@@ -38,7 +38,7 @@ export default function FeedPage() {
       const [filmes, series, episodios, comentarios, avaliacoes] = await Promise.all([
         supabase.from("feed_filmes").select("id,user_id,filme_id,titulo,img,updated_at").order("updated_at",{ascending:false}).limit(60),
         supabase.from("feed_series").select("id,user_id,serie_id,titulo,img,status,episodios_vistos,updated_at").order("updated_at",{ascending:false}).limit(60),
-        supabase.from("feed_episode_progress").select("user_id,serie_id,episode_id,season_number,episode_number,episode_title,source,watched_at,series_title,series_img").order("watched_at",{ascending:false}).limit(100),
+        supabase.from("feed_episode_progress").select("user_id,serie_id,episode_id,season_number,episode_number,episode_title,source,watched_at,series_title,series_img").order("watched_at",{ascending:false,nullsFirst:false}).limit(100),
         supabase.from("feed_episode_comments").select("id,user_id,serie_id,temporada_numero,episodio_numero,comentario,created_at,series_title").order("created_at",{ascending:false}).limit(60),
         supabase.from("feed_episode_ratings").select("id,user_id,serie_id,temporada_numero,episodio_numero,nota,comentario,created_at,series_title").order("created_at",{ascending:false}).limit(60)
       ])
