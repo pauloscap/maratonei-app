@@ -4,8 +4,8 @@
 
 begin;
 
--- Episódios: leitura pública somente dos episódios assistidos.
--- O proprietário também pode consultar seus próprios registros não assistidos.
+-- Episódios: a tabela base permanece privada por proprietário.
+-- A comunidade lê somente uma projeção pública, sem colunas desnecessárias.
 alter table public.user_episodios enable row level security;
 
 drop policy if exists "Episódios são públicos no feed" on public.user_episodios;
@@ -15,11 +15,11 @@ drop policy if exists "Usuários inserem apenas seus episódios" on public.user_
 drop policy if exists "Usuários veem apenas seus episódios" on public.user_episodios;
 drop policy if exists "libera user_episodios" on public.user_episodios;
 
-create policy "feed_publico_episodios_assistidos"
+create policy "episodios_leitura_propria"
 on public.user_episodios
 for select
-to anon, authenticated
-using (assistido is true or auth.uid() = user_id);
+to authenticated
+using (auth.uid() = user_id);
 
 create policy "episodios_insercao_propria"
 on public.user_episodios
@@ -39,6 +39,24 @@ on public.user_episodios
 for delete
 to authenticated
 using (auth.uid() = user_id);
+
+-- View com projeção explícita. O proprietário da view é o papel de migração
+-- confiável; a condição assistido=true é fixa e a view não expõe linhas privadas.
+create or replace view public.feed_episodios
+with (security_barrier = true)
+as
+select
+  id,
+  user_id,
+  serie_id,
+  temporada_numero,
+  episodio_numero,
+  created_at
+from public.user_episodios
+where assistido is true;
+
+grant select on public.feed_episodios to anon, authenticated;
+revoke select on public.user_episodios from anon;
 
 
 -- Filmes: todos podem ver somente registros ja_assisti.
