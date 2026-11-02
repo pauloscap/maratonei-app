@@ -75,10 +75,12 @@ using (auth.uid() = user_id);
 create or replace view public.feed_filmes
 with (security_barrier = true)
 as
-select id, user_id, filme_id, titulo, img, status, updated_at
+select id, user_id, filme_id, titulo, img, updated_at
 from public.user_filmes
 where status = 'ja_assisti';
 
+-- View pública filtrada; a tabela base continua privada por proprietário.
+alter view public.feed_filmes owner to postgres;
 grant select on public.feed_filmes to anon, authenticated;
 revoke select on public.user_filmes from anon;
 
