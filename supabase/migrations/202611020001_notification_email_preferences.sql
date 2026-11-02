@@ -10,6 +10,8 @@ create table if not exists public.notification_email_preferences (
 );
 
 alter table public.notification_email_preferences enable row level security;
+revoke all on public.notification_email_preferences from anon;
+grant select, insert, update on public.notification_email_preferences to authenticated;
 
 drop policy if exists "Users can read own email notification preferences"
   on public.notification_email_preferences;
@@ -167,6 +169,9 @@ drop trigger if exists trigger_enqueue_notification_email on public.notificacoes
 create trigger trigger_enqueue_notification_email
 after insert on public.notificacoes
 for each row execute function public.enqueue_notification_email();
+
+-- The function is trigger-only; do not expose direct execution to API roles.
+revoke execute on function public.enqueue_notification_email() from public, anon, authenticated;
 
 create index if not exists notification_email_outbox_pending_idx
   on public.notification_email_outbox (available_at, created_at)
