@@ -47,19 +47,15 @@ export default function FeedPage() {
 
       // Somente ações públicas entram na timeline. Check-ins e listas de desejos ficam fora.
       const results = await Promise.all([
-        supabase.from("user_filmes")
+        supabase.from("feed_filmes")
           .select("id,user_id,filme_id,titulo,img,status,updated_at")
           .eq("status", "ja_assisti")
           .order("updated_at", { ascending: false })
           .limit(60),
-        supabase.from("user_series")
-          .select("id,user_id,serie_id,titulo,img,status,updated_at")
+        supabase.from("feed_series")
+          .select("id,user_id,serie_id,titulo,img,status,eps_vistos,updated_at")
           .in("status", ["assistindo", "maratonei"])
           .order("updated_at", { ascending: false })
-          .limit(60),
-        supabase.from("feed_episodios")
-          .select("id,user_id,serie_id,temporada_numero,episodio_numero,created_at")
-          .order("created_at", { ascending: false })
           .limit(60),
         supabase.from("user_avaliacoes")
           .select("id,user_id,serie_id,temporada_numero,episodio_numero,nota,comentario,created_at")
@@ -78,7 +74,7 @@ export default function FeedPage() {
         setError("Algumas atividades ainda não aparecem porque as permissões de leitura estão em preparação.")
       }
 
-      const [filmsResult, seriesResult, episodesResult, ratingsResult, commentsResult] = results
+      const [filmsResult, seriesResult, ratingsResult, commentsResult] = results
       const timeline = [
         ...(filmsResult.data || []).map(row => ({
           key: "film-" + row.id,
@@ -88,7 +84,7 @@ export default function FeedPage() {
           image: row.img,
           date: row.updated_at,
           href: "/filme/" + row.filme_id,
-          action: "assistiu ao filme"
+          action: "marcou como assistido o filme"
         })),
         ...(seriesResult.data || []).map(row => ({
           key: "series-" + row.id,
@@ -98,16 +94,10 @@ export default function FeedPage() {
           image: row.img,
           date: row.updated_at,
           href: "/serie/" + row.serie_id,
-          action: row.status === "maratonei" ? "maratonou a série" : "está assistindo à série"
-        })),
-        ...(episodesResult.data || []).map(row => ({
-          key: "episode-" + row.id,
-          user_id: row.user_id,
-          type: "episode",
-          title: "Temporada " + row.temporada_numero + " • Episódio " + row.episodio_numero,
-          date: row.created_at,
-          href: "/serie/" + row.serie_id,
-          action: "assistiu a um episódio"
+          action: row.status === "maratonei" ? "maratonou a série" : "está assistindo à série",
+          detail: Array.isArray(row.eps_vistos) && row.eps_vistos.length
+            ? row.eps_vistos.length + " episódios marcados como vistos"
+            : null
         })),
         ...(ratingsResult.data || []).map(row => ({
           key: "rating-" + row.id,
