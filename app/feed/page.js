@@ -35,8 +35,7 @@ export default function FeedPage() {
       }
       setFollowing((relations || []).map(row => row.seguindo_id))
 
-      const [checkins, filmes, series, episodios, comentarios, avaliacoes] = await Promise.all([
-        supabase.from("feed_checkins").select("id,user_id,data,created_at").order("created_at",{ascending:false}).limit(60),
+      const [filmes, series, episodios, comentarios, avaliacoes] = await Promise.all([
         supabase.from("feed_filmes").select("id,user_id,filme_id,titulo,img,updated_at").order("updated_at",{ascending:false}).limit(60),
         supabase.from("feed_series").select("id,user_id,serie_id,titulo,img,status,episodios_vistos,updated_at").order("updated_at",{ascending:false}).limit(60),
         supabase.from("feed_episode_progress").select("user_id,serie_id,episode_id,season_number,episode_number,episode_title,source,watched_at,series_title,series_img").order("watched_at",{ascending:false}).limit(100),
@@ -44,7 +43,7 @@ export default function FeedPage() {
         supabase.from("feed_episode_ratings").select("id,user_id,serie_id,temporada_numero,episodio_numero,nota,comentario,created_at,series_title").order("created_at",{ascending:false}).limit(60)
       ])
       if (!active) return
-      const failed = [checkins,filmes,series,episodios,comentarios,avaliacoes].find(result => result.error)
+      const failed = [filmes,series,episodios,comentarios,avaliacoes].find(result => result.error)
       if (failed) {
         console.error("[feed] Falha ao carregar projeções públicas:", failed.error)
         setError("Não foi possível carregar as atividades. Tente novamente em instantes.")
@@ -53,7 +52,6 @@ export default function FeedPage() {
       }
 
       const timeline = [
-        ...(checkins.data || []).map(row => ({...row,type:"checkin",date:row.created_at || row.data})),
         ...(filmes.data || []).map(row => ({...row,type:"film",date:row.updated_at})),
         ...(series.data || []).map(row => ({...row,type:"series",date:row.updated_at})),
         ...(episodios.data || []).map(row => ({...row,type:"episode",date:row.watched_at})),
@@ -90,7 +88,6 @@ export default function FeedPage() {
   }
 
   function activityText(item) {
-    if (item.type === "checkin") return "fez um check-in"
     if (item.type === "film") return "marcou como assistido o filme"
     if (item.type === "episode") return "assistiu a um episódio de"
     if (item.type === "comment") return "comentou um episódio de"
@@ -111,7 +108,7 @@ export default function FeedPage() {
       <div style={{maxWidth:760,margin:"0 auto"}}>
         <p style={{color:"#FFD400",fontSize:10,fontWeight:900,letterSpacing:2,margin:"0 0 6px"}}>MARATONEI SOCIAL</p>
         <h1 style={{fontSize:25,fontWeight:900,margin:0}}>Amigos</h1>
-        <p style={{color:"#9CAACB",fontSize:12,margin:"7px 0 0"}}>Acompanhe check-ins, filmes, séries e episódios assistidos pela comunidade.</p>
+        <p style={{color:"#9CAACB",fontSize:12,margin:"7px 0 0"}}>Acompanhe filmes, séries, episódios assistidos, avaliações e comentários da comunidade.</p>
       </div>
     </header>
     <section style={{maxWidth:760,margin:"0 auto",padding:"16px 14px"}}>
