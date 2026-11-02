@@ -1,6 +1,6 @@
 # Notificações por e-mail — revisão e ativação controlada
 
-Esta funcionalidade permanece em uma pull request **draft**. O código, a migration, os segredos e o webhook ainda não foram ativados em produção. A existência do escopo OAuth \`gmail.send\` no Google Cloud não significa que o envio esteja aprovado ou operacional.
+Esta funcionalidade permanece em uma pull request **draft**. O código, a migration, os segredos e o webhook ainda não foram ativados em produção. A existência do escopo OAuth `gmail.send` no Google Cloud não significa que o envio esteja aprovado ou operacional.
 
 ## Escopo da primeira etapa
 
@@ -12,24 +12,24 @@ Esta funcionalidade permanece em uma pull request **draft**. O código, a migrat
 
 ## Componentes
 
-- \`notification_email_preferences\`: preferências individuais, protegidas por RLS.
-- \`notification_email_outbox\`: fila sem acesso direto para \`anon\` ou \`authenticated\`.
+- `notification_email_preferences`: preferências individuais, protegidas por RLS.
+- `notification_email_outbox`: fila sem acesso direto para `anon` ou `authenticated`.
 - Trigger PostgreSQL: valida o evento, verifica a preferência e cria uma linha na fila.
 - Endpoint Next.js: valida o segredo do webhook, reivindica a linha pendente de forma atômica e envia pela Gmail API.
 - O endpoint não faz retry automático. Uma falha é registrada para análise; isso evita reenvio automático acidental.
 
 ## Estado de segurança / autorização
 
-- A migration \`supabase/migrations/202611020001_notification_email_preferences.sql\` está apenas no GitHub e **não foi aplicada**.
+- A migration `supabase/migrations/202611020001_notification_email_preferences.sql` está apenas no GitHub e **não foi aplicada**.
 - Nenhum Database Webhook foi criado.
 - Nenhuma variável Gmail está configurada em Production.
 - As credenciais Gmail existentes estão limitadas ao ambiente Preview e à branch de trabalho, mas Preview aponta para o projeto Supabase real. Portanto, não executar testes que escrevam no banco de Preview.
-- Não adicionar \`SUPABASE_SERVICE_ROLE_KEY\`, segredos ou refresh token ao navegador nem a variáveis \`NEXT_PUBLIC_*\`.
+- Não adicionar `SUPABASE_SERVICE_ROLE_KEY`, segredos ou refresh token ao navegador nem a variáveis `NEXT_PUBLIC_*`.
 - Não fazer merge, deploy de produção, migration, webhook ou ativação sem autorização explícita.
 
 ## Google OAuth
 
-A conta remetente prevista é \`contatomaratoneiapp@gmail.com\`. O endpoint usa somente o escopo \`https://www.googleapis.com/auth/gmail.send\`, destinado ao envio de mensagens em nome da conta autorizadora. O fluxo não lê a caixa de entrada dos usuários do Maratonei.
+A conta remetente prevista é `contatomaratoneiapp@gmail.com`. O endpoint usa somente o escopo `https://www.googleapis.com/auth/gmail.send`, destinado ao envio de mensagens em nome da conta autorizadora. O fluxo não lê a caixa de entrada dos usuários do Maratonei.
 
 O projeto Google está em modo **Teste**. A duração do refresh token e os requisitos de verificação precisam ser confirmados nas regras vigentes do Google antes de qualquer operação pública. Não presumir que o token de teste seja permanente.
 
@@ -45,27 +45,27 @@ O projeto Google está em modo **Teste**. A duração do refresh token e os requ
 
 ## Variáveis de ambiente necessárias no servidor
 
-- \`SUPABASE_SERVICE_ROLE_KEY\`
-- \`GMAIL_CLIENT_ID\`
-- \`GMAIL_CLIENT_SECRET\`
-- \`GMAIL_REFRESH_TOKEN\`
-- \`SUPABASE_EMAIL_WEBHOOK_SECRET\`
-- \`NEXT_PUBLIC_APP_URL\`
-- \`NEXT_PUBLIC_SUPABASE_URL\` (já utilizada pelo app)
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `GMAIL_CLIENT_ID`
+- `GMAIL_CLIENT_SECRET`
+- `GMAIL_REFRESH_TOKEN`
+- `SUPABASE_EMAIL_WEBHOOK_SECRET`
+- `NEXT_PUBLIC_APP_URL`
+- `NEXT_PUBLIC_SUPABASE_URL` (já utilizada pelo app)
 
 Configurar segredos apenas no ambiente aprovado, após revisão. Não copiar valores de credenciais para issues, logs, commits ou mensagens.
 
 ## Webhook — não criar ainda
 
-Depois de migration e endpoint aprovados e publicados, o desenho previsto é um webhook \`POST\` para INSERT em \`public.notification_email_outbox\`, enviando o header \`Authorization: Bearer <SUPABASE_EMAIL_WEBHOOK_SECRET>\`.
+Depois de migration e endpoint aprovados e publicados, o desenho previsto é um webhook `POST` para INSERT em `public.notification_email_outbox`, enviando o header `Authorization: Bearer <SUPABASE_EMAIL_WEBHOOK_SECRET>`.
 
 **Não criar esse webhook agora.** O Preview usa o Supabase real e não é um ambiente seguro para testar eventos que possam gerar gravações ou e-mails.
 
 ## Limitações conhecidas a validar
 
-- O endpoint marca a linha como \`processing\` antes do envio. Se o processo cair nesse intervalo, será necessária uma rotina operacional de recuperação; não há reprocessamento automático.
-- Se o Gmail aceitar a mensagem e a atualização do status falhar, o e-mail pode ter sido entregue enquanto a fila permanece \`processing\`. Não reenviar automaticamente nesses casos.
-- O evento de comentário depende dos campos e do contexto de autenticação presentes na tabela \`notificacoes\`; validar isso em banco isolado antes de ativar.
+- O endpoint marca a linha como `processing` antes do envio. Se o processo cair nesse intervalo, será necessária uma rotina operacional de recuperação; não há reprocessamento automático.
+- Se o Gmail aceitar a mensagem e a atualização do status falhar, o e-mail pode ter sido entregue enquanto a fila permanece `processing`. Não reenviar automaticamente nesses casos.
+- O evento de comentário depende dos campos e do contexto de autenticação presentes na tabela `notificacoes`; validar isso em banco isolado antes de ativar.
 - As rotas de destino dos e-mails devem permanecer no domínio oficial do Maratonei.
 
 ## Segurança e privacidade

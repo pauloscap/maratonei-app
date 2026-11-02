@@ -10,7 +10,7 @@ function escapeHtml(value = '') {
 }
 
 function mimeBase64(value) {
-  return Buffer.from(value, 'utf8').toString('base64').replace(/.{1,76}/g, '$&\r\n').trim()
+  return Buffer.from(value, 'utf8').toString('base64').replace(/.{1,76}/g, '$&\\r\\n').trim()
 }
 
 async function getGmailAccessToken() {
@@ -28,41 +28,41 @@ async function getGmailAccessToken() {
   })
   const data = await response.json().catch(() => ({}))
   if (!response.ok || !data.access_token) {
-    throw new Error(\`Google OAuth token refresh failed (\${response.status})\`)
+    throw new Error('Google OAuth token refresh failed (' + response.status + ')')
   }
   return data.access_token
 }
 
 function buildRawEmail({ from, to, subject, text, html }) {
-  const boundary = \`maratonei_\${randomUUID()}\`
+  const boundary = 'maratonei_' + randomUUID()
   const encodedSubject = Buffer.from(subject, 'utf8').toString('base64')
   const parts = [
-    \`From: Maratonei App <\${from}>\`,
-    \`To: \${to}\`,
-    \`Subject: =?UTF-8?B?\${encodedSubject}?=\`,
+    'From: Maratonei App <' + from + '>',
+    'To: ' + to,
+    'Subject: =?UTF-8?B?' + encodedSubject + '?=',
     'MIME-Version: 1.0',
-    \`Content-Type: multipart/alternative; boundary="\${boundary}"\`,
+    'Content-Type: multipart/alternative; boundary="' + boundary + '"',
     '',
-    \`--\${boundary}\`,
+    '--' + boundary,
     'Content-Type: text/plain; charset="UTF-8"',
     'Content-Transfer-Encoding: base64',
     mimeBase64(text),
     '',
-    \`--\${boundary}\`,
+    '--' + boundary,
     'Content-Type: text/html; charset="UTF-8"',
     'Content-Transfer-Encoding: base64',
     mimeBase64(html),
     '',
-    \`--\${boundary}--\`,
+    '--' + boundary + '--',
     ''
-  ].join('\r\n')
+  ].join('\\r\\n')
   return Buffer.from(parts, 'utf8').toString('base64url')
 }
 
 export async function POST(request) {
   const secret = process.env.SUPABASE_EMAIL_WEBHOOK_SECRET
   const authorization = request.headers.get('authorization')
-  if (!secret || authorization !== \`Bearer \${secret}\`) {
+  if (!secret || authorization !== 'Bearer ' + secret) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -126,7 +126,7 @@ export async function POST(request) {
   const destination = typeof payload.destination === 'string' ? payload.destination : '/'
   const safePath = destination.startsWith('/') &&
     !destination.startsWith('//') &&
-    !destination.includes('\\') ? destination : '/'
+    !destination.includes(String.fromCharCode(92)) ? destination : '/'
 
   let actionUrl
   try {
@@ -145,26 +145,34 @@ export async function POST(request) {
 
   try {
     const recipient = String(item.recipient_email || '').trim()
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient) || /[\r\n]/.test(recipient)) {
+    if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(recipient) || /[\\r\\n]/.test(recipient)) {
       throw new Error('Invalid recipient email')
     }
 
     const accessToken = await getGmailAccessToken()
-    const textBody = \`\${subject}\n\n\${message}\n\nAcesse: \${actionUrl.toString()}\n\nVocê recebeu este e-mail porque ativou notificações por e-mail no Maratonei.\`
-    const htmlBody = \`<!doctype html><html lang="pt-BR"><body style="margin:0;background:#080B1F;color:#fff;font-family:Arial,sans-serif;padding:32px 16px"><main style="max-width:560px;margin:0 auto;background:#12182F;border:1px solid #ffffff18;border-radius:18px;padding:28px"><div style="font-size:26px;font-weight:800;color:#FACC15;margin-bottom:24px">Maratonei</div><h1 style="font-size:22px;line-height:1.3;margin:0 0 14px">\${safeSubject}</h1><p style="font-size:16px;line-height:1.6;color:#CBD5E1">\${safeMessage}</p><a href="\${safeActionUrl}" style="display:inline-block;margin-top:20px;padding:14px 22px;border-radius:10px;background:#FACC15;color:#080B1F;text-decoration:none;font-weight:800">ACESSAR O MARATONEI</a><p style="font-size:12px;color:#94A3B8;margin-top:28px">Você recebeu este e-mail porque ativou notificações por e-mail nas configurações do Maratonei.</p></main></body></html>\`
+    const textBody = [
+      subject,
+      '',
+      message,
+      '',
+      'Acesse: ' + actionUrl.toString(),
+      '',
+      'Você recebeu este e-mail porque ativou notificações por e-mail no Maratonei.'
+    ].join('\\n')
+    const htmlBody = '<!doctype html><html lang="pt-BR"><body style="margin:0;background:#080B1F;color:#fff;font-family:Arial,sans-serif;padding:32px 16px"><main style="max-width:560px;margin:0 auto;background:#12182F;border:1px solid #ffffff18;border-radius:18px;padding:28px"><div style="font-size:26px;font-weight:800;color:#FACC15;margin-bottom:24px">Maratonei</div><h1 style="font-size:22px;line-height:1.3;margin:0 0 14px">' + safeSubject + '</h1><p style="font-size:16px;line-height:1.6;color:#CBD5E1">' + safeMessage + '</p><a href="' + safeActionUrl + '" style="display:inline-block;margin-top:20px;padding:14px 22px;border-radius:10px;background:#FACC15;color:#080B1F;text-decoration:none;font-weight:800">ACESSAR O MARATONEI</a><p style="font-size:12px;color:#94A3B8;margin-top:28px">Você recebeu este e-mail porque ativou notificações por e-mail nas configurações do Maratonei.</p></main></body></html>'
     const raw = buildRawEmail({ from: fromEmail, to: recipient, subject, text: textBody, html: htmlBody })
 
     const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
       method: 'POST',
       headers: {
-        Authorization: \`Bearer \${accessToken}\`,
+        Authorization: 'Bearer ' + accessToken,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({ raw }),
       signal: AbortSignal.timeout(20000)
     })
     if (!response.ok) {
-      throw new Error(\`Gmail API send failed (\${response.status})\`)
+      throw new Error('Gmail API send failed (' + response.status + ')')
     }
 
     const { error: updateError } = await supabase
