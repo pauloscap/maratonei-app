@@ -68,6 +68,9 @@ export default function DetalheSerie() {
             lista=Object.values(mapa).sort((x,y)=>x.numero-y.numero)
           }
         }
+        if (["assistindo","maratonei","ja_assisti"].includes(row.status) && Array.isArray(row.eps_vistos) && row.eps_vistos.length) {
+          await sincronizarHistoricoEpisodios(row.eps_vistos, lista, uid, id)
+        }
         if(Object.keys(updates).length) await supabase.from("user_series").update({...updates, updated_at:new Date().toISOString()}).eq("user_id",uid).eq("serie_id",id)
         setDetalhes({ sinopse, nota:notaTmdb, votos, providers })
         const totalCalc = lista.reduce((a,t)=>a+t.eps.length,0)
@@ -237,13 +240,67 @@ export default function DetalheSerie() {
     }catch(e){ alert('Não foi possível gerar a imagem: '+e.message) }
   }
 
+  async function sincronizarHistoricoEpisodios(idsLegados, listaTemporadas, uid, serieId){
+    const ids = [...new Set((idsLegados || []).map(String))]
+    if(!uid || !serieId || !ids.length || !listaTemporadas?.length) return
+    const mapa = new Map(listaTemporadas.flatMap(temp=>temp.eps.map(ep=>[String(ep.id),{ep,temp}])))
+    const {data: existentes,error: leituraError} = await supabase.from("user_episode_progress")
+      .select("episode_id").eq("user_id",uid).eq("serie_id",serieId)
+    if(leituraError){
+      console.warn("[episodios] Histórico antigo ainda não pode ser publicado:",leituraError.message)
+      return
+    }
+    const conhecidos = new Set((existentes || []).map(row=>String(row.episode_id)))
+    const payload = ids.filter(episodeId=>!conhecidos.has(episodeId)).map(episodeId=>{
+      const item = mapa.get(episodeId)
+      if(!item) return null
+      return {
+        user_id:uid, serie_id:serieId, episode_id:episodeId,
+        season_number:item.temp.numero, episode_number:item.ep.numero,
+        episode_title:item.ep.nome || "", source:"legacy", watched_at:null
+      }
+    }).filter(Boolean)
+    if(payload.length){
+      const {error} = await supabase.from("user_episode_progress").insert(payload)
+      if(error) console.warn("[episodios] Não foi possível publicar o histórico antigo:",error.message)
+    }
+  }
+
+  async function sincronizarEventosEpisodios(novo){
+    if(!userId) return
+    const anteriores = new Set(epsVistos.map(String))
+    const atuais = new Set(novo.map(String))
+    const mapa = new Map(temporadas.flatMap(temp=>temp.eps.map(ep=>[String(ep.id),{ep,temp}])))
+    const adicionados = [...atuais].filter(episodeId=>!anteriores.has(episodeId))
+    const removidos = [...anteriores].filter(episodeId=>!atuais.has(episodeId))
+    const payload = adicionados.map(episodeId=>{
+      const item = mapa.get(episodeId)
+      if(!item) return null
+      return {
+        user_id:userId, serie_id:id, episode_id:episodeId,
+        season_number:item.temp.numero, episode_number:item.ep.numero,
+        episode_title:item.ep.nome || "", source:"live", watched_at:new Date().toISOString()
+      }
+    }).filter(Boolean)
+    if(payload.length){
+      const {error} = await supabase.from("user_episode_progress")
+        .upsert(payload,{onConflict:"user_id,serie_id,episode_id"})
+      if(error) console.error("[episodios] Não foi possível publicar o progresso:",error.message)
+    }
+    if(removidos.length){
+      const {error} = await supabase.from("user_episode_progress").delete()
+        .eq("user_id",userId).eq("serie_id",id).in("episode_id",removidos)
+      if(error) console.error("[episodios] Não foi possível remover o progresso público:",error.message)
+    }
+  }
+
   async function salvarProgressoEpisodios(novo, celebrarAoConcluir = false){
     const agora = new Date().toISOString()
     const hoje = new Date().toISOString().slice(0,10)
     const todosIds = temporadas.flatMap(t=>t.eps.filter(e=>!e.airdate || e.airdate<=hoje).map(e=>String(e.id)))
     const vistosNormalizados = new Set(novo.map(String))
     const concluiu = todosIds.length>0 && todosIds.every(eid=>vistosNormalizados.has(eid))
-    const novoStatus = concluiu ? "maratonei" : status==="maratonei" ? "assistindo" : status
+    const novoStatus = concluiu ? "maratonei" : status==="maratonei" || status==="quero_assistir" || status==="" ? "assistindo" : status
     setEpsVistos(novo)
     localStorage.setItem(userId+":eps-"+id, JSON.stringify(novo))
     if(novoStatus!==status) {
@@ -251,11 +308,13 @@ export default function DetalheSerie() {
       localStorage.setItem(userId+":status-"+id, novoStatus)
       if(concluiu && celebrarAoConcluir) setShowCelebration(true)
     }
-    await supabase.from("user_series").update({
+    await sincronizarEventosEpisodios(novo)
+    const {error} = await supabase.from("user_series").update({
       eps_vistos:novo,
       ...(novoStatus!==status ? {status:novoStatus} : {}),
       updated_at:agora
     }).eq("user_id",userId).eq("serie_id",id)
+    if(error) console.error("[episodios] Falha ao salvar progresso:",error.message)
   }
   async function toggleEp(eid){
     const novo = epsVistos.includes(eid) ? epsVistos.filter(x=>x!==eid) : [...epsVistos,eid]
@@ -272,11 +331,15 @@ export default function DetalheSerie() {
   async function mudarStatus(novo){
     setStatus(novo); localStorage.setItem(userId+":status-"+id, novo)
     await supabase.from("user_series").update({ status:novo, updated_at:new Date().toISOString() }).eq("user_id",userId).eq("serie_id",id)
+    if(["assistindo","maratonei","ja_assisti"].includes(novo)) {
+      await sincronizarHistoricoEpisodios(epsVistos, temporadas, userId, id)
+    }
     if(novo==="maratonei"){
       const hoje = new Date().toISOString().slice(0,10)
       const todosIds=temporadas.flatMap(t=>t.eps.filter(e=>!e.airdate || e.airdate<=hoje).map(e=>e.id))
       const novoEps=Array.from(new Set([...epsVistos,...todosIds]))
       setEpsVistos(novoEps); localStorage.setItem(userId+":eps-"+id, JSON.stringify(novoEps))
+      await sincronizarEventosEpisodios(novoEps)
       await supabase.from("user_series").update({ eps_vistos:novoEps, updated_at:new Date().toISOString() }).eq("user_id",userId).eq("serie_id",id)
       setShowRating(true)
     } else if(novo==="assistindo" || novo==="quero_assistir"){
