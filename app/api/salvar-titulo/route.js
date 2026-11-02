@@ -11,7 +11,7 @@ export async function POST(req) {
     if (!match) return jsonError('Autenticação obrigatória.', 401)
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_KEY
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
     const tmdbKey = process.env.TMDB_API_KEY
 
@@ -40,6 +40,16 @@ export async function POST(req) {
     const tmdbId = Number(item?.id)
     if (!['movie', 'tv'].includes(tipo) || !Number.isSafeInteger(tmdbId) || tmdbId <= 0) {
       return jsonError('Informe um filme ou série válido.', 400)
+    }
+
+    // Sem status explícito, o endpoint apenas salva o título; não presume que
+    // o usuário já assistiu e não sobrescreve um status existente no upsert.
+    const statusInformado = item?.status
+    const statusPermitidos = tipo === 'movie'
+      ? ['quero_assistir', 'ja_assisti']
+      : ['quero_assistir', 'assistindo', 'maratonei', 'ja_assisti']
+    if (statusInformado != null && statusInformado !== '' && !statusPermitidos.includes(statusInformado)) {
+      return jsonError('Status inválido para o tipo de título informado.', 400)
     }
 
     const tmdbResponse = await fetch(
@@ -92,14 +102,14 @@ export async function POST(req) {
           filme_id: String(details.id),
           titulo: details.title,
           img: details.poster_path ? `https://image.tmdb.org/t/p/w500${details.poster_path}` : '',
-          status: 'ja_assisti'
+          ...(statusInformado ? { status: statusInformado } : {})
         }
       : {
           user_id: userId,
           serie_id: String(details.id),
           titulo: details.name,
           img: details.poster_path ? `https://image.tmdb.org/t/p/w500${details.poster_path}` : '',
-          status: 'ja_assisti'
+          ...(statusInformado ? { status: statusInformado } : {})
         }
 
     const conflictTarget = isMovie ? 'user_id,filme_id' : 'user_id,serie_id'
