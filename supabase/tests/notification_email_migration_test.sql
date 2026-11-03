@@ -52,11 +52,13 @@ end $$;
 -- Exercise the trigger with opt-in enabled; no Gmail/network action exists in this fixture.
 insert into auth.users(id,email) values
  ('00000000-0000-0000-0000-000000000001','recipient@example.test'),
- ('00000000-0000-0000-0000-000000000002','actor@example.test');
+ ('00000000-0000-0000-0000-000000000002','actor@example.test'),
+ ('00000000-0000-0000-0000-000000000003','optout@example.test');
 insert into public.profiles(id,nome) values
  ('00000000-0000-0000-0000-000000000002','Ator de teste');
 insert into public.seguidores(seguidor_id,seguindo_id) values
- ('00000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-000000000001');
+ ('00000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-000000000001'),
+ ('00000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-000000000003');
 insert into public.notification_email_preferences(user_id,email_seguidor)
 values ('00000000-0000-0000-0000-000000000001',true);
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000002',false);
@@ -69,5 +71,15 @@ begin
   end if;
   if (select status from public.notification_email_outbox limit 1) <> 'pending' then
     raise exception 'outbox item should begin pending';
+  end if;
+end $$;
+
+-- Opt-out/default-off recipient must not receive an outbox row.
+insert into public.notificacoes(user_id,autor_id,tipo)
+values ('00000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-000000000002','seguiu');
+do $$
+begin
+  if (select count(*) from public.notification_email_outbox) <> 1 then
+    raise exception 'default-off recipient should not create an outbox row';
   end if;
 end $$;
