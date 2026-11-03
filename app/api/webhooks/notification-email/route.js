@@ -76,7 +76,7 @@ export async function POST(request) {
   // Compare-and-set: only one webhook delivery can claim a pending row.
   const { data: claimed, error: claimError } = await supabase
     .from('notification_email_outbox')
-    .update({ status: 'processing', attempts: (item.attempts || 0) + 1 })
+    .update({ status: 'processing', processing_started_at: new Date().toISOString(), attempts: (item.attempts || 0) + 1 })
     .eq('id', outboxId)
     .eq('status', 'pending')
     .select('id')
@@ -129,7 +129,7 @@ export async function POST(request) {
 
     const { error: updateError } = await supabase
       .from('notification_email_outbox')
-      .update({ status: 'sent', sent_at: new Date().toISOString(), last_error: null })
+      .update({ status: 'sent', processing_started_at: null, sent_at: new Date().toISOString(), last_error: null })
       .eq('id', outboxId)
     if (updateError) {
       console.error('Email sent but outbox status update failed:', updateError.message)
@@ -138,7 +138,7 @@ export async function POST(request) {
   } catch (error) {
     const { error: updateError } = await supabase
       .from('notification_email_outbox')
-      .update({ status: 'failed', last_error: String(error?.message || error).slice(0, 1000) })
+      .update({ status: 'failed', processing_started_at: null, last_error: String(error?.message || error).slice(0, 1000) })
       .eq('id', outboxId)
     if (updateError) console.error('Could not record email failure:', updateError.message)
     return Response.json({ sent: false }, { status: 502 })
