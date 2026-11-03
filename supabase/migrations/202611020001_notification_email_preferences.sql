@@ -1,6 +1,9 @@
 -- Maratonei: preferências e fila de e-mails para notificações sociais
 -- Aplicar somente após revisão e aprovação explícita.
 
+create schema if not exists private;
+revoke all on schema private from public, anon, authenticated;
+
 create table if not exists public.notification_email_preferences (
   user_id uuid primary key references auth.users(id) on delete cascade,
   email_seguidor boolean not null default false,
@@ -47,6 +50,7 @@ create table if not exists public.notification_email_outbox (
   attempts integer not null default 0 check (attempts >= 0),
   available_at timestamptz not null default now(),
   created_at timestamptz not null default now(),
+  processing_started_at timestamptz,
   sent_at timestamptz,
   last_error text
 );
@@ -55,11 +59,11 @@ alter table public.notification_email_outbox enable row level security;
 revoke all on public.notification_email_outbox from anon, authenticated;
 grant all on public.notification_email_outbox to service_role;
 
-create or replace function public.enqueue_notification_email()
+create or replace function private.enqueue_notification_email()
 returns trigger
 language plpgsql
 security definer
-set search_path = public, auth, pg_temp
+set search_path = ''
 as $$
 declare
   recipient text;
@@ -168,10 +172,10 @@ $$;
 drop trigger if exists trigger_enqueue_notification_email on public.notificacoes;
 create trigger trigger_enqueue_notification_email
 after insert on public.notificacoes
-for each row execute function public.enqueue_notification_email();
+for each row execute function private.enqueue_notification_email();
 
 -- The function is trigger-only; do not expose direct execution to API roles.
-revoke execute on function public.enqueue_notification_email() from public, anon, authenticated;
+revoke all on function private.enqueue_notification_email() from public, anon, authenticated;
 
 create index if not exists notification_email_outbox_pending_idx
   on public.notification_email_outbox (available_at, created_at)
