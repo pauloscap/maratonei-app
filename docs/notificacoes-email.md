@@ -92,3 +92,23 @@ Depois de migration e endpoint aprovados e publicados, o desenho previsto é um 
 ## Integração contínua
 
 O workflow `.github/workflows/notification-email-tests.yml` executa `npm run test:email` com Node.js 20 em pushes desta branch e em pull requests direcionados à `main`. Ele não recebe segredos e não se conecta ao Supabase nem ao Gmail. O resultado da execução deve ser conferido no GitHub Actions antes de considerar a suíte aprovada.
+
+
+## Preferências adicionais — catálogo e comunicados
+
+A migration `202611090001_catalog_email_preferences.sql` adiciona duas opções à tabela de preferências:
+- `email_novidades_catalogo`: inscrição para todos os avisos editoriais de novas séries, filmes e episódios, sem filtrar por lista pessoal.
+- `email_comunicados`: inscrição separada para mensagens gerais que a administração decidir enviar.
+
+A tela `/configuracoes` passa a exibir essas opções e salva os quatro opt-ins no mesmo registro do usuário. As opções iniciam desativadas. A migration permanece apenas na branch e ainda não foi aplicada ao Supabase.
+
+## Fonte e automação do catálogo — pendente de implementação
+
+A aplicação atualmente consulta títulos diretamente na API do TMDB a partir do navegador. Isso não fornece um catálogo central persistente nem eventos confiáveis de publicação. Para evitar alertas falsos ou repetidos, a próxima etapa deverá:
+1. Criar uma rotina agendada no servidor para consultar as fontes do catálogo.
+2. Persistir os lançamentos/episódios já processados, com identificador externo e chave única por evento.
+3. Inserir eventos elegíveis em uma fila de e-mail, respeitando `email_novidades_catalogo = true`.
+4. Enviar em lotes controlados, com deduplicação e registro de falhas.
+5. Permitir comunicados manuais apenas por ação administrativa autenticada, filtrando `email_comunicados = true`.
+
+Não existe ainda uma rotina de monitoramento TMDB, um catálogo central, um painel administrativo de campanhas ou um fluxo de boas-vindas. Esses itens não devem ser considerados ativos até implementação e testes isolados.
