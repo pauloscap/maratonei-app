@@ -1,12 +1,12 @@
 import { createClient } from '@supabase/supabase-js'
 
 export const runtime = 'nodejs'
-export const maxDuration = 300
+export const maxDuration = 60
 
 const TMDB_BASE = 'https://api.themoviedb.org/3'
 const TMDB_KEY = process.env.TMDB_API_KEY || process.env.NEXT_PUBLIC_TMDB_KEY || '4e44d9029b1273360df0be1de39768d1'
-const PAGE_SIZE = 10
-const SEND_LIMIT = 40
+const PAGE_SIZE = 5
+const SEND_LIMIT = 5
 
 function dayDifference(dateValue) {
   if (!dateValue) return null
@@ -66,13 +66,11 @@ async function collectCatalogEvents() {
   }
 
   const showList = [...shows.values()].slice(0, PAGE_SIZE * 2)
-  for (let index = 0; index < showList.length; index += 5) {
-    const batch = showList.slice(index, index + 5)
-    const details = await Promise.all(batch.map(show =>
-      tmdb('/tv/' + show.id).catch(() => null)
-    ))
+  const details = await Promise.all(showList.map(show =>
+    tmdb('/tv/' + show.id).catch(() => null)
+  ))
 
-    for (const detail of details) {
+  for (const detail of details) {
       if (!detail?.id) continue
       const seriesTitle = detail.name || detail.original_name || 'Série'
 
@@ -107,7 +105,6 @@ async function collectCatalogEvents() {
         )
         events.set(event.event_key, event)
       }
-    }
   }
 
   const movies = new Map()
@@ -253,7 +250,7 @@ export async function GET(request) {
               table: 'notification_email_outbox',
               record: { id: item.id }
             }),
-            signal: AbortSignal.timeout(45000)
+            signal: AbortSignal.timeout(30000)
           })
           if (response.ok) {
             const result = await response.json().catch(() => ({}))
