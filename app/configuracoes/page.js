@@ -123,7 +123,6 @@ export default function ConfigPage(){
                 <span>Novidades do catálogo (séries, filmes e episódios)</span>
                 <input type="checkbox" checked={emailPrefs.email_novidades_catalogo} onChange={e=>setEmailPrefs(p=>({...p,email_novidades_catalogo:e.target.checked}))} style={{width:20,height:20,accentColor:"#FACC15"}}/>
               </label>
-              <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"10px 0",fontSize:14}}>
               <p style={{fontSize:12,lineHeight:1.5,color:"#94A3B8",margin:"12px 0 0"}}>As newsletters gerais são enviadas aos e-mails confirmados das contas. Você pode cancelar o recebimento a qualquer momento pelo link no rodapé de cada edição.</p>
               <button onClick={salvarPreferenciasEmail} disabled={savingEmailPrefs} style={{width:"100%",marginTop:12,height:42,background:"#FFD400",color:"#000",border:0,borderRadius:10,fontWeight:900,opacity:savingEmailPrefs ? .65 : 1}}>{savingEmailPrefs?"Salvando...":"Salvar preferências"}</button>
             </section>
