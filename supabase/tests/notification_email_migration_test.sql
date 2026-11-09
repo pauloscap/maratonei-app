@@ -85,7 +85,7 @@ insert into public.profiles(id,nome) values
  ('00000000-0000-0000-0000-000000000003','Outro ator');
 insert into public.notification_email_preferences(user_id,email_seguidor,email_comentario) values
  ('00000000-0000-0000-0000-000000000001',true,true),
- ('00000000-0000-0000-0000-000000000004',false,true);
+ ('00000000-0000-0000-0000-000000000004',false,false);
 
 -- Evento real de seguir: uma notificação visual e um único e-mail pendente.
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000002',false);
