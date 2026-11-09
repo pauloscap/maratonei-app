@@ -42,7 +42,9 @@ export default function ComunicadosAdminPage() {
 
   async function signInWithGoogle() {
     setAuthLoading(true); setNotice("")
-    const { error } = await supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: window.location.origin + window.location.pathname } })
+    const callbackUrl = new URL("/auth/callback", window.location.origin)
+    callbackUrl.searchParams.set("next", "/admin/comunicados")
+    const { error } = await supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: callbackUrl.toString() } })
     if (error) { setNotice("Não foi possível iniciar o login com Google. Tente novamente."); setAuthLoading(false) }
   }
 
