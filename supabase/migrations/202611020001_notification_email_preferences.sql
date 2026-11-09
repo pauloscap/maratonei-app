@@ -59,8 +59,22 @@ alter table public.notification_email_outbox enable row level security;
 revoke all on public.notification_email_outbox from anon, authenticated;
 grant all on public.notification_email_outbox to service_role;
 
-create or replace function private.enqueue_notification_email()
-returns trigger
+-- Enfileira somente a partir dos gatilhos que registram eventos reais.
+-- A tabela notificacoes continua sendo usada normalmente pelo aplicativo,
+-- mas inserir nela diretamente nunca dispara um e-mail.
+drop trigger if exists trigger_enqueue_notification_email on public.notificacoes;
+drop function if exists private.enqueue_notification_email();
+
+create or replace function private.enqueue_notification_email(
+  p_notification_id uuid,
+  p_user_id uuid,
+  p_author_id uuid,
+  p_notification_type text,
+  p_series_id text,
+  p_season_number integer,
+  p_episode_number integer
+)
+returns void
 language plpgsql
 security definer
 set search_path = ''
@@ -74,108 +88,154 @@ declare
   subject_line text;
   message_text text;
 begin
-  if coalesce(new.tipo, '') not in ('seguiu', 'comentou') then
-    return new;
+  if p_notification_type not in ('seguiu', 'comentou') then
+    return;
   end if;
 
-  -- Only enqueue events created in the authenticated user's request context.
-  if auth.uid() is null or new.autor_id is distinct from auth.uid() then
-    return new;
-  end if;
-
-  if new.tipo = 'seguiu' and not exists (
-    select 1 from public.seguidores f
-    where f.seguidor_id = new.autor_id
-      and f.seguindo_id = new.user_id
-  ) then
-    return new;
-  end if;
-
-  if new.tipo = 'comentou' and not exists (
-    select 1 from public.comentarios_episodios c
-    where c.user_id = new.autor_id
-      and c.serie_id = new.serie_id
-      and c.temporada_numero = new.temporada_numero
-      and c.episodio_numero = new.episodio_numero
-  ) then
-    return new;
-  end if;
-
-  select
-    case
-      when new.tipo = 'seguiu' then coalesce(p.email_seguidor, false)
-      when new.tipo = 'comentou' then coalesce(p.email_comentario, false)
-      else false
-    end
+  select case
+    when p_notification_type = 'seguiu' then coalesce(pref.email_seguidor, false)
+    when p_notification_type = 'comentou' then coalesce(pref.email_comentario, false)
+    else false
+  end
   into enabled
-  from public.notification_email_preferences p
-  where p.user_id = new.user_id;
+  from public.notification_email_preferences pref
+  where pref.user_id = p_user_id;
 
   if not coalesce(enabled, false) then
-    return new;
+    return;
   end if;
 
   select u.email into recipient
   from auth.users u
-  where u.id = new.user_id;
+  where u.id = p_user_id;
 
   if recipient is null or length(trim(recipient)) = 0 then
-    return new;
+    return;
   end if;
 
-  select coalesce(nullif(trim(p.nome), ''), 'Alguém')
+  select coalesce(nullif(trim(profile.nome), ''), 'Alguém')
   into author_name
-  from public.profiles p
-  where p.id = new.autor_id;
+  from public.profiles profile
+  where profile.id = p_author_id;
   author_name := coalesce(author_name, 'Alguém');
 
-  if new.tipo = 'seguiu' then
+  if p_notification_type = 'seguiu' then
     subject_line := 'Você tem um novo seguidor no Maratonei';
     message_text := author_name || ' começou a seguir você no Maratonei.';
-    destination := '/perfil/' || new.autor_id::text;
+    destination := '/perfil/' || p_author_id::text;
   else
-    select s.titulo into series_title
-    from public.series s
-    where s.id::text = new.serie_id
+    select series.titulo into series_title
+    from public.series
+    where series.id::text = p_series_id
     limit 1;
 
     series_title := coalesce(series_title, 'uma série');
     subject_line := 'Novo comentário no Maratonei';
     message_text := author_name || ' comentou em ' || series_title ||
-      ' — T' || coalesce(new.temporada_numero::text, '?') ||
-      'E' || coalesce(new.episodio_numero::text, '?') || '.';
-    destination := '/serie/' || coalesce(new.serie_id, '');
+      ' — T' || coalesce(p_season_number::text, '?') ||
+      'E' || coalesce(p_episode_number::text, '?') || '.';
+    destination := '/serie/' || coalesce(p_series_id, '');
   end if;
 
   insert into public.notification_email_outbox (
-    notification_id, user_id, recipient_email, notification_type,
-    payload, status
+    notification_id, user_id, recipient_email, notification_type, payload, status
   ) values (
-    new.id, new.user_id, recipient, new.tipo,
+    p_notification_id, p_user_id, recipient, p_notification_type,
     jsonb_build_object(
       'subject', subject_line,
       'message', message_text,
       'author_name', author_name,
       'destination', destination,
       'series_title', series_title,
-      'season_number', new.temporada_numero,
-      'episode_number', new.episodio_numero
+      'season_number', p_season_number,
+      'episode_number', p_episode_number
     ),
     'pending'
   )
   on conflict (notification_id) do nothing;
+end;
+$$;
+
+-- O gatilho de seguir cria a notificação visual e, em seguida,
+-- enfileira o e-mail dentro da mesma transação.
+create or replace function public.notificar_novo_seguidor()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  new_notification_id uuid;
+begin
+  insert into public.notificacoes (user_id, autor_id, tipo)
+  values (new.seguindo_id, new.seguidor_id, 'seguiu')
+  returning id into new_notification_id;
+
+  perform private.enqueue_notification_email(
+    new_notification_id,
+    new.seguindo_id,
+    new.seguidor_id,
+    'seguiu',
+    null,
+    null,
+    null
+  );
 
   return new;
 end;
 $$;
 
-drop trigger if exists trigger_enqueue_notification_email on public.notificacoes;
-create trigger trigger_enqueue_notification_email
-after insert on public.notificacoes
-for each row execute function private.enqueue_notification_email();
+-- Mantém a regra atual: cada pessoa que já comentou no episódio
+-- recebe uma notificação, exceto quem acabou de comentar.
+create or replace function public.notificar_novo_comentario()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  recipient_user_id uuid;
+  new_notification_id uuid;
+begin
+  for recipient_user_id in
+    select distinct c.user_id
+    from public.comentarios_episodios c
+    where c.serie_id = new.serie_id
+      and c.temporada_numero = new.temporada_numero
+      and c.episodio_numero = new.episodio_numero
+      and c.user_id is not null
+      and c.user_id <> new.user_id
+  loop
+    insert into public.notificacoes (
+      user_id, autor_id, tipo, serie_id, temporada_numero, episodio_numero
+    ) values (
+      recipient_user_id, new.user_id, 'comentou',
+      new.serie_id, new.temporada_numero, new.episodio_numero
+    )
+    returning id into new_notification_id;
 
--- The function is trigger-only; do not expose direct execution to API roles.
-revoke all on function private.enqueue_notification_email() from public, anon, authenticated;
+    perform private.enqueue_notification_email(
+      new_notification_id,
+      recipient_user_id,
+      new.user_id,
+      'comentou',
+      new.serie_id,
+      new.temporada_numero,
+      new.episodio_numero
+    );
+  end loop;
+
+  return new;
+end;
+$$;
+
+-- As funções são executadas pelos gatilhos, não diretamente pela API.
+revoke all on function private.enqueue_notification_email(uuid, uuid, uuid, text, text, integer, integer)
+  from public, anon, authenticated;
+revoke all on function public.notificar_novo_seguidor()
+  from public, anon, authenticated;
+revoke all on function public.notificar_novo_comentario()
+  from public, anon, authenticated;
 
 create index if not exists notification_email_outbox_pending_idx
   on public.notification_email_outbox (available_at, created_at)
