@@ -15,6 +15,7 @@ export default function ComunicadosAdminPage() {
   const [message, setMessage] = useState("")
   const [sending, setSending] = useState(false)
   const [notice, setNotice] = useState("")
+  const [authLoading, setAuthLoading] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -45,6 +46,21 @@ export default function ComunicadosAdminPage() {
     })
     return () => { active = false }
   }, [])
+
+  async function signInWithGoogle() {
+    setAuthLoading(true)
+    setNotice("")
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: window.location.origin + window.location.pathname
+      }
+    })
+    if (error) {
+      setNotice("Não foi possível iniciar o login com Google. Tente novamente.")
+      setAuthLoading(false)
+    }
+  }
 
   async function queueCampaign(event) {
     event.preventDefault()
@@ -94,7 +110,19 @@ export default function ComunicadosAdminPage() {
             </label>
             <button disabled={sending} style={{background:"#FACC15",color:"#080B1F",border:0,borderRadius:10,padding:14,fontWeight:900,cursor:"pointer",opacity:sending ? 0.65 : 1}}>{sending ? "Preparando envio..." : "Colocar comunicado na fila"}</button>
           </form>
-        ) : <p style={{color:"#FCA5A5",fontSize:14}}>{notice || "Acesso restrito."}</p>}
+        ) : (
+          <div style={{display:"grid",gap:12}}>
+            <p style={{color:"#FCA5A5",fontSize:14}}>{notice || "Acesso restrito."}</p>
+            <button
+              type="button"
+              onClick={signInWithGoogle}
+              disabled={authLoading}
+              style={{background:"#fff",color:"#1F2937",border:0,borderRadius:10,padding:14,fontWeight:800,cursor:"pointer",opacity:authLoading ? 0.65 : 1}}
+            >
+              {authLoading ? "Abrindo Google..." : "Entrar com Google"}
+            </button>
+          </div>
+        )}
         {notice && allowed ? <p role="status" style={{color:"#FDE68A",fontSize:13,marginTop:16}}>{notice}</p> : null}
       </section>
     </main>
