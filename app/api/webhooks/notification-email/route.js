@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { createHmac } from 'node:crypto'
 import { buildRawEmail, escapeHtml, isValidRecipient, resolveActionUrl } from '../../../../lib/email/notification-email.mjs'
 
 export const runtime = 'nodejs'
@@ -132,8 +133,17 @@ export async function POST(request) {
 
     const accessToken = await getGmailAccessToken()
     const isWelcome = item.notification_type === 'boas_vindas'
+    const isNewsletter = item.notification_type === 'comunicado'
     const preferenceUrl = resolveActionUrl('/configuracoes', appUrl)
     const safePreferenceUrl = escapeHtml(preferenceUrl.toString())
+    const unsubscribeSecret = process.env.SUPABASE_SERVICE_ROLE_KEY
+    const unsubscribeToken = isNewsletter && unsubscribeSecret
+      ? item.user_id + '.' + createHmac('sha256', unsubscribeSecret).update(item.user_id).digest('hex')
+      : ''
+    const unsubscribeUrl = unsubscribeToken
+      ? new URL('/api/email/unsubscribe?token=' + encodeURIComponent(unsubscribeToken), appUrl).toString()
+      : ''
+    const safeUnsubscribeUrl = escapeHtml(unsubscribeUrl)
     const textBody = [
       subject,
       '',
@@ -145,13 +155,17 @@ export async function POST(request) {
       '',
       isWelcome
         ? 'Este é um e-mail de boas-vindas enviado após a criação da sua conta no Maratonei.'
-        : 'Você recebeu este e-mail porque ativou notificações por e-mail no Maratonei. Para alterar ou desativar suas preferências, acesse: ' + preferenceUrl.toString()
+        : isNewsletter
+          ? 'Você recebeu esta newsletter porque possui uma conta no Maratonei. Para deixar de receber newsletters, acesse: ' + unsubscribeUrl
+          : 'Você recebeu este e-mail porque ativou notificações por e-mail no Maratonei. Para alterar ou desativar suas preferências, acesse: ' + preferenceUrl.toString()
     ].join('\n')
-    const preferenceFooter = isWelcome
-      ? ''
-      : '<p style="font-size:12px;color:#94A3B8;margin-top:12px">Para alterar ou desativar suas preferências de e-mail, <a href="' + safePreferenceUrl + '" style="color:#9A7414">acesse as configurações</a>.</p>'
-    const htmlBody = '<!doctype html><html lang="pt-BR"><body style="margin:0;padding:0;background:#F3F4F6;color:#374151;font-family:Arial,Helvetica,sans-serif"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F3F4F6;width:100%"><tr><td align="center" style="padding:28px 12px"><table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background:#FFFFFF;border:1px solid #E5E7EB;border-radius:10px;overflow:hidden"><tr><td align="center" style="padding:25px 28px 18px;border-bottom:1px solid #F0F0F0"><div style="font-size:22px;line-height:1.2;font-weight:900;letter-spacing:1px;color:#172033">🍿 MARATONEI</div></td></tr><tr><td style="padding:26px 32px 30px"><h1 style="font-size:23px;line-height:1.3;color:#111827;margin:0 0 16px;font-weight:800">' + safeSubject + '</h1>' + safeCoverImageUrl + '<p style="font-size:15px;line-height:1.7;color:#4B5563;white-space:pre-line;margin:0 0 18px">' + safeMessage + '</p><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">' + newsletter.html + '</table><p style="text-align:center;margin:28px 0 8px"><a href="' + safeActionUrl + '" style="display:inline-block;padding:13px 21px;border-radius:6px;background:#F2C94C;color:#172033;text-decoration:none;font-size:13px;font-weight:bold">ACESSAR O MARATONEI</a></p></td></tr><tr><td style="padding:17px 28px;background:#F9FAFB;border-top:1px solid #E5E7EB"><p style="font-size:11px;line-height:1.5;color:#6B7280;text-align:center;margin:0">' + (isWelcome ? 'Este é um e-mail de boas-vindas enviado após a criação da sua conta.' : 'Você recebeu este e-mail porque ativou notificações por e-mail nas configurações do Maratonei.') + '</p>' + preferenceFooter + '</td></tr></table></td></tr></table></body></html>'
-    const raw = buildRawEmail({ from: fromEmail, to: recipient, subject, text: textBody, html: htmlBody })
+    const preferenceFooter = isNewsletter && unsubscribeUrl
+      ? '<p style="font-size:12px;color:#64748B;margin-top:12px;text-align:center">Você recebe esta newsletter por ter uma conta no Maratonei. <a href="' + safeUnsubscribeUrl + '" style="color:#9A7414">Cancelar recebimento</a></p>'
+      : isWelcome
+        ? ''
+        : '<p style="font-size:12px;color:#94A3B8;margin-top:12px">Para alterar ou desativar suas preferências de e-mail, <a href="' + safePreferenceUrl + '" style="color:#9A7414">acesse as configurações</a>.</p>'
+    const htmlBody = '<!doctype html><html lang="pt-BR"><body style="margin:0;padding:0;background:#F3F4F6;color:#374151;font-family:Arial,Helvetica,sans-serif"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F3F4F6;width:100%"><tr><td align="center" style="padding:28px 12px"><table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background:#FFFFFF;border:1px solid #E5E7EB;border-radius:10px;overflow:hidden"><tr><td align="center" style="padding:25px 28px 18px;border-bottom:1px solid #F0F0F0"><div style="font-size:22px;line-height:1.2;font-weight:900;letter-spacing:1px;color:#172033">🍿 MARATONEI</div></td></tr><tr><td style="padding:26px 32px 30px"><h1 style="font-size:23px;line-height:1.3;color:#111827;margin:0 0 16px;font-weight:800">' + safeSubject + '</h1>' + safeCoverImageUrl + '<p style="font-size:15px;line-height:1.7;color:#4B5563;white-space:pre-line;margin:0 0 18px">' + safeMessage + '</p><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">' + newsletter.html + '</table><p style="text-align:center;margin:28px 0 8px"><a href="' + safeActionUrl + '" style="display:inline-block;padding:13px 21px;border-radius:6px;background:#F2C94C;color:#172033;text-decoration:none;font-size:13px;font-weight:bold">ACESSAR O MARATONEI</a></p></td></tr><tr><td style="padding:17px 28px;background:#F9FAFB;border-top:1px solid #E5E7EB"><p style="font-size:11px;line-height:1.5;color:#6B7280;text-align:center;margin:0">' + (isWelcome ? 'Este é um e-mail de boas-vindas enviado após a criação da sua conta.' : (isNewsletter ? 'Você recebe esta newsletter por ter uma conta no Maratonei.' : 'Você recebeu este e-mail porque ativou notificações por e-mail nas configurações do Maratonei.')) + '</p>' + preferenceFooter + '</td></tr></table></td></tr></table></body></html>'
+    const raw = buildRawEmail({ from: fromEmail, to: recipient, subject, text: textBody, html: htmlBody, headers: isNewsletter && unsubscribeUrl ? { 'List-Unsubscribe': '<' + unsubscribeUrl + '>', 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' } : {} })
 
     const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
       method: 'POST',
