@@ -117,7 +117,7 @@ async function collectCatalogEvents() {
   for (const movie of [...movies.values()].slice(0, PAGE_SIZE * 2)) {
     const releaseDate = movie.release_date
     const age = dayDifference(releaseDate)
-    if (age === null || age < -45 || age > 7) continue
+    if (age === null || age < -7 || age > 45) continue
     const title = movie.title || movie.original_title || 'Filme'
     const event = catalogEvent(
       'novo_filme',
