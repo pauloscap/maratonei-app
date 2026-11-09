@@ -36,7 +36,7 @@ function renderNewsletterBlocks(blocks) {
   const safeBlocks = Array.isArray(blocks) ? blocks.slice(0, 12) : []
   const html = safeBlocks.map(block => {
     const title = escapeHtml(String(block?.title || '').slice(0, 120))
-    const text = escapeHtml(String(block?.text || '').slice(0, 700)).replace(/\\n/g, '<br>')
+    const text = escapeHtml(String(block?.text || '').slice(0, 700)).replace(/\n/g, '<br>')
     const imageUrl = safeExternalHttps(block?.imageUrl)
     const linkUrl = safeExternalHttps(block?.linkUrl)
     const image = imageUrl ? '<img src="' + escapeHtml(imageUrl) + '" alt="' + title + '" width="536" style="display:block;width:100%;max-width:536px;height:auto;border:0;border-radius:8px;margin:0 0 14px">' : ''
@@ -45,7 +45,7 @@ function renderNewsletterBlocks(blocks) {
     const button = linkUrl ? '<p style="margin:16px 0 4px"><a href="' + escapeHtml(linkUrl) + '" style="display:inline-block;padding:11px 17px;border-radius:6px;background:#F2C94C;color:#172033;text-decoration:none;font-family:Arial,sans-serif;font-size:13px;font-weight:bold">' + escapeHtml(String(block?.linkLabel || 'SAIBA MAIS').slice(0, 40)) + '</a></p>' : ''
     return '<tr><td style="padding:22px 0 0;border-top:1px solid #E5E7EB">' + image + heading + paragraph + button + '</td></tr>'
   }).join('')
-  const text = safeBlocks.map(block => [block?.title, block?.text, block?.linkUrl].filter(Boolean).join('\\n')).join('\\n\\n')
+  const text = safeBlocks.map(block => [block?.title, block?.text, block?.linkUrl].filter(Boolean).join('\n')).join('\n\n')
   return { html, text }
 }
 
