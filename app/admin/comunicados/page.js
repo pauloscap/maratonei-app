@@ -92,7 +92,7 @@ export default function ComunicadosAdminPage() {
             <label style={{display:"grid",gap:6,fontSize:13}}>Mensagem
               <textarea value={message} onChange={e=>setMessage(e.target.value)} minLength={10} maxLength={1200} rows={7} required style={{background:"#080B1F",color:"#fff",border:"1px solid #ffffff25",borderRadius:10,padding:12,resize:"vertical"}}/>
             </label>
-            <button disabled={sending} style={{background:"#FACC15",color:"#080B1F",border:0,borderRadius:10,padding:14,fontWeight:900,cursor:"pointer",opacity:sending?.65:1}}>{sending ? "Preparando envio..." : "Colocar comunicado na fila"}</button>
+            <button disabled={sending} style={{background:"#FACC15",color:"#080B1F",border:0,borderRadius:10,padding:14,fontWeight:900,cursor:"pointer",opacity:sending ? 0.65 : 1}}>{sending ? "Preparando envio..." : "Colocar comunicado na fila"}</button>
           </form>
         ) : <p style={{color:"#FCA5A5",fontSize:14}}>{notice || "Acesso restrito."}</p>}
         {notice && allowed ? <p role="status" style={{color:"#FDE68A",fontSize:13,marginTop:16}}>{notice}</p> : null}
