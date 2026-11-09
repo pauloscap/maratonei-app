@@ -141,6 +141,20 @@ end $$;
 delete from public.notification_email_outbox where event_key='tv:42:episode:9001';
 delete from public.notification_catalog_events where event_key='tv:42:episode:9001';
 
+-- Comunicado manual aceita apenas a fila e usa uma chave própria de campanha.
+insert into public.notification_email_outbox(notification_id,event_key,user_id,recipient_email,notification_type,payload,status)
+values (null,'announcement:test-campaign','00000000-0000-0000-0000-000000000004','second-recipient@example.test','comunicado','{"subject":"Aviso de teste","message":"Comunicado de teste","destination":"/"}','pending');
+do $
+begin
+  if not exists (
+    select 1 from public.notification_email_outbox
+    where event_key='announcement:test-campaign' and notification_type='comunicado'
+  ) then
+    raise exception 'manual announcement must be accepted by the email outbox';
+  end if;
+end $;
+delete from public.notification_email_outbox where event_key='announcement:test-campaign';
+
 -- Evento real de seguir: uma notificação visual e um único e-mail pendente.
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000002',false);
 insert into public.seguidores(seguidor_id,seguindo_id)
