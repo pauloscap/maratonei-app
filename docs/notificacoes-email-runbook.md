@@ -14,7 +14,7 @@ limit 200;
 
 ## Recuperação
 
-A função de trigger fica no schema `private`, fora da Data API, com `search_path` vazio e referências qualificadas. O acesso direto permanece revogado para `PUBLIC`, `anon` e `authenticated`.
+A função auxiliar de enfileiramento fica no schema `private`, fora da Data API, com `search_path` vazio e referências qualificadas. Ela é chamada apenas pelos gatilhos sociais de `seguidores` e `comentarios_episodios`; os gatilhos preservam a notificação visual e enfileiram o e-mail na mesma transação. Inserir diretamente em `notificacoes` não dispara e-mail. O EXECUTE da auxiliar permanece revogado para `PUBLIC`, `anon` e `authenticated`.
 
 - pending: aguarda o webhook.
 - processing: verificar logs e a pasta Enviados antes de qualquer ação.
