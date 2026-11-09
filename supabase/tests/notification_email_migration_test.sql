@@ -53,6 +53,7 @@ for each row execute function public.notificar_novo_comentario();
 
 \i supabase/migrations/202611020001_notification_email_preferences.sql
 \i supabase/migrations/202611090001_catalog_email_preferences.sql
+\i supabase/migrations/202611090002_welcome_email.sql
 
 -- Recria os gatilhos da aplicação depois de aplicar a migration.
 drop trigger if exists trigger_notificar_seguidor on public.seguidores;
@@ -81,6 +82,23 @@ insert into auth.users(id,email) values
  ('00000000-0000-0000-0000-000000000002','actor@example.test'),
  ('00000000-0000-0000-0000-000000000003','optout@example.test'),
  ('00000000-0000-0000-0000-000000000004','second-recipient@example.test');
+
+-- Cada novo cadastro gera exatamente um e-mail transacional de boas-vindas.
+do $
+begin
+  if (select count(*) from public.notification_email_outbox where notification_type='boas_vindas' and status='pending') <> 4 then
+    raise exception 'each new auth user must enqueue one welcome email';
+  end if;
+  if exists (
+    select 1 from public.notification_email_outbox
+    where notification_type='boas_vindas' and (notification_id is not null or recipient_email is null)
+  ) then
+    raise exception 'welcome email must not require a social notification id and must have recipient';
+  end if;
+end $;
+
+-- Isola os testes sociais abaixo dos eventos de boas-vindas já verificados.
+delete from public.notification_email_outbox where notification_type='boas_vindas';
 insert into public.profiles(id,nome) values
  ('00000000-0000-0000-0000-000000000002','Ator de teste'),
  ('00000000-0000-0000-0000-000000000003','Outro ator');
