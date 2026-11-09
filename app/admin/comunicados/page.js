@@ -83,7 +83,7 @@ export default function ComunicadosAdminPage() {
     const result = await response.json().catch(() => ({}))
     setSending(false)
     if (!response.ok) { setNotice(result.error || "Não foi possível preparar o comunicado."); return }
-    setNotice(result.queued ? "Newsletter preparada na fila para " + result.queued + " pessoa(s) inscrita(s). O envio ocorrerá gradualmente." : "Nenhuma pessoa ativou o recebimento de comunicados gerais.")
+    setNotice(result.queued ? "Newsletter preparada na fila para " + result.queued + " conta(s) com e-mail confirmado. O envio ocorrerá gradualmente." : "Não há contas com e-mail confirmado disponíveis para receber a newsletter.")
     setSubject(""); setMessage(""); setCoverImageUrl(""); setBlocks([emptyBlock()])
   }
 
@@ -136,7 +136,7 @@ export default function ComunicadosAdminPage() {
               <button type="button" onClick={sendTestEmail} disabled={sendingTest || sending} style={{background:"#22C55E",color:"#052E16",border:0,borderRadius:10,padding:14,fontWeight:900,cursor:"pointer",opacity:sendingTest?0.65:1,marginRight:8}}>{sendingTest ? "Enviando teste..." : "Enviar e-mail de teste"}</button>
               <button type="submit" disabled={sending || sendingTest} style={{background:"#FACC15",color:"#080B1F",border:0,borderRadius:10,padding:14,fontWeight:900,cursor:"pointer",opacity:sending?0.65:1}}>{sending ? "Preparando..." : "Colocar newsletter na fila"}</button>
               {notice ? <p role="status" style={{color:"#FDE68A",fontSize:13,marginTop:16}}>{notice}</p> : null}
-              <p style={{color:"#94A3B8",fontSize:12,lineHeight:1.5,marginBottom:0}}>O envio só alcança pessoas que ativaram comunicados por e-mail. Não use o botão até a ativação e os testes do serviço estarem concluídos.</p>
+              <p style={{color:"#94A3B8",fontSize:12,lineHeight:1.5,marginBottom:0}}>A newsletter será enviada às contas com e-mail confirmado. Quem cancelar o recebimento pelo link no rodapé ficará fora das próximas edições.</p>
             </form>
             {showPreview ? (
               <aside className="newsletter-preview" style={{position:"sticky",top:16,background:"#F3F4F6",borderRadius:18,padding:12,color:"#374151",border:"1px solid #E5E7EB"}}>
