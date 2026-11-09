@@ -86,7 +86,7 @@ export async function POST(request) {
   })
   const { data: item, error: readError } = await supabase
     .from('notification_email_outbox')
-    .select('id, recipient_email, notification_type, payload, status, attempts')
+    .select('id, user_id, recipient_email, notification_type, payload, status, attempts')
     .eq('id', outboxId)
     .single()
 
