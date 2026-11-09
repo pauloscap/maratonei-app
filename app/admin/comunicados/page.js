@@ -139,24 +139,24 @@ export default function ComunicadosAdminPage() {
               <p style={{color:"#94A3B8",fontSize:12,lineHeight:1.5,marginBottom:0}}>O envio só alcança pessoas que ativaram comunicados por e-mail. Não use o botão até a ativação e os testes do serviço estarem concluídos.</p>
             </form>
             {showPreview ? (
-              <aside className="newsletter-preview" style={{position:"sticky",top:16,background:"#E8EAF0",borderRadius:18,padding:12,color:"#111827"}}>
+              <aside className="newsletter-preview" style={{position:"sticky",top:16,background:"#F3F4F6",borderRadius:18,padding:12,color:"#374151",border:"1px solid #E5E7EB"}}>
                 <div style={{textAlign:"center",fontSize:11,color:"#64748B",padding:"5px 0 12px"}}>PRÉVIA DO E-MAIL</div>
-                <div style={{maxWidth:520,margin:"0 auto",background:"#080B1F",borderRadius:12,overflow:"hidden",padding:22,color:"#fff"}}>
-                  <div style={{textAlign:"center",color:"#FACC15",fontSize:24,fontWeight:900,letterSpacing:1,marginBottom:22}}>🍿 MARATONEI</div>
-                  <div style={{fontSize:11,color:"#FACC15",letterSpacing:1,marginBottom:10}}>NEWSLETTER • NOVIDADES</div>
-                  <h2 style={{fontSize:23,lineHeight:1.25,margin:"0 0 14px"}}>{subject || "Título da sua newsletter"}</h2>
+                <div style={{maxWidth:600,width:"100%",boxSizing:"border-box",margin:"0 auto",background:"#FFFFFF",border:"1px solid #E5E7EB",borderRadius:10,overflow:"hidden",padding:24,color:"#374151"}}>
+                  <div style={{textAlign:"center",color:"#172033",fontSize:22,fontWeight:900,letterSpacing:1,marginBottom:20,paddingBottom:16,borderBottom:"1px solid #F0F0F0"}}>🍿 MARATONEI</div>
+                  <div style={{fontSize:11,color:"#9A7414",letterSpacing:1,marginBottom:10}}>NEWSLETTER • NOVIDADES</div>
+                  <h2 style={{fontSize:23,lineHeight:1.3,color:"#111827",margin:"0 0 16px"}}>{subject || "Título da sua newsletter"}</h2>
                   {coverImageUrl ? <img src={coverImageUrl} alt="Capa da newsletter" style={{width:"100%",height:"auto",borderRadius:10,margin:"8px 0 16px"}}/> : <div style={{height:150,background:"#26334F",borderRadius:10,display:"grid",placeItems:"center",color:"#94A3B8",marginBottom:16}}>Imagem de capa</div>}
-                  <p style={{fontSize:14,lineHeight:1.7,color:"#CBD5E1",whiteSpace:"pre-wrap"}}>{message || "Seu texto de abertura aparecerá aqui."}</p>
+                  <p style={{fontSize:15,lineHeight:1.7,color:"#4B5563",whiteSpace:"pre-wrap"}}>{message || "Seu texto de abertura aparecerá aqui."}</p>
                   {blocks.map((block,index)=>(
-                    <div key={index} style={{borderTop:"1px solid #334155",paddingTop:14,marginTop:16}}>
+                    <div key={index} style={{borderTop:"1px solid #E5E7EB",paddingTop:18,marginTop:18}}>
                       {block.imageUrl ? <img src={block.imageUrl} alt={block.title || "Imagem do conteúdo"} style={{width:"100%",height:"auto",borderRadius:9,marginBottom:10}}/> : null}
-                      {block.title ? <h3 style={{fontSize:18,color:"#FACC15",margin:"8px 0"}}>{block.title}</h3> : null}
-                      {block.text ? <p style={{fontSize:14,lineHeight:1.65,color:"#CBD5E1",whiteSpace:"pre-wrap"}}>{block.text}</p> : null}
-                      {block.linkUrl ? <div style={{display:"inline-block",background:"#FACC15",color:"#080B1F",fontWeight:900,fontSize:11,padding:"11px 14px",borderRadius:8,marginTop:8}}>{block.linkLabel || "SAIBA MAIS"} →</div> : null}
+                      {block.title ? <h3 style={{fontSize:19,color:"#111827",margin:"8px 0"}}>{block.title}</h3> : null}
+                      {block.text ? <p style={{fontSize:15,lineHeight:1.65,color:"#4B5563",whiteSpace:"pre-wrap"}}>{block.text}</p> : null}
+                      {block.linkUrl ? <div style={{display:"inline-block",background:"#F2C94C",color:"#172033",fontWeight:900,fontSize:12,padding:"11px 14px",borderRadius:8,marginTop:8}}>{block.linkLabel || "SAIBA MAIS"} →</div> : null}
                     </div>
                   ))}
-                  <div style={{background:"#FACC15",color:"#080B1F",fontWeight:900,textAlign:"center",padding:14,borderRadius:9,marginTop:22}}>ACESSAR MARATONEI</div>
-                  <p style={{fontSize:10,color:"#94A3B8",textAlign:"center",lineHeight:1.5,marginTop:22}}>Você recebe este e-mail porque ativou as novidades do Maratonei. Gerencie suas preferências nas configurações.</p>
+                  <div style={{background:"#F2C94C",color:"#172033",fontWeight:900,textAlign:"center",padding:14,borderRadius:9,marginTop:22}}>ACESSAR MARATONEI</div>
+                  <p style={{fontSize:11,color:"#6B7280",textAlign:"center",lineHeight:1.5,marginTop:22}}>Você recebe este e-mail porque ativou as novidades do Maratonei. Gerencie suas preferências nas configurações.</p>
                 </div>
               </aside>
             ) : null}
