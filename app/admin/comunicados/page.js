@@ -42,7 +42,7 @@ export default function ComunicadosAdminPage() {
 
   async function signInWithGoogle() {
     setAuthLoading(true); setNotice("")
-    const callbackUrl = new URL("/auth/callback", window.location.origin)
+    const callbackUrl = new URL("https://maratonei-app-git-feat-notificacoes-email-maratonei.vercel.app/auth/callback")
     callbackUrl.searchParams.set("next", "/admin/comunicados")
     const { error } = await supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: callbackUrl.toString() } })
     if (error) { setNotice("Não foi possível iniciar o login com Google. Tente novamente."); setAuthLoading(false) }
