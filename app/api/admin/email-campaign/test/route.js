@@ -36,23 +36,34 @@ function validateBlocks(input) {
 
 function buildHtml({ subject, message, coverImageUrl, blocks }) {
   const sections = blocks.map(block => `
-    <section style="border-top:1px solid #334155;padding-top:18px;margin-top:18px">
-      ${block.imageUrl ? `<img src="${escapeHtml(block.imageUrl)}" alt="${escapeHtml(block.title || 'Imagem')}" style="display:block;width:100%;height:auto;border-radius:10px;margin-bottom:12px">` : ''}
-      ${block.title ? `<h2 style="font-size:20px;color:#FACC15;margin:8px 0">${escapeHtml(block.title)}</h2>` : ''}
-      ${block.text ? `<p style="font-size:15px;line-height:1.7;color:#CBD5E1;white-space:pre-wrap">${escapeHtml(block.text)}</p>` : ''}
-      ${block.linkUrl ? `<p><a href="${escapeHtml(block.linkUrl)}" style="display:inline-block;background:#FACC15;color:#080B1F;text-decoration:none;font-weight:bold;padding:12px 16px;border-radius:8px">${escapeHtml(block.linkLabel || 'SAIBA MAIS')}</a></p>` : ''}
-    </section>`).join('')
-  return `<!doctype html><html><body style="margin:0;background:#E8EAF0;padding:24px 10px;font-family:Arial,sans-serif">
-    <main style="max-width:600px;margin:0 auto;background:#080B1F;color:#fff;border-radius:14px;padding:26px">
-      <header style="text-align:center;color:#FACC15;font-size:25px;font-weight:900;letter-spacing:1px;margin-bottom:24px">🍿 MARATONEI</header>
-      <p style="font-size:11px;color:#FACC15;letter-spacing:1px">NEWSLETTER • E-MAIL DE TESTE</p>
-      <h1 style="font-size:26px;line-height:1.25;margin:8px 0 18px">${escapeHtml(subject)}</h1>
-      ${coverImageUrl ? `<img src="${escapeHtml(coverImageUrl)}" alt="Capa da newsletter" style="display:block;width:100%;height:auto;border-radius:10px;margin-bottom:18px">` : ''}
-      <p style="font-size:15px;line-height:1.7;color:#CBD5E1;white-space:pre-wrap">${escapeHtml(message)}</p>
-      ${sections}
-      <p style="text-align:center;margin-top:28px"><a href="https://maratoneiapp.com.br" style="display:inline-block;background:#FACC15;color:#080B1F;text-decoration:none;font-weight:900;padding:14px 20px;border-radius:9px">ACESSAR MARATONEI</a></p>
-      <p style="font-size:11px;color:#94A3B8;text-align:center;margin-top:24px">Este é um e-mail de teste enviado somente ao administrador do Maratonei.</p>
-    </main></body></html>`
+    <tr><td style="padding:22px 0 0;border-top:1px solid #E5E7EB">
+      ${block.imageUrl ? `<img src="${escapeHtml(block.imageUrl)}" alt="${escapeHtml(block.title || 'Imagem')}" width="536" style="display:block;width:100%;max-width:536px;height:auto;border:0;border-radius:8px;margin:0 0 14px">` : ''}
+      ${block.title ? `<h2 style="font-family:Arial,sans-serif;font-size:19px;line-height:1.35;color:#111827;margin:8px 0">${escapeHtml(block.title)}</h2>` : ''}
+      ${block.text ? `<p style="font-family:Arial,sans-serif;font-size:15px;line-height:1.65;color:#4B5563;margin:8px 0 14px;white-space:pre-wrap">${escapeHtml(block.text)}</p>` : ''}
+      ${block.linkUrl ? `<p style="margin:16px 0 4px"><a href="${escapeHtml(block.linkUrl)}" style="display:inline-block;background:#F2C94C;color:#172033;text-decoration:none;font-family:Arial,sans-serif;font-size:13px;font-weight:bold;padding:11px 17px;border-radius:6px">${escapeHtml(block.linkLabel || 'SAIBA MAIS')}</a></p>` : ''}
+    </td></tr>`).join('')
+  return `<!doctype html><html lang="pt-BR"><body style="margin:0;padding:0;background:#F3F4F6;font-family:Arial,Helvetica,sans-serif;color:#374151">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F3F4F6;width:100%">
+      <tr><td align="center" style="padding:28px 12px">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background:#FFFFFF;border:1px solid #E5E7EB;border-radius:10px;overflow:hidden">
+          <tr><td align="center" style="padding:25px 28px 18px;border-bottom:1px solid #F0F0F0">
+            <div style="font-family:Arial,sans-serif;font-size:22px;line-height:1.2;font-weight:900;letter-spacing:1px;color:#172033">🍿 MARATONEI</div>
+          </td></tr>
+          <tr><td style="padding:26px 32px 30px">
+            <p style="font-family:Arial,sans-serif;font-size:11px;line-height:1.4;font-weight:bold;letter-spacing:1.2px;color:#9A7414;margin:0 0 10px">NEWSLETTER · E-MAIL DE TESTE</p>
+            <h1 style="font-family:Arial,sans-serif;font-size:24px;line-height:1.3;color:#111827;margin:0 0 18px;font-weight:800">${escapeHtml(subject)}</h1>
+            ${coverImageUrl ? `<img src="${escapeHtml(coverImageUrl)}" alt="Capa da newsletter" width="536" style="display:block;width:100%;max-width:536px;height:auto;border:0;border-radius:8px;margin:0 0 20px">` : ''}
+            <p style="font-family:Arial,sans-serif;font-size:15px;line-height:1.7;color:#4B5563;margin:0 0 18px;white-space:pre-wrap">${escapeHtml(message)}</p>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${sections}</table>
+            <p style="text-align:center;margin:28px 0 8px"><a href="https://maratoneiapp.com.br" style="display:inline-block;background:#F2C94C;color:#172033;text-decoration:none;font-family:Arial,sans-serif;font-size:13px;font-weight:bold;padding:13px 21px;border-radius:6px">ACESSAR MARATONEI</a></p>
+          </td></tr>
+          <tr><td style="padding:17px 28px;background:#F9FAFB;border-top:1px solid #E5E7EB">
+            <p style="font-family:Arial,sans-serif;font-size:11px;line-height:1.5;color:#6B7280;text-align:center;margin:0">Este é um e-mail de teste enviado somente ao administrador do Maratonei.</p>
+          </td></tr>
+        </table>
+      </td></tr>
+    </table>
+  </body></html>`
 }
 
 function toBase64Url(value) {
