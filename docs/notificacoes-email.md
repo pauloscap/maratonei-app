@@ -8,7 +8,7 @@ Esta funcionalidade permanece em uma pull request **draft**. O código, a migrat
 - E-mail de comentário em episódio, somente se o destinatário ativar essa preferência.
 - Preferências individuais começam desativadas.
 - Curtidas não estão incluídas.
-- Alertas de novos episódios ficam para uma segunda etapa, com monitoramento e deduplicação próprios.
+- Novas séries, filmes e episódios entram em uma etapa separada de monitoramento diário do TMDB, com deduplicação por evento e opt-in específico.
 
 ## Componentes
 
@@ -64,6 +64,7 @@ A suíte Node cobre escape de HTML, validação do destinatário contra injeçã
 - `GMAIL_CLIENT_SECRET`
 - `GMAIL_REFRESH_TOKEN`
 - `SUPABASE_EMAIL_WEBHOOK_SECRET`
+- `CRON_SECRET` (protege a rota agendada de monitoramento do catálogo)
 - `NEXT_PUBLIC_APP_URL`
 - `NEXT_PUBLIC_SUPABASE_URL` (já utilizada pelo app)
 
@@ -102,16 +103,16 @@ A migration `202611090001_catalog_email_preferences.sql` adiciona duas opções 
 
 A tela `/configuracoes` passa a exibir essas opções e salva os quatro opt-ins no mesmo registro do usuário. As opções iniciam desativadas. A migration permanece apenas na branch e ainda não foi aplicada ao Supabase.
 
-## Fonte e automação do catálogo — pendente de implementação
+## Fonte e automação do catálogo — implementada na branch, pendente de ativação
 
-A aplicação atualmente consulta títulos diretamente na API do TMDB a partir do navegador. Isso não fornece um catálogo central persistente nem eventos confiáveis de publicação. Para evitar alertas falsos ou repetidos, a próxima etapa deverá:
-1. Criar uma rotina agendada no servidor para consultar as fontes do catálogo.
-2. Persistir os lançamentos/episódios já processados, com identificador externo e chave única por evento.
-3. Inserir eventos elegíveis em uma fila de e-mail, respeitando `email_novidades_catalogo = true`.
-4. Enviar em lotes controlados, com deduplicação e registro de falhas.
-5. Permitir comunicados manuais apenas por ação administrativa autenticada, filtrando `email_comunicados = true`.
+A aplicação atualmente consulta títulos diretamente na API do TMDB a partir do navegador. Isso não fornece um catálogo central persistente nem eventos confiáveis de publicação. Para evitar alertas falsos ou repetidos, a implementação da branch agora:
+1. Consultar diariamente as listas de séries no ar/estreando e filmes em cartaz/próximos lançamentos no TMDB.
+2. Persistir eventos em `notification_catalog_events`, com chave única por estreia, filme ou episódio.
+3. Enfileirar e-mails para todos os usuários com `email_novidades_catalogo = true`, sem filtrar por listas pessoais.
+4. Deduplicar cada evento por usuário em `notification_email_outbox` e processar até 40 mensagens por execução.
+5. Deixar comunicados manuais para uma etapa separada, com ação administrativa autenticada e filtro `email_comunicados = true`.
 
-Não existe ainda uma rotina de monitoramento TMDB, um catálogo central, um painel administrativo de campanhas ou um fluxo de boas-vindas. Esses itens não devem ser considerados ativos até implementação e testes isolados.
+A rotina está em `app/api/cron/catalog-email/route.js`, configurada em `vercel.json` para uma execução diária às 10h UTC. A execução exige `CRON_SECRET`, `SUPABASE_SERVICE_ROLE_KEY` e `SUPABASE_EMAIL_WEBHOOK_SECRET`. Os Cron Jobs da Vercel só são executados em deployments de produção; no plano Hobby, a frequência máxima é diária e o horário pode variar até 59 minutos. Portanto, a rotina ainda não executa no Preview e só será ativada após migration, configuração dos segredos e publicação autorizada. Não há painel administrativo de campanhas.
 
 
 ## Boas-vindas — fluxo preparado
