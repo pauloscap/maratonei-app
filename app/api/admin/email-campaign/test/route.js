@@ -133,7 +133,7 @@ export async function POST(request) {
     })
     const gmailData = await gmailResponse.json().catch(() => ({}))
     if (!gmailResponse.ok) {
-      console.error('Gmail test send failed:', gmailData.error?.status || gmailResponse.status)
+      console.error('Gmail test send failed:', JSON.stringify({ status: gmailData.error?.status || gmailResponse.status, message: gmailData.error?.message || 'No message returned', reasons: (gmailData.error?.errors || []).map(item => item.reason).filter(Boolean) }))
       return Response.json({ error: 'Gmail rejected the test email. Check the authorized account, Gmail API and send permission.' }, { status: 502 })
     }
 
