@@ -3,19 +3,22 @@
 import { useEffect, useState } from "react"
 import { createClient } from "@supabase/supabase-js"
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_KEY
-)
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_KEY)
+const emptyBlock = () => ({ title: "", text: "", imageUrl: "", linkUrl: "", linkLabel: "SAIBA MAIS" })
+const inputStyle = { width: "100%", boxSizing: "border-box", background: "#080B1F", color: "#fff", border: "1px solid #ffffff25", borderRadius: 10, padding: 12, marginTop: 6 }
+const labelStyle = { display: "block", fontSize: 13, color: "#CBD5E1", marginBottom: 14 }
 
 export default function ComunicadosAdminPage() {
   const [loading, setLoading] = useState(true)
   const [allowed, setAllowed] = useState(false)
   const [subject, setSubject] = useState("")
   const [message, setMessage] = useState("")
+  const [coverImageUrl, setCoverImageUrl] = useState("")
+  const [blocks, setBlocks] = useState([emptyBlock()])
   const [sending, setSending] = useState(false)
   const [notice, setNotice] = useState("")
   const [authLoading, setAuthLoading] = useState(false)
+  const [showPreview, setShowPreview] = useState(true)
 
   useEffect(() => {
     let active = true
@@ -23,108 +26,124 @@ export default function ComunicadosAdminPage() {
       const { data } = await supabase.auth.getSession()
       const token = data?.session?.access_token
       if (!token) {
-        if (active) {
-          setNotice("Entre com sua conta Google para continuar.")
-          setLoading(false)
-        }
+        if (active) { setNotice("Entre com sua conta Google para continuar."); setLoading(false) }
         return
       }
-      const response = await fetch("/api/admin/email-campaign", {
-        headers: { Authorization: "Bearer " + token }
-      })
+      const response = await fetch("/api/admin/email-campaign", { headers: { Authorization: "Bearer " + token } })
       if (active) {
         setAllowed(response.ok)
         if (!response.ok) setNotice(response.status === 403 ? "Esta conta não tem permissão de administração." : "Não foi possível validar o acesso. Verifique a configuração do servidor.")
         setLoading(false)
       }
     }
-    checkAccess().catch(() => {
-      if (active) {
-        setNotice("Não foi possível validar o acesso.")
-        setLoading(false)
-      }
-    })
+    checkAccess().catch(() => { if (active) { setNotice("Não foi possível validar o acesso."); setLoading(false) } })
     return () => { active = false }
   }, [])
 
   async function signInWithGoogle() {
-    setAuthLoading(true)
-    setNotice("")
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: window.location.origin + window.location.pathname
-      }
-    })
-    if (error) {
-      setNotice("Não foi possível iniciar o login com Google. Tente novamente.")
-      setAuthLoading(false)
-    }
+    setAuthLoading(true); setNotice("")
+    const { error } = await supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: window.location.origin + window.location.pathname } })
+    if (error) { setNotice("Não foi possível iniciar o login com Google. Tente novamente."); setAuthLoading(false) }
+  }
+
+  function updateBlock(index, field, value) {
+    setBlocks(current => current.map((block, i) => i === index ? { ...block, [field]: value } : block))
   }
 
   async function queueCampaign(event) {
     event.preventDefault()
-    setSending(true)
-    setNotice("")
+    setSending(true); setNotice("")
     const { data } = await supabase.auth.getSession()
     const token = data?.session?.access_token
-    if (!token) {
-      setNotice("Sua sessão expirou. Entre novamente.")
-      setSending(false)
-      return
-    }
+    if (!token) { setNotice("Sua sessão expirou. Entre novamente."); setSending(false); return }
     const response = await fetch("/api/admin/email-campaign", {
       method: "POST",
-      headers: {
-        Authorization: "Bearer " + token,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ subject, message })
+      headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+      body: JSON.stringify({ subject, message, coverImageUrl, blocks: blocks.filter(block => Object.values(block).some(value => String(value).trim())) })
     })
     const result = await response.json().catch(() => ({}))
     setSending(false)
-    if (!response.ok) {
-      setNotice(result.error || "Não foi possível preparar o comunicado.")
-      return
-    }
-    setNotice(result.queued
-      ? "Comunicado colocado na fila para " + result.queued + " pessoa(s) inscrita(s). O envio ocorrerá gradualmente."
-      : "Nenhuma pessoa ativou o recebimento de comunicados gerais.")
-    setSubject("")
-    setMessage("")
+    if (!response.ok) { setNotice(result.error || "Não foi possível preparar o comunicado."); return }
+    setNotice(result.queued ? "Newsletter preparada na fila para " + result.queued + " pessoa(s) inscrita(s). O envio ocorrerá gradualmente." : "Nenhuma pessoa ativou o recebimento de comunicados gerais.")
+    setSubject(""); setMessage(""); setCoverImageUrl(""); setBlocks([emptyBlock()])
   }
+
+  const field = (label, value, onChange, placeholder, type = "text", maxLength) => (
+    <label style={labelStyle}>{label}
+      <input type={type} value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} maxLength={maxLength} style={inputStyle}/>
+    </label>
+  )
 
   return (
     <main style={{minHeight:"100vh",background:"#080B1F",color:"#fff",padding:"28px 16px"}}>
-      <section style={{maxWidth:640,margin:"0 auto",background:"#12182F",border:"1px solid #ffffff18",borderRadius:18,padding:24}}>
+      <section style={{maxWidth:1080,margin:"0 auto"}}>
         <a href="/" style={{color:"#FACC15",textDecoration:"none",fontSize:13}}>← Voltar ao Maratonei</a>
-        <h1 style={{fontSize:26,fontWeight:900,color:"#FACC15",margin:"18px 0 8px"}}>Comunicados do Maratonei</h1>
-        <p style={{color:"#94A3B8",fontSize:14,lineHeight:1.6,marginBottom:20}}>Envie novidades gerais somente para pessoas que ativaram essa preferência nas configurações.</p>
-        {loading ? <p>Verificando acesso...</p> : allowed ? (
-          <form onSubmit={queueCampaign} style={{display:"grid",gap:14}}>
-            <label style={{display:"grid",gap:6,fontSize:13}}>Assunto
-              <input value={subject} onChange={e=>setSubject(e.target.value)} minLength={3} maxLength={140} required style={{background:"#080B1F",color:"#fff",border:"1px solid #ffffff25",borderRadius:10,padding:12}}/>
-            </label>
-            <label style={{display:"grid",gap:6,fontSize:13}}>Mensagem
-              <textarea value={message} onChange={e=>setMessage(e.target.value)} minLength={10} maxLength={1200} rows={7} required style={{background:"#080B1F",color:"#fff",border:"1px solid #ffffff25",borderRadius:10,padding:12,resize:"vertical"}}/>
-            </label>
-            <button disabled={sending} style={{background:"#FACC15",color:"#080B1F",border:0,borderRadius:10,padding:14,fontWeight:900,cursor:"pointer",opacity:sending ? 0.65 : 1}}>{sending ? "Preparando envio..." : "Colocar comunicado na fila"}</button>
-          </form>
-        ) : (
-          <div style={{display:"grid",gap:12}}>
+        <h1 style={{fontSize:28,fontWeight:900,color:"#FACC15",margin:"18px 0 8px"}}>Newsletter do Maratonei</h1>
+        <p style={{color:"#94A3B8",fontSize:14,lineHeight:1.6,marginBottom:24}}>Monte uma edição com capa, textos, imagens e links. A prévia ao lado acompanha suas alterações.</p>
+        {loading ? <p>Verificando acesso...</p> : !allowed ? (
+          <div style={{maxWidth:520,background:"#12182F",padding:24,borderRadius:18}}>
             <p style={{color:"#FCA5A5",fontSize:14}}>{notice || "Acesso restrito."}</p>
-            <button
-              type="button"
-              onClick={signInWithGoogle}
-              disabled={authLoading}
-              style={{background:"#fff",color:"#1F2937",border:0,borderRadius:10,padding:14,fontWeight:800,cursor:"pointer",opacity:authLoading ? 0.65 : 1}}
-            >
-              {authLoading ? "Abrindo Google..." : "Entrar com Google"}
-            </button>
+            <button type="button" onClick={signInWithGoogle} disabled={authLoading} style={{background:"#fff",color:"#1F2937",border:0,borderRadius:10,padding:14,fontWeight:800,cursor:"pointer"}}>{authLoading ? "Abrindo Google..." : "Entrar com Google"}</button>
+          </div>
+        ) : (
+          <div className="newsletter-layout" style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) minmax(300px,0.9fr)",gap:22,alignItems:"start"}}>
+            <form onSubmit={queueCampaign} style={{background:"#12182F",border:"1px solid #ffffff18",borderRadius:18,padding:22}}>
+              <h2 style={{fontSize:18,marginTop:0}}>1. Identificação</h2>
+              {field("Assunto do e-mail",subject,setSubject,"Ex.: As novidades que chegaram nesta semana","text",140)}
+              {field("Imagem de capa (URL HTTPS)",coverImageUrl,setCoverImageUrl,"https://...")}
+              <label style={labelStyle}>Texto de abertura
+                <textarea value={message} onChange={event=>setMessage(event.target.value)} minLength={10} maxLength={1200} required rows={4} placeholder="Apresente os destaques desta edição..." style={{...inputStyle,resize:"vertical"}}/>
+              </label>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",margin:"24px 0 12px"}}>
+                <h2 style={{fontSize:18,margin:0}}>2. Conteúdo da newsletter</h2>
+                <button type="button" onClick={()=>setBlocks(current=>current.length<12?[...current,emptyBlock()]:current)} disabled={blocks.length>=12} style={{background:"#26334F",color:"#FACC15",border:"1px solid #ffffff25",borderRadius:9,padding:"9px 12px",cursor:"pointer"}}>+ Adicionar bloco</button>
+              </div>
+              {blocks.map((block,index)=>(
+                <div key={index} style={{border:"1px solid #ffffff20",borderRadius:12,padding:14,marginBottom:12}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <strong style={{fontSize:14}}>Bloco {index+1}</strong>
+                    <button type="button" onClick={()=>setBlocks(current=>current.filter((_,i)=>i!==index))} style={{background:"transparent",color:"#FCA5A5",border:0,cursor:"pointer"}}>Remover</button>
+                  </div>
+                  {field("Título",block.title,value=>updateBlock(index,"title",value),"Ex.: Estreia da semana","text",120)}
+                  <label style={labelStyle}>Texto
+                    <textarea value={block.text} onChange={event=>updateBlock(index,"text",event.target.value)} maxLength={700} rows={3} placeholder="Escreva uma descrição curta..." style={{...inputStyle,resize:"vertical"}}/>
+                  </label>
+                  {field("Imagem do bloco (URL HTTPS)",block.imageUrl,value=>updateBlock(index,"imageUrl",value),"https://...")}
+                  {field("Link de destino (URL HTTPS)",block.linkUrl,value=>updateBlock(index,"linkUrl",value),"https://maratoneiapp.com.br/...")}
+                  {field("Texto do botão",block.linkLabel,value=>updateBlock(index,"linkLabel",value),"SAIBA MAIS","text",40)}
+                </div>
+              ))}
+              <button type="button" onClick={()=>setShowPreview(value=>!value)} style={{background:"transparent",color:"#FACC15",border:"1px solid #FACC15",borderRadius:10,padding:12,marginRight:8,cursor:"pointer"}}>{showPreview ? "Ocultar prévia" : "Mostrar prévia"}</button>
+              <button type="submit" disabled={sending} style={{background:"#FACC15",color:"#080B1F",border:0,borderRadius:10,padding:14,fontWeight:900,cursor:"pointer",opacity:sending?0.65:1}}>{sending ? "Preparando..." : "Colocar newsletter na fila"}</button>
+              {notice ? <p role="status" style={{color:"#FDE68A",fontSize:13,marginTop:16}}>{notice}</p> : null}
+              <p style={{color:"#94A3B8",fontSize:12,lineHeight:1.5,marginBottom:0}}>O envio só alcança pessoas que ativaram comunicados por e-mail. Não use o botão até a ativação e os testes do serviço estarem concluídos.</p>
+            </form>
+            {showPreview ? (
+              <aside className="newsletter-preview" style={{position:"sticky",top:16,background:"#E8EAF0",borderRadius:18,padding:12,color:"#111827"}}>
+                <div style={{textAlign:"center",fontSize:11,color:"#64748B",padding:"5px 0 12px"}}>PRÉVIA DO E-MAIL</div>
+                <div style={{maxWidth:520,margin:"0 auto",background:"#080B1F",borderRadius:12,overflow:"hidden",padding:22,color:"#fff"}}>
+                  <div style={{textAlign:"center",color:"#FACC15",fontSize:24,fontWeight:900,letterSpacing:1,marginBottom:22}}>🍿 MARATONEI</div>
+                  <div style={{fontSize:11,color:"#FACC15",letterSpacing:1,marginBottom:10}}>NEWSLETTER • NOVIDADES</div>
+                  <h2 style={{fontSize:23,lineHeight:1.25,margin:"0 0 14px"}}>{subject || "Título da sua newsletter"}</h2>
+                  {coverImageUrl ? <img src={coverImageUrl} alt="Capa da newsletter" style={{width:"100%",height:"auto",borderRadius:10,margin:"8px 0 16px"}}/> : <div style={{height:150,background:"#26334F",borderRadius:10,display:"grid",placeItems:"center",color:"#94A3B8",marginBottom:16}}>Imagem de capa</div>}
+                  <p style={{fontSize:14,lineHeight:1.7,color:"#CBD5E1",whiteSpace:"pre-wrap"}}>{message || "Seu texto de abertura aparecerá aqui."}</p>
+                  {blocks.map((block,index)=>(
+                    <div key={index} style={{borderTop:"1px solid #334155",paddingTop:14,marginTop:16}}>
+                      {block.imageUrl ? <img src={block.imageUrl} alt={block.title || "Imagem do conteúdo"} style={{width:"100%",height:"auto",borderRadius:9,marginBottom:10}}/> : null}
+                      {block.title ? <h3 style={{fontSize:18,color:"#FACC15",margin:"8px 0"}}>{block.title}</h3> : null}
+                      {block.text ? <p style={{fontSize:14,lineHeight:1.65,color:"#CBD5E1",whiteSpace:"pre-wrap"}}>{block.text}</p> : null}
+                      {block.linkUrl ? <div style={{display:"inline-block",background:"#FACC15",color:"#080B1F",fontWeight:900,fontSize:11,padding:"11px 14px",borderRadius:8,marginTop:8}}>{block.linkLabel || "SAIBA MAIS"} →</div> : null}
+                    </div>
+                  ))}
+                  <div style={{background:"#FACC15",color:"#080B1F",fontWeight:900,textAlign:"center",padding:14,borderRadius:9,marginTop:22}}>ACESSAR MARATONEI</div>
+                  <p style={{fontSize:10,color:"#94A3B8",textAlign:"center",lineHeight:1.5,marginTop:22}}>Você recebe este e-mail porque ativou as novidades do Maratonei. Gerencie suas preferências nas configurações.</p>
+                </div>
+              </aside>
+            ) : null}
           </div>
         )}
-        {notice && allowed ? <p role="status" style={{color:"#FDE68A",fontSize:13,marginTop:16}}>{notice}</p> : null}
       </section>
+      <style jsx>{".newsletter-layout{grid-template-columns:minmax(0,1fr) minmax(300px,0.9fr)}@media(max-width:760px){.newsletter-layout{grid-template-columns:1fr!important}.newsletter-preview{position:static!important}}"}</style>
     </main>
   )
 }
