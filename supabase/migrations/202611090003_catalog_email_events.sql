@@ -9,7 +9,7 @@ alter table public.notification_email_outbox
 
 alter table public.notification_email_outbox
   add constraint notification_email_outbox_notification_type_check
-  check (notification_type in ('seguiu', 'comentou', 'boas_vindas', 'catalogo'));
+  check (notification_type in ('seguiu', 'comentou', 'boas_vindas', 'catalogo', 'comunicado'));
 
 -- Um evento de catálogo só pode gerar um e-mail por usuário.
 create unique index if not exists notification_email_outbox_user_event_key_uidx
