@@ -16,6 +16,7 @@ export default function ComunicadosAdminPage() {
   const [coverImageUrl, setCoverImageUrl] = useState("")
   const [blocks, setBlocks] = useState([emptyBlock()])
   const [sending, setSending] = useState(false)
+  const [sendingTest, setSendingTest] = useState(false)
   const [notice, setNotice] = useState("")
   const [authLoading, setAuthLoading] = useState(false)
   const [showPreview, setShowPreview] = useState(true)
@@ -50,6 +51,22 @@ export default function ComunicadosAdminPage() {
 
   function updateBlock(index, field, value) {
     setBlocks(current => current.map((block, i) => i === index ? { ...block, [field]: value } : block))
+  }
+
+  async function sendTestEmail() {
+    setSendingTest(true); setNotice("")
+    const { data } = await supabase.auth.getSession()
+    const token = data?.session?.access_token
+    if (!token) { setNotice("Sua sessão expirou. Entre novamente."); setSendingTest(false); return }
+    const payload = { subject, message, coverImageUrl, blocks: blocks.filter(block => Object.values(block).some(value => String(value).trim())) }
+    const response = await fetch("/api/admin/email-campaign/test", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    })
+    const result = await response.json().catch(() => ({}))
+    setSendingTest(false)
+    setNotice(response.ok ? "E-mail de teste enviado para " + result.sentTo + ". A fila geral não foi utilizada." : (result.error || "Não foi possível enviar o e-mail de teste."))
   }
 
   async function queueCampaign(event) {
@@ -116,7 +133,8 @@ export default function ComunicadosAdminPage() {
                 </div>
               ))}
               <button type="button" onClick={()=>setShowPreview(value=>!value)} style={{background:"transparent",color:"#FACC15",border:"1px solid #FACC15",borderRadius:10,padding:12,marginRight:8,cursor:"pointer"}}>{showPreview ? "Ocultar prévia" : "Mostrar prévia"}</button>
-              <button type="submit" disabled={sending} style={{background:"#FACC15",color:"#080B1F",border:0,borderRadius:10,padding:14,fontWeight:900,cursor:"pointer",opacity:sending?0.65:1}}>{sending ? "Preparando..." : "Colocar newsletter na fila"}</button>
+              <button type="button" onClick={sendTestEmail} disabled={sendingTest || sending} style={{background:"#22C55E",color:"#052E16",border:0,borderRadius:10,padding:14,fontWeight:900,cursor:"pointer",opacity:sendingTest?0.65:1,marginRight:8}}>{sendingTest ? "Enviando teste..." : "Enviar e-mail de teste"}</button>
+              <button type="submit" disabled={sending || sendingTest} style={{background:"#FACC15",color:"#080B1F",border:0,borderRadius:10,padding:14,fontWeight:900,cursor:"pointer",opacity:sending?0.65:1}}>{sending ? "Preparando..." : "Colocar newsletter na fila"}</button>
               {notice ? <p role="status" style={{color:"#FDE68A",fontSize:13,marginTop:16}}>{notice}</p> : null}
               <p style={{color:"#94A3B8",fontSize:12,lineHeight:1.5,marginBottom:0}}>O envio só alcança pessoas que ativaram comunicados por e-mail. Não use o botão até a ativação e os testes do serviço estarem concluídos.</p>
             </form>
