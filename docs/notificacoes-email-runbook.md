@@ -41,3 +41,15 @@ A documentação oficial informa que refresh tokens emitidos para projetos OAuth
 - A rotina só é acionada automaticamente em deployment de produção. O Preview não executa Cron Jobs.
 - Antes de ativar, aplicar a migration `202611090003_catalog_email_events.sql` somente após revisão e configurar `CRON_SECRET` no ambiente Production, além das variáveis Supabase e Gmail já previstas.
 - Se houver mais de 40 mensagens pendentes, o restante permanece na fila para as próximas execuções diárias.
+
+
+## Comunicados administrativos
+
+- Tela: `/admin/comunicados`.
+- API: `POST /api/admin/email-campaign`.
+- Autorização: sessão Supabase Auth válida e e-mail idêntico a `MARATONEI_ADMIN_EMAIL`, configurado apenas no servidor. Não usar `user_metadata` nem valores controlados pelo navegador para conceder acesso.
+- Público: somente usuários com `email_comunicados = true`.
+- A API apenas coloca os e-mails na fila; ela não dispara mensagens no momento da ação.
+- O cron processa até 20 mensagens pendentes por execução diária, em lotes concorrentes de cinco. Campanhas maiores serão entregues gradualmente.
+- Antes de habilitar, configurar `MARATONEI_ADMIN_EMAIL` em Preview para teste e em Production somente após autorização. Também é necessário aplicar as migrations de preferências, boas-vindas e eventos de catálogo.
+- Não usar esta ferramenta para disparos em massa; o Gmail pessoal tem limites e o OAuth em modo Testing não é estável para operação contínua.
