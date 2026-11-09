@@ -69,7 +69,7 @@ export async function POST(request) {
   if (item.status !== 'pending') {
     return Response.json({ ignored: true, status: item.status })
   }
-  if (!['seguiu', 'comentou'].includes(item.notification_type)) {
+  if (!['seguiu', 'comentou', 'boas_vindas'].includes(item.notification_type)) {
     return Response.json({ ignored: true, reason: 'Unsupported notification type' })
   }
 
@@ -111,7 +111,7 @@ export async function POST(request) {
       '',
       'Você recebeu este e-mail porque ativou notificações por e-mail no Maratonei.'
     ].join('\n')
-    const htmlBody = '<!doctype html><html lang="pt-BR"><body style="margin:0;background:#080B1F;color:#fff;font-family:Arial,sans-serif;padding:32px 16px"><main style="max-width:560px;margin:0 auto;background:#12182F;border:1px solid #ffffff18;border-radius:18px;padding:28px"><div style="font-size:26px;font-weight:800;color:#FACC15;margin-bottom:24px">Maratonei</div><h1 style="font-size:22px;line-height:1.3;margin:0 0 14px">' + safeSubject + '</h1><p style="font-size:16px;line-height:1.6;color:#CBD5E1">' + safeMessage + '</p><a href="' + safeActionUrl + '" style="display:inline-block;margin-top:20px;padding:14px 22px;border-radius:10px;background:#FACC15;color:#080B1F;text-decoration:none;font-weight:800">ACESSAR O MARATONEI</a><p style="font-size:12px;color:#94A3B8;margin-top:28px">Você recebeu este e-mail porque ativou notificações por e-mail nas configurações do Maratonei.</p></main></body></html>'
+    const htmlBody = '<!doctype html><html lang="pt-BR"><body style="margin:0;background:#080B1F;color:#fff;font-family:Arial,sans-serif;padding:32px 16px"><main style="max-width:560px;margin:0 auto;background:#12182F;border:1px solid #ffffff18;border-radius:18px;padding:28px"><div style="font-size:26px;font-weight:800;color:#FACC15;margin-bottom:24px">Maratonei</div><h1 style="font-size:22px;line-height:1.3;margin:0 0 14px">' + safeSubject + '</h1><p style="font-size:16px;line-height:1.6;color:#CBD5E1">' + safeMessage + '</p><a href="' + safeActionUrl + '" style="display:inline-block;margin-top:20px;padding:14px 22px;border-radius:10px;background:#FACC15;color:#080B1F;text-decoration:none;font-weight:800">ACESSAR O MARATONEI</a><p style="font-size:12px;color:#94A3B8;margin-top:28px">' + (isWelcome ? 'Este é um e-mail de boas-vindas enviado após a criação da sua conta.' : 'Você recebeu este e-mail porque ativou notificações por e-mail nas configurações do Maratonei.') + '</p></main></body></html>'
     const raw = buildRawEmail({ from: fromEmail, to: recipient, subject, text: textBody, html: htmlBody })
 
     const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
