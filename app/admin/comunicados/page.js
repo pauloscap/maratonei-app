@@ -83,8 +83,12 @@ export default function ComunicadosAdminPage() {
     const result = await response.json().catch(() => ({}))
     setSending(false)
     if (!response.ok) { setNotice(result.error || "Não foi possível preparar o comunicado."); return }
-    setNotice(result.queued ? "Newsletter preparada na fila para " + result.queued + " conta(s) com e-mail confirmado. O envio ocorrerá gradualmente." : "Não há contas com e-mail confirmado disponíveis para receber a newsletter.")
-    setSubject(""); setMessage(""); setCoverImageUrl(""); setBlocks([emptyBlock()])
+    if (result.queued) {
+      setNotice("Newsletter preparada na fila para " + result.queued + " conta(s) com e-mail confirmado. O envio ocorrerá gradualmente.")
+      setSubject(""); setMessage(""); setCoverImageUrl(""); setBlocks([emptyBlock()])
+    } else {
+      setNotice("Não há contas com e-mail confirmado disponíveis para receber a newsletter. Seu conteúdo foi mantido no formulário.")
+    }
   }
 
   const field = (label, value, onChange, placeholder, type = "text", maxLength) => (
