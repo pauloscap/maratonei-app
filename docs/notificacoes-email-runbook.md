@@ -25,8 +25,19 @@ A fila agora registra processing_started_at no claim atômico e limpa esse campo
 
 ## Limite de escopo
 
-Esta fila é somente para notificações sociais transacionais. Notícias, newsletter e campanhas manuais exigem consentimento separado, descadastro e provedor próprio para campanhas. Não reutilizar preferências sociais nem Gmail API como solução de disparo em massa.
+Esta fila atende notificações sociais, boas-vindas e avisos pontuais do catálogo. Os avisos do catálogo usam `email_novidades_catalogo`, são enfileirados para todos os inscritos e são deduplicados por `user_id + event_key`. Comunicados gerais continuam separados por `email_comunicados` e exigem ação administrativa autenticada. Não reutilizar preferências sociais nem Gmail API como solução de disparo em massa.
 
 ## OAuth Google
 
 A documentação oficial informa que refresh tokens emitidos para projetos OAuth externos em status Testing expiram em sete dias quando há escopos Gmail. Confirmar publicação e requisitos de verificação antes da ativação contínua: https://developers.google.com/identity/protocols/oauth2.
+
+
+## Monitoramento do catálogo
+
+- Rota: `GET /api/cron/catalog-email`.
+- Agenda: diariamente às 10h UTC (entre 7h e 7h59 em Belém, devido à janela de execução do plano Hobby).
+- Proteção: header `Authorization: Bearer <CRON_SECRET>`.
+- A rotina consulta TMDB, registra eventos únicos em `notification_catalog_events`, enfileira para opt-ins de catálogo e tenta entregar até 40 mensagens pendentes por execução.
+- A rotina só é acionada automaticamente em deployment de produção. O Preview não executa Cron Jobs.
+- Antes de ativar, aplicar a migration `202611090003_catalog_email_events.sql` somente após revisão e configurar `CRON_SECRET` no ambiente Production, além das variáveis Supabase e Gmail já previstas.
+- Se houver mais de 40 mensagens pendentes, o restante permanece na fila para as próximas execuções diárias.
