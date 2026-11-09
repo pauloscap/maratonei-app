@@ -12,7 +12,7 @@ export default function ConfigPage(){
   const [user,setUser]=useState(null)
   const [nome,setNome]=useState("")
   const [loading,setLoading]=useState(false)
-  const [emailPrefs,setEmailPrefs]=useState({email_seguidor:false,email_comentario:false,email_novidades_catalogo:false,email_comunicados:false})
+  const [emailPrefs,setEmailPrefs]=useState({email_seguidor:false,email_comentario:false,email_novidades_catalogo:false})
   const [savingEmailPrefs,setSavingEmailPrefs]=useState(false)
 
   useEffect(()=>{
@@ -27,11 +27,11 @@ export default function ConfigPage(){
       setUser(session.user)
       const { data, error } = await supabase
         .from("notification_email_preferences")
-        .select("email_seguidor,email_comentario,email_novidades_catalogo,email_comunicados")
+        .select("email_seguidor,email_comentario,email_novidades_catalogo")
         .eq("user_id", session.user.id)
         .maybeSingle()
       if (!error && data) {
-        setEmailPrefs({ email_seguidor:!!data.email_seguidor, email_comentario:!!data.email_comentario, email_novidades_catalogo:!!data.email_novidades_catalogo, email_comunicados:!!data.email_comunicados })
+        setEmailPrefs({ email_seguidor:!!data.email_seguidor, email_comentario:!!data.email_comentario, email_novidades_catalogo:!!data.email_novidades_catalogo })
       }
     }
   }
@@ -124,9 +124,7 @@ export default function ConfigPage(){
                 <input type="checkbox" checked={emailPrefs.email_novidades_catalogo} onChange={e=>setEmailPrefs(p=>({...p,email_novidades_catalogo:e.target.checked}))} style={{width:20,height:20,accentColor:"#FACC15"}}/>
               </label>
               <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"10px 0",fontSize:14}}>
-                <span>Comunicados e novidades gerais do Maratonei</span>
-                <input type="checkbox" checked={emailPrefs.email_comunicados} onChange={e=>setEmailPrefs(p=>({...p,email_comunicados:e.target.checked}))} style={{width:20,height:20,accentColor:"#FACC15"}}/>
-              </label>
+              <p style={{fontSize:12,lineHeight:1.5,color:"#94A3B8",margin:"12px 0 0"}}>As newsletters gerais são enviadas aos e-mails confirmados das contas. Você pode cancelar o recebimento a qualquer momento pelo link no rodapé de cada edição.</p>
               <button onClick={salvarPreferenciasEmail} disabled={savingEmailPrefs} style={{width:"100%",marginTop:12,height:42,background:"#FFD400",color:"#000",border:0,borderRadius:10,fontWeight:900,opacity:savingEmailPrefs ? .65 : 1}}>{savingEmailPrefs?"Salvando...":"Salvar preferências"}</button>
             </section>
 
