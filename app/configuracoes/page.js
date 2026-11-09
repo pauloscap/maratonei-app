@@ -12,7 +12,7 @@ export default function ConfigPage(){
   const [user,setUser]=useState(null)
   const [nome,setNome]=useState("")
   const [loading,setLoading]=useState(false)
-  const [emailPrefs,setEmailPrefs]=useState({email_seguidor:false,email_comentario:false})
+  const [emailPrefs,setEmailPrefs]=useState({email_seguidor:false,email_comentario:false,email_novidades_catalogo:false,email_comunicados:false})
   const [savingEmailPrefs,setSavingEmailPrefs]=useState(false)
 
   useEffect(()=>{
@@ -27,11 +27,11 @@ export default function ConfigPage(){
       setUser(session.user)
       const { data, error } = await supabase
         .from("notification_email_preferences")
-        .select("email_seguidor,email_comentario")
+        .select("email_seguidor,email_comentario,email_novidades_catalogo,email_comunicados")
         .eq("user_id", session.user.id)
         .maybeSingle()
       if (!error && data) {
-        setEmailPrefs({ email_seguidor:!!data.email_seguidor, email_comentario:!!data.email_comentario })
+        setEmailPrefs({ email_seguidor:!!data.email_seguidor, email_comentario:!!data.email_comentario, email_novidades_catalogo:!!data.email_novidades_catalogo, email_comunicados:!!data.email_comunicados })
       }
     }
   }
