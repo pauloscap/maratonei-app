@@ -6,7 +6,7 @@ export const maxDuration = 60
 const TMDB_BASE = 'https://api.themoviedb.org/3'
 const TMDB_KEY = process.env.TMDB_API_KEY || process.env.NEXT_PUBLIC_TMDB_KEY || '4e44d9029b1273360df0be1de39768d1'
 const PAGE_SIZE = 5
-const SEND_LIMIT = 5
+const SEND_LIMIT = 20
 
 function dayDifference(dateValue) {
   if (!dateValue) return null
@@ -235,8 +235,8 @@ export async function GET(request) {
     let attempted = 0
     let delivered = 0
     const pendingItems = pending || []
-    for (let index = 0; index < pendingItems.length; index += 10) {
-      const batch = pendingItems.slice(index, index + 10)
+    for (let index = 0; index < pendingItems.length; index += 5) {
+      const batch = pendingItems.slice(index, index + 5)
       const results = await Promise.all(batch.map(async item => {
         try {
           const response = await fetch(new URL('/api/webhooks/notification-email', appUrl), {
