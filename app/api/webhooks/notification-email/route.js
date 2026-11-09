@@ -69,7 +69,7 @@ export async function POST(request) {
   if (item.status !== 'pending') {
     return Response.json({ ignored: true, status: item.status })
   }
-  if (!['seguiu', 'comentou', 'boas_vindas', 'catalogo'].includes(item.notification_type)) {
+  if (!['seguiu', 'comentou', 'boas_vindas', 'catalogo', 'comunicado'].includes(item.notification_type)) {
     return Response.json({ ignored: true, reason: 'Unsupported notification type' })
   }
 
