@@ -52,6 +52,7 @@ create trigger trigger_notificar_comentario after insert on public.comentarios_e
 for each row execute function public.notificar_novo_comentario();
 
 \i supabase/migrations/202611020001_notification_email_preferences.sql
+\i supabase/migrations/202611090001_catalog_email_preferences.sql
 
 -- Recria os gatilhos da aplicação depois de aplicar a migration.
 drop trigger if exists trigger_notificar_seguidor on public.seguidores;
@@ -83,9 +84,25 @@ insert into auth.users(id,email) values
 insert into public.profiles(id,nome) values
  ('00000000-0000-0000-0000-000000000002','Ator de teste'),
  ('00000000-0000-0000-0000-000000000003','Outro ator');
-insert into public.notification_email_preferences(user_id,email_seguidor,email_comentario) values
- ('00000000-0000-0000-0000-000000000001',true,true),
- ('00000000-0000-0000-0000-000000000004',false,false);
+insert into public.notification_email_preferences(user_id,email_seguidor,email_comentario,email_novidades_catalogo,email_comunicados) values
+ ('00000000-0000-0000-0000-000000000001',true,true,true,false),
+ ('00000000-0000-0000-0000-000000000004',false,false,false,true);
+
+-- As duas novas categorias são independentes e começam desativadas.
+insert into public.notification_email_preferences(user_id) values
+ ('00000000-0000-0000-0000-000000000003');
+do $
+begin
+  if not (select email_novidades_catalogo from public.notification_email_preferences where user_id='00000000-0000-0000-0000-000000000001') then
+    raise exception 'catalog opt-in must be stored independently';
+  end if;
+  if (select email_novidades_catalogo from public.notification_email_preferences where user_id='00000000-0000-0000-0000-000000000003') then
+    raise exception 'catalog opt-in must default to false';
+  end if;
+  if not (select email_comunicados from public.notification_email_preferences where user_id='00000000-0000-0000-0000-000000000004') then
+    raise exception 'announcement opt-in must be independent from catalog opt-in';
+  end if;
+end $;
 
 -- Evento real de seguir: uma notificação visual e um único e-mail pendente.
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000002',false);
