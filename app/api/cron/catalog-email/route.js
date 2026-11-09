@@ -226,7 +226,7 @@ export async function GET(request) {
     const { data: pending, error: pendingError } = await supabase
       .from('notification_email_outbox')
       .select('id')
-      .eq('notification_type', 'catalogo')
+      .in('notification_type', ['catalogo', 'comunicado'])
       .eq('status', 'pending')
       .order('created_at', { ascending: true })
       .limit(SEND_LIMIT)
