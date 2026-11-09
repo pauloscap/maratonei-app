@@ -85,7 +85,7 @@ insert into auth.users(id,email) values
  ('00000000-0000-0000-0000-000000000004','second-recipient@example.test');
 
 -- Cada novo cadastro gera exatamente um e-mail transacional de boas-vindas.
-do $
+do $$
 begin
   if (select count(*) from public.notification_email_outbox where notification_type='boas_vindas' and status='pending') <> 4 then
     raise exception 'each new auth user must enqueue one welcome email';
@@ -96,7 +96,7 @@ begin
   ) then
     raise exception 'welcome email must not require a social notification id and must have recipient';
   end if;
-end $;
+end $$;
 
 -- Isola os testes sociais abaixo dos eventos de boas-vindas já verificados.
 delete from public.notification_email_outbox where notification_type='boas_vindas';
@@ -110,7 +110,7 @@ insert into public.notification_email_preferences(user_id,email_seguidor,email_c
 -- As duas novas categorias são independentes e começam desativadas.
 insert into public.notification_email_preferences(user_id) values
  ('00000000-0000-0000-0000-000000000003');
-do $
+do $$
 begin
   if not (select email_novidades_catalogo from public.notification_email_preferences where user_id='00000000-0000-0000-0000-000000000001') then
     raise exception 'catalog opt-in must be stored independently';
@@ -121,7 +121,7 @@ begin
   if not (select email_comunicados from public.notification_email_preferences where user_id='00000000-0000-0000-0000-000000000004') then
     raise exception 'announcement opt-in must be independent from catalog opt-in';
   end if;
-end $;
+end $$;
 
 -- A fila aceita eventos de catálogo e impede duplicação por usuário/evento.
 insert into public.notification_catalog_events(event_key,event_type,external_id,title,release_date,payload)
@@ -132,12 +132,12 @@ on conflict (user_id,event_key) do nothing;
 insert into public.notification_email_outbox(notification_id,event_key,user_id,recipient_email,notification_type,payload,status)
 values (null,'tv:42:episode:9001','00000000-0000-0000-0000-000000000001','recipient@example.test','catalogo','{"subject":"Novo episódio","message":"Teste","destination":"/serie/42"}','pending')
 on conflict (user_id,event_key) do nothing;
-do $
+do $$
 begin
   if (select count(*) from public.notification_email_outbox where event_key='tv:42:episode:9001') <> 1 then
     raise exception 'catalog email must be unique per user and event';
   end if;
-end $;
+end $$;
 delete from public.notification_email_outbox where event_key='tv:42:episode:9001';
 delete from public.notification_catalog_events where event_key='tv:42:episode:9001';
 
