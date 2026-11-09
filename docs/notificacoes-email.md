@@ -109,10 +109,10 @@ A aplicação atualmente consulta títulos diretamente na API do TMDB a partir d
 1. Consultar diariamente as listas de séries no ar/estreando e filmes em cartaz/próximos lançamentos no TMDB.
 2. Persistir eventos em `notification_catalog_events`, com chave única por estreia, filme ou episódio.
 3. Enfileirar e-mails para todos os usuários com `email_novidades_catalogo = true`, sem filtrar por listas pessoais.
-4. Deduplicar cada evento por usuário em `notification_email_outbox` e processar até 40 mensagens por execução.
-5. Deixar comunicados manuais para uma etapa separada, com ação administrativa autenticada e filtro `email_comunicados = true`.
+4. Deduplicar cada evento por usuário em `notification_email_outbox` e processar até 20 mensagens por execução.
+5. Oferecer a tela `/admin/comunicados`, com autorização por e-mail definido no servidor e filtro `email_comunicados = true`.
 
-A rotina está em `app/api/cron/catalog-email/route.js`, configurada em `vercel.json` para uma execução diária às 10h UTC. A execução exige `CRON_SECRET`, `SUPABASE_SERVICE_ROLE_KEY` e `SUPABASE_EMAIL_WEBHOOK_SECRET`. Os Cron Jobs da Vercel só são executados em deployments de produção; no plano Hobby, a frequência máxima é diária e o horário pode variar até 59 minutos. Portanto, a rotina ainda não executa no Preview e só será ativada após migration, configuração dos segredos e publicação autorizada. Não há painel administrativo de campanhas.
+A rotina está em `app/api/cron/catalog-email/route.js`, configurada em `vercel.json` para uma execução diária às 10h UTC. A execução exige `CRON_SECRET`, `SUPABASE_SERVICE_ROLE_KEY` e `SUPABASE_EMAIL_WEBHOOK_SECRET`. Os Cron Jobs da Vercel só são executados em deployments de produção; no plano Hobby, a frequência máxima é diária e o horário pode variar até 59 minutos. Portanto, a rotina ainda não executa no Preview e só será ativada após migration, configuração dos segredos e publicação autorizada. O painel administrativo foi criado em `/admin/comunicados`. A API valida o token da sessão no Supabase Auth e compara o e-mail com `MARATONEI_ADMIN_EMAIL`; sem essa variável, o acesso fica bloqueado. Os comunicados entram na mesma fila com tipo `comunicado` e são processados junto aos avisos de catálogo, em lotes limitados a 20 por execução diária.
 
 
 ## Boas-vindas — fluxo preparado
