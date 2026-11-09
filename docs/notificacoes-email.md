@@ -14,7 +14,7 @@ Esta funcionalidade permanece em uma pull request **draft**. O código, a migrat
 
 - `notification_email_preferences`: preferências individuais, protegidas por RLS.
 - `notification_email_outbox`: fila sem acesso direto para `anon` ou `authenticated`.
-- Trigger PostgreSQL: valida o evento, verifica a preferência e cria uma linha na fila.
+- Gatilhos PostgreSQL nas tabelas de origem (`seguidores` e `comentarios_episodios`): criam a notificação visual e, na mesma transação, enfileiram o e-mail quando há opt-in. Inserções diretas em `notificacoes` não disparam e-mail.
 - Endpoint Next.js: valida o segredo do webhook, reivindica a linha pendente de forma atômica e envia pela Gmail API.
 - O endpoint não faz retry automático. Uma falha é registrada para análise; isso evita reenvio automático acidental.
 - A fila registra `processing_started_at` no claim atômico e limpa o campo ao concluir em `sent` ou `failed`. Esse horário apoia o diagnóstico, mas não autoriza reenvio sem verificar se o Gmail aceitou a mensagem.
@@ -24,7 +24,7 @@ Esta funcionalidade permanece em uma pull request **draft**. O código, a migrat
 - A migration `supabase/migrations/202611020001_notification_email_preferences.sql` está apenas no GitHub e **não foi aplicada**.
 - A tabela de preferências concede explicitamente SELECT/INSERT/UPDATE apenas a `authenticated`, com RLS limitando cada linha ao próprio `auth.uid()`; `anon` não recebe privilégios.
 - A fila não concede privilégios a `anon` ou `authenticated`; acesso administrativo fica restrito a `service_role`.
-- A função de trigger `SECURITY DEFINER` fica no schema não exposto `private`, usa `search_path` vazio, qualifica as referências aos objetos e tem EXECUTE revogado para `PUBLIC`, `anon` e `authenticated`; ela deve ser invocada somente pelo trigger.
+- A função auxiliar de enfileiramento `SECURITY DEFINER` fica no schema não exposto `private`, usa `search_path` vazio, qualifica as referências aos objetos e tem EXECUTE revogado para `PUBLIC`, `anon` e `authenticated`. As funções dos gatilhos sociais também usam `SECURITY DEFINER` e `search_path` vazio para preservar a criação das notificações e chamar a auxiliar.
 - Nenhum Database Webhook foi criado.
 - Nenhuma variável Gmail está configurada em Production.
 - As credenciais Gmail existentes estão limitadas ao ambiente Preview e à branch de trabalho, mas Preview aponta para o projeto Supabase real. Portanto, não executar testes que escrevam no banco de Preview.
@@ -45,7 +45,7 @@ Os utilitários puros de e-mail foram isolados em `lib/email/notification-email.
 npm run test:email
 ```
 
-A suíte cobre escape de HTML, validação do endereço destinatário contra injeção de cabeçalhos, restrição dos links ao domínio configurado e estrutura MIME multipart/base64url. Esses testes não enviam mensagens nem alteram dados.
+A suíte Node cobre escape de HTML, validação do destinatário contra injeção de cabeçalhos, restrição dos links ao domínio configurado e estrutura MIME multipart/base64url. O teste SQL em PostgreSQL descartável verifica eventos reais de seguir e comentar, preservação das notificações no aplicativo, respeito ao opt-in e rejeição de e-mail provocado por inserção direta em `notificacoes`. Esses testes não enviam mensagens nem alteram o banco real.
 
 ## Pré-requisitos antes de ativar
 
@@ -79,7 +79,7 @@ Depois de migration e endpoint aprovados e publicados, o desenho previsto é um 
 
 - O endpoint marca a linha como `processing` antes do envio. Se o processo cair nesse intervalo, será necessária uma rotina operacional de recuperação; não há reprocessamento automático.
 - Se o Gmail aceitar a mensagem e a atualização do status falhar, o e-mail pode ter sido entregue enquanto a fila permanece `processing`. Não reenviar automaticamente nesses casos.
-- O evento de comentário depende dos campos e do contexto de autenticação presentes na tabela `notificacoes`; validar isso em banco isolado antes de ativar.
+- O enfileiramento é chamado pelos gatilhos de origem (`seguidores` e `comentarios_episodios`), não por inserções genéricas em `notificacoes`; validar em banco isolado antes de ativar.
 - As rotas de destino dos e-mails devem permanecer no domínio oficial do Maratonei.
 
 ## Segurança e privacidade
