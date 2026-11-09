@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 
 export const runtime = 'nodejs'
-export const maxDuration = 60
+export const maxDuration = 300
 
 const TMDB_BASE = 'https://api.themoviedb.org/3'
 const TMDB_KEY = process.env.TMDB_API_KEY || process.env.NEXT_PUBLIC_TMDB_KEY || '4e44d9029b1273360df0be1de39768d1'
@@ -237,29 +237,35 @@ export async function GET(request) {
 
     let attempted = 0
     let delivered = 0
-    for (const item of pending || []) {
-      attempted += 1
-      try {
-        const response = await fetch(new URL('/api/webhooks/notification-email', appUrl), {
-          method: 'POST',
-          headers: {
-            Authorization: 'Bearer ' + webhookSecret,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            type: 'INSERT',
-            table: 'notification_email_outbox',
-            record: { id: item.id }
-          }),
-          signal: AbortSignal.timeout(25000)
-        })
-        if (response.ok) {
-          const result = await response.json().catch(() => ({}))
-          if (result.sent) delivered += 1
+    const pendingItems = pending || []
+    for (let index = 0; index < pendingItems.length; index += 10) {
+      const batch = pendingItems.slice(index, index + 10)
+      const results = await Promise.all(batch.map(async item => {
+        try {
+          const response = await fetch(new URL('/api/webhooks/notification-email', appUrl), {
+            method: 'POST',
+            headers: {
+              Authorization: 'Bearer ' + webhookSecret,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              type: 'INSERT',
+              table: 'notification_email_outbox',
+              record: { id: item.id }
+            }),
+            signal: AbortSignal.timeout(45000)
+          })
+          if (response.ok) {
+            const result = await response.json().catch(() => ({}))
+            return Boolean(result.sent)
+          }
+        } catch (error) {
+          console.error('Catalog email delivery attempt failed:', String(error?.message || error))
         }
-      } catch (error) {
-        console.error('Catalog email delivery attempt failed:', String(error?.message || error))
-      }
+        return false
+      }))
+      attempted += batch.length
+      delivered += results.filter(Boolean).length
     }
 
     return Response.json({
