@@ -23,6 +23,32 @@ async function getGmailAccessToken() {
   return data.access_token
 }
 
+function safeExternalHttps(value) {
+  try {
+    const url = new URL(String(value || ''))
+    return url.protocol === 'https:' ? url.toString() : ''
+  } catch {
+    return ''
+  }
+}
+
+function renderNewsletterBlocks(blocks) {
+  const safeBlocks = Array.isArray(blocks) ? blocks.slice(0, 12) : []
+  const html = safeBlocks.map(block => {
+    const title = escapeHtml(String(block?.title || '').slice(0, 120))
+    const text = escapeHtml(String(block?.text || '').slice(0, 700)).replace(/\n/g, '<br>')
+    const imageUrl = safeExternalHttps(block?.imageUrl)
+    const linkUrl = safeExternalHttps(block?.linkUrl)
+    const image = imageUrl ? '<img src="' + escapeHtml(imageUrl) + '" alt="' + title + '" width="100%" style="display:block;width:100%;height:auto;border-radius:12px;margin:14px 0">' : ''
+    const heading = title ? '<h2 style="font-size:19px;line-height:1.35;color:#FFFFFF;margin:22px 0 8px">' + title + '</h2>' : ''
+    const paragraph = text ? '<p style="font-size:15px;line-height:1.7;color:#CBD5E1;margin:8px 0">' + text + '</p>' : ''
+    const button = linkUrl ? '<p style="margin:18px 0 24px"><a href="' + escapeHtml(linkUrl) + '" style="display:inline-block;padding:12px 18px;border-radius:9px;background:#FACC15;color:#080B1F;text-decoration:none;font-weight:800">' + escapeHtml(String(block?.linkLabel || 'SAIBA MAIS').slice(0, 40)) + '</a></p>' : ''
+    return image + heading + paragraph + button
+  }).join('')
+  const text = safeBlocks.map(block => [block?.title, block?.text, block?.linkUrl].filter(Boolean).join('\n')).join('\n\n')
+  return { html, text }
+}
+
 export async function POST(request) {
   const secret = process.env.SUPABASE_EMAIL_WEBHOOK_SECRET
   const authorization = request.headers.get('authorization')
@@ -94,6 +120,9 @@ export async function POST(request) {
   const safeSubject = escapeHtml(subject)
   const safeMessage = escapeHtml(message)
   const safeActionUrl = escapeHtml(actionUrl.toString())
+  const coverImageUrl = safeExternalHttps(payload.coverImageUrl)
+  const safeCoverImageUrl = coverImageUrl ? '<img src="' + escapeHtml(coverImageUrl) + '" alt="Destaque da newsletter" width="100%" style="display:block;width:100%;height:auto;border-radius:14px;margin:18px 0">' : ''
+  const newsletter = renderNewsletterBlocks(payload.blocks)
 
   try {
     const recipient = String(item.recipient_email || '').trim()
@@ -110,6 +139,8 @@ export async function POST(request) {
       '',
       message,
       '',
+      newsletter.text,
+      '',
       'Acesse: ' + actionUrl.toString(),
       '',
       isWelcome
@@ -119,7 +150,7 @@ export async function POST(request) {
     const preferenceFooter = isWelcome
       ? ''
       : '<p style="font-size:12px;color:#94A3B8;margin-top:12px">Para alterar ou desativar suas preferências de e-mail, <a href="' + safePreferenceUrl + '" style="color:#FACC15">acesse as configurações</a>.</p>'
-    const htmlBody = '<!doctype html><html lang="pt-BR"><body style="margin:0;background:#080B1F;color:#fff;font-family:Arial,sans-serif;padding:32px 16px"><main style="max-width:560px;margin:0 auto;background:#12182F;border:1px solid #ffffff18;border-radius:18px;padding:28px"><div style="font-size:26px;font-weight:800;color:#FACC15;margin-bottom:24px">Maratonei</div><h1 style="font-size:22px;line-height:1.3;margin:0 0 14px">' + safeSubject + '</h1><p style="font-size:16px;line-height:1.6;color:#CBD5E1">' + safeMessage + '</p><a href="' + safeActionUrl + '" style="display:inline-block;margin-top:20px;padding:14px 22px;border-radius:10px;background:#FACC15;color:#080B1F;text-decoration:none;font-weight:800">ACESSAR O MARATONEI</a><p style="font-size:12px;color:#94A3B8;margin-top:28px">' + (isWelcome ? 'Este é um e-mail de boas-vindas enviado após a criação da sua conta.' : 'Você recebeu este e-mail porque ativou notificações por e-mail nas configurações do Maratonei.') + '</p>' + preferenceFooter + '</main></body></html>'
+    const htmlBody = '<!doctype html><html lang="pt-BR"><body style="margin:0;background:#080B1F;color:#fff;font-family:Arial,sans-serif;padding:32px 16px"><main style="max-width:600px;margin:0 auto;background:#12182F;border:1px solid #ffffff18;border-radius:18px;padding:28px"><div style="font-size:26px;font-weight:800;color:#FACC15;margin-bottom:24px">🍿 Maratonei</div><h1 style="font-size:24px;line-height:1.3;margin:0 0 14px">' + safeSubject + '</h1>' + safeCoverImageUrl + '<p style="font-size:16px;line-height:1.7;color:#CBD5E1;white-space:pre-line">' + safeMessage + '</p>' + newsletter.html + '<a href="' + safeActionUrl + '" style="display:inline-block;margin-top:20px;padding:14px 22px;border-radius:10px;background:#FACC15;color:#080B1F;text-decoration:none;font-weight:800">ACESSAR O MARATONEI</a><p style="font-size:12px;color:#94A3B8;margin-top:28px">' + (isWelcome ? 'Este é um e-mail de boas-vindas enviado após a criação da sua conta.' : 'Você recebeu este e-mail porque ativou notificações por e-mail nas configurações do Maratonei.') + '</p>' + preferenceFooter + '</main></body></html>'
     const raw = buildRawEmail({ from: fromEmail, to: recipient, subject, text: textBody, html: htmlBody })
 
     const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
