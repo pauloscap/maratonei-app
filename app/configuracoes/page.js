@@ -119,6 +119,14 @@ export default function ConfigPage(){
                 <span>Comentários nos episódios</span>
                 <input type="checkbox" checked={emailPrefs.email_comentario} onChange={e=>setEmailPrefs(p=>({...p,email_comentario:e.target.checked}))} style={{width:20,height:20,accentColor:"#FACC15"}}/>
               </label>
+              <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"10px 0",borderTop:"1px solid #ffffff12",fontSize:14}}>
+                <span>Novidades do catálogo (séries, filmes e episódios)</span>
+                <input type="checkbox" checked={emailPrefs.email_novidades_catalogo} onChange={e=>setEmailPrefs(p=>({...p,email_novidades_catalogo:e.target.checked}))} style={{width:20,height:20,accentColor:"#FACC15"}}/>
+              </label>
+              <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"10px 0",fontSize:14}}>
+                <span>Comunicados e novidades gerais do Maratonei</span>
+                <input type="checkbox" checked={emailPrefs.email_comunicados} onChange={e=>setEmailPrefs(p=>({...p,email_comunicados:e.target.checked}))} style={{width:20,height:20,accentColor:"#FACC15"}}/>
+              </label>
               <button onClick={salvarPreferenciasEmail} disabled={savingEmailPrefs} style={{width:"100%",marginTop:12,height:42,background:"#FFD400",color:"#000",border:0,borderRadius:10,fontWeight:900,opacity:savingEmailPrefs ? .65 : 1}}>{savingEmailPrefs?"Salvando...":"Salvar preferências"}</button>
             </section>
 
