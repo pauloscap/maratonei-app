@@ -4,7 +4,7 @@ Esta funcionalidade permanece em uma pull request **draft**. O código, a migrat
 
 ## Escopo da primeira etapa
 
-- E-mail de novo seguidor, somente se o destinatário ativar essa preferência.
+- E-mail de boas-vindas após novo cadastro, enfileirado pelo gatilho de `auth.users` e enviado uma única vez por cadastro.\n- E-mail de novo seguidor, somente se o destinatário ativar essa preferência.
 - E-mail de comentário em episódio, somente se o destinatário ativar essa preferência.
 - Preferências individuais começam desativadas.
 - Curtidas não estão incluídas.
@@ -13,7 +13,7 @@ Esta funcionalidade permanece em uma pull request **draft**. O código, a migrat
 ## Componentes
 
 - `notification_email_preferences`: preferências individuais, protegidas por RLS.
-- `notification_email_outbox`: fila sem acesso direto para `anon` ou `authenticated`.
+- `notification_email_outbox`: fila sem acesso direto para `anon` ou `authenticated`; `notification_id` é opcional apenas para eventos transacionais de boas-vindas, que não dependem de uma notificação social.
 - Gatilhos PostgreSQL nas tabelas de origem (`seguidores` e `comentarios_episodios`): criam a notificação visual e, na mesma transação, enfileiram o e-mail quando há opt-in. Inserções diretas em `notificacoes` não disparam e-mail.
 - Endpoint Next.js: valida o segredo do webhook, reivindica a linha pendente de forma atômica e envia pela Gmail API.
 - O endpoint não faz retry automático. Uma falha é registrada para análise; isso evita reenvio automático acidental.
@@ -112,3 +112,10 @@ A aplicação atualmente consulta títulos diretamente na API do TMDB a partir d
 5. Permitir comunicados manuais apenas por ação administrativa autenticada, filtrando `email_comunicados = true`.
 
 Não existe ainda uma rotina de monitoramento TMDB, um catálogo central, um painel administrativo de campanhas ou um fluxo de boas-vindas. Esses itens não devem ser considerados ativos até implementação e testes isolados.
+
+
+## Boas-vindas — fluxo preparado
+
+A migration `202611090002_welcome_email.sql` adiciona um gatilho separado em `auth.users`. No primeiro INSERT do usuário, o gatilho enfileira uma mensagem transacional para o e-mail registrado no próprio Supabase Auth. A mensagem não depende de preferências promocionais e não é disparada por atualizações de perfil. A fila usa `notification_id = NULL` para esse tipo de evento; a unicidade de `notification_id` continua deduplicando eventos sociais.
+
+O endpoint de entrega reconhece o tipo `boas_vindas` e usa texto de rodapé transacional, diferente do texto usado para mensagens opt-in. A migration e o endpoint ainda não foram ativados no Supabase de produção e nenhum e-mail foi enviado.
