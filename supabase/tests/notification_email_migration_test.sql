@@ -102,10 +102,12 @@ begin
 end $$;
 
 -- Evento real de comentário: só os usuários optados recebem e-mail.
+alter table public.comentarios_episodios disable trigger trigger_notificar_comentario;
 insert into public.comentarios_episodios(user_id,serie_id,temporada_numero,episodio_numero,comentario)
 values
  ('00000000-0000-0000-0000-000000000001','42',1,2,'Comentário inicial'),
  ('00000000-0000-0000-0000-000000000004','42',1,2,'Outro comentário');
+alter table public.comentarios_episodios enable trigger trigger_notificar_comentario;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000002',false);
 insert into public.comentarios_episodios(user_id,serie_id,temporada_numero,episodio_numero,comentario)
 values ('00000000-0000-0000-0000-000000000002','42',1,2,'Novo comentário');
