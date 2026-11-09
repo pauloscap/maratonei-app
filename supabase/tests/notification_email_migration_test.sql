@@ -54,6 +54,7 @@ for each row execute function public.notificar_novo_comentario();
 \i supabase/migrations/202611020001_notification_email_preferences.sql
 \i supabase/migrations/202611090001_catalog_email_preferences.sql
 \i supabase/migrations/202611090002_welcome_email.sql
+\i supabase/migrations/202611090003_catalog_email_events.sql
 
 -- Recria os gatilhos da aplicação depois de aplicar a migration.
 drop trigger if exists trigger_notificar_seguidor on public.seguidores;
@@ -121,6 +122,24 @@ begin
     raise exception 'announcement opt-in must be independent from catalog opt-in';
   end if;
 end $;
+
+-- A fila aceita eventos de catálogo e impede duplicação por usuário/evento.
+insert into public.notification_catalog_events(event_key,event_type,external_id,title,release_date,payload)
+values ('tv:42:episode:9001','novo_episodio','9001','Série de teste','2026-11-09','{"subject":"Novo episódio","message":"Teste","destination":"/serie/42"}');
+insert into public.notification_email_outbox(notification_id,event_key,user_id,recipient_email,notification_type,payload,status)
+values (null,'tv:42:episode:9001','00000000-0000-0000-0000-000000000001','recipient@example.test','catalogo','{"subject":"Novo episódio","message":"Teste","destination":"/serie/42"}','pending')
+on conflict (user_id,event_key) do nothing;
+insert into public.notification_email_outbox(notification_id,event_key,user_id,recipient_email,notification_type,payload,status)
+values (null,'tv:42:episode:9001','00000000-0000-0000-0000-000000000001','recipient@example.test','catalogo','{"subject":"Novo episódio","message":"Teste","destination":"/serie/42"}','pending')
+on conflict (user_id,event_key) do nothing;
+do $
+begin
+  if (select count(*) from public.notification_email_outbox where event_key='tv:42:episode:9001') <> 1 then
+    raise exception 'catalog email must be unique per user and event';
+  end if;
+end $;
+delete from public.notification_email_outbox where event_key='tv:42:episode:9001';
+delete from public.notification_catalog_events where event_key='tv:42:episode:9001';
 
 -- Evento real de seguir: uma notificação visual e um único e-mail pendente.
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000002',false);
