@@ -90,15 +90,14 @@ export async function POST(request) {
   }
 
   try {
-    const { data: preferences, error: preferenceError } = await auth.supabase
-      .from('notification_email_preferences').select('user_id').eq('email_comunicados', true)
-    if (preferenceError) throw new Error('Could not load announcement subscribers')
-    const optedIn = new Set((preferences || []).map(row => row.user_id))
-    if (!optedIn.size) return Response.json({ ok: true, campaignId: null, queued: 0 })
+    const { data: unsubscribes, error: unsubscribeError } = await auth.supabase
+      .from('newsletter_unsubscribes').select('user_id')
+    if (unsubscribeError) throw new Error('Could not load newsletter unsubscribe list')
+    const unsubscribed = new Set((unsubscribes || []).map(row => row.user_id))
 
     const users = await loadUsers(auth.supabase)
     const campaignId = crypto.randomUUID()
-    const rows = users.filter(user => user.email && optedIn.has(user.id)).map(user => ({
+    const rows = users.filter(user => user.email && user.email_confirmed_at && !unsubscribed.has(user.id)).map(user => ({
       notification_id: null,
       event_key: 'announcement:' + campaignId,
       user_id: user.id,
