@@ -12,7 +12,7 @@ export default function ConfigPage(){
   const [user,setUser]=useState(null)
   const [nome,setNome]=useState("")
   const [loading,setLoading]=useState(false)
-  const [emailPrefs,setEmailPrefs]=useState({email_seguidor:false,email_comentario:false,email_novidades_catalogo:false})
+  const [emailPrefs,setEmailPrefs]=useState({email_seguidor:true,email_comentario:true,email_novidades_catalogo:true})
   const [savingEmailPrefs,setSavingEmailPrefs]=useState(false)
 
   useEffect(()=>{
