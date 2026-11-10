@@ -63,7 +63,7 @@ export async function POST(request) {
   const gmailClientSecret = process.env.GMAIL_CLIENT_SECRET
   const gmailRefreshToken = process.env.GMAIL_REFRESH_TOKEN
   const fromEmail = 'contatomaratoneiapp@gmail.com'
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://maratoneiapp.com.br'
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.maratoneiapp.com.br'
 
   if (!supabaseUrl || !serviceRoleKey || !gmailClientId || !gmailClientSecret || !gmailRefreshToken) {
     return Response.json({ error: 'Email service is not configured' }, { status: 503 })
