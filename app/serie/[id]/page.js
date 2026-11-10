@@ -277,6 +277,14 @@ export default function DetalheSerie() {
     const todos=ids.every(i=>epsVistos.includes(i))
     const novo=todos ? epsVistos.filter(i=>!ids.includes(i)) : Array.from(new Set([...epsVistos,...ids]))
     await salvarProgressoEpisodios(novo)
+    if(!todos && userId && serie){
+      const novosEpisodios=temp.eps.filter(ep=>ids.includes(ep.id) && !epsVistos.map(String).includes(String(ep.id)))
+      if(novosEpisodios.length) await supabase.from("social_activities").insert(novosEpisodios.map(ep=>({
+        actor_id:userId, activity_type:"episode_watched", media_type:"tv", media_id:String(id),
+        title:serie.titulo, poster_url:serie.img || "", season_number:temp.numero,
+        episode_number:ep.numero, episode_title:ep.nome || "", episode_image_url:ep.img || serie.img || ""
+      })))
+    }
   }
   async function mudarStatus(novo){
     const anterior=status
