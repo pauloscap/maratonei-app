@@ -63,7 +63,7 @@ export default function FeedPage() {
           series_added: ["adicionou à lista", "Quero assistir"],
           series_started: ["começou a assistir", "Em andamento"],
           series_completed: ["maratonou", "Série concluída"],
-          episode_watched: ["concluiu o episódio", "Episódio concluído"]
+          episode_watched: ["marcou como concluído um episódio de", "Episódio concluído"]
         }
         const [verb, detail] = types[row.activity_type] || ["teve uma atividade em", "Atualização"]
         const isEpisode = row.activity_type === "episode_watched"
@@ -151,8 +151,8 @@ export default function FeedPage() {
     return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })
   }
 
-  const iconFor = kind => kind === "serie" ? "▣" : kind === "filme" ? "▶" : "✦"
-  const accentFor = kind => kind === "serie" ? "#A78BFA" : kind === "filme" ? "#FB923C" : "#FFD45A"
+  const iconFor = kind => kind === "serie" ? "▣" : kind === "filme" ? "▶" : kind === "episodio" ? "▤" : "✦"
+  const accentFor = kind => kind === "serie" ? "#A78BFA" : kind === "filme" ? "#FB923C" : kind === "episodio" ? "#67D7E8" : "#D9B65A"
 
   return <main style={{ minHeight: "100vh", background: "#070B18", color: "#fff", paddingBottom: 110, fontFamily: "Inter,system-ui,sans-serif" }}>
     <header style={{ padding: "24px 18px 19px", borderBottom: "1px solid #ffffff12", background: "linear-gradient(135deg,#111C35,#0C1428)" }}>
@@ -191,7 +191,7 @@ export default function FeedPage() {
               <Link href={"/perfil/" + item.user_id} style={{ color: "#FFD45A", fontWeight: 900, textDecoration: "none" }}>{name}</Link>{" "}{item.verb}{item.title ? <> <strong style={{ color: "#FFFFFF" }}>{item.title}</strong></> : null}
             </p>
             {item.title && <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 9, padding: 8, borderRadius: 12, background: "#ffffff07", border: "1px solid #ffffff0b" }}>
-              {item.poster?.startsWith("http") ? <img src={item.poster} alt="" style={{ width: 38, height: 55, objectFit: "cover", borderRadius: 6, flexShrink: 0 }} /> : <div style={{ width: 38, height: 55, borderRadius: 6, background: "#263451", display: "grid", placeItems: "center", color: accent }}>{iconFor(item.kind)}</div>}
+              {item.poster?.startsWith("http") ? <img src={item.poster} alt="" style={{ width: item.kind === "episodio" ? 82 : 42, height: item.kind === "episodio" ? 48 : 60, objectFit: "cover", borderRadius: 6, flexShrink: 0 }} /> : <div style={{ width: item.kind === "episodio" ? 82 : 42, height: item.kind === "episodio" ? 48 : 60, borderRadius: 6, background: "#263451", display: "grid", placeItems: "center", color: accent }}>{iconFor(item.kind)}</div>}
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: 10, color: accent, fontWeight: 900, letterSpacing: .8 }}>{item.kind === "episodio" ? "EPISÓDIO" : item.kind === "serie" ? "SÉRIE" : "FILME"}</div>
                 <div style={{ fontSize: 11, color: "#DDE4F2", fontWeight: 700, marginTop: 3, lineHeight: 1.4 }}>{item.detail}</div>
