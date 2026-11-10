@@ -257,9 +257,18 @@ export default function DetalheSerie() {
       updated_at:agora
     }).eq("user_id",userId).eq("serie_id",id)
   }
-  async function toggleEp(eid){
-    const novo = epsVistos.includes(eid) ? epsVistos.filter(x=>x!==eid) : [...epsVistos,eid]
+  async function toggleEp(eid, ep, temporadaNumero){
+    const jaVisto = epsVistos.map(String).includes(String(eid))
+    const novo = jaVisto ? epsVistos.filter(x=>String(x)!==String(eid)) : [...epsVistos,String(eid)]
     await salvarProgressoEpisodios(novo, true)
+    if(!jaVisto && userId && ep){
+      await supabase.from("social_activities").insert({
+        actor_id:userId, activity_type:"episode_watched", media_type:"tv", media_id:String(id),
+        title:serie?.titulo || "Série", poster_url:serie?.img || "",
+        season_number:temporadaNumero, episode_number:ep.numero, episode_title:ep.nome || "",
+        episode_image_url:ep.img || serie?.img || ""
+      })
+    }
   }
   async function maratonarTemp(temp){
     const hoje = new Date().toISOString().slice(0,10)
@@ -270,8 +279,15 @@ export default function DetalheSerie() {
     await salvarProgressoEpisodios(novo)
   }
   async function mudarStatus(novo){
+    const anterior=status
     setStatus(novo); localStorage.setItem(userId+":status-"+id, novo)
     await supabase.from("user_series").update({ status:novo, updated_at:new Date().toISOString() }).eq("user_id",userId).eq("serie_id",id)
+    if(userId && serie && anterior!==novo && ["assistindo","maratonei","quero_assistir"].includes(novo)){
+      await supabase.from("social_activities").insert({
+        actor_id:userId, activity_type:novo==="maratonei"?"series_completed":novo==="assistindo"?"series_started":"series_added",
+        media_type:"tv", media_id:String(id), title:serie.titulo, poster_url:serie.img || ""
+      })
+    }
     if(novo==="maratonei"){
       const hoje = new Date().toISOString().slice(0,10)
       const todosIds=temporadas.flatMap(t=>t.eps.filter(e=>!e.airdate || e.airdate<=hoje).map(e=>e.id))
@@ -340,7 +356,7 @@ export default function DetalheSerie() {
                   <div style={{ flex:1, minWidth:0 }}><div style={{ fontSize:13, fontWeight:800 }}>{ep.numero}. {ep.nome}</div><div style={{ fontSize:11, opacity:0.55, marginTop:4 }}>{ep.resumo}</div></div>
                   <div style={{display:"flex", gap:6, alignItems:"center"}}>
                     <button onClick={()=>abrirShareEpisodio(ep, t.numero)} title="Compartilhar episódio" style={{ width:32, height:32, borderRadius:8, background:"#ffffff12", border:"1px solid rgba(255,255,255,0.12)", color:"#fff", cursor:"pointer", fontSize:12 }}>↗</button>
-                    <button onClick={()=>toggleEp(ep.id)} style={{ width:36, height:36, borderRadius:999, border: ok?"0":"1.5px solid rgba(255,255,255,0.2)", background: ok?"#22c55e":"transparent", color:"#fff", cursor:"pointer" }}>{ok?"✓":""}</button>
+                    <button onClick={()=>toggleEp(ep.id, ep, t.numero)} style={{ width:36, height:36, borderRadius:999, border: ok?"0":"1.5px solid rgba(255,255,255,0.2)", background: ok?"#22c55e":"transparent", color:"#fff", cursor:"pointer" }}>{ok?"✓":""}</button>
                   </div>
                 </div>
               )})}</div>}
