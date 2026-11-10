@@ -128,7 +128,7 @@ export default function Notificacoes() {
               <h1 style={styles.title}>Notificações</h1>
               <p style={styles.subtitle}>Tudo o que acontece na sua comunidade.</p>
             </div>
-            <div style={styles.bell}>♧</div>
+            <div style={styles.bell}><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" /><path d="M10 21h4" /></svg></div>
           </div>
           <div style={styles.heroFooter}>
             <div>
