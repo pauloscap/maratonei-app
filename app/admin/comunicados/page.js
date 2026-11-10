@@ -14,6 +14,7 @@ export default function ComunicadosAdminPage() {
   const [subject, setSubject] = useState("")
   const [message, setMessage] = useState("")
   const [coverImageUrl, setCoverImageUrl] = useState("")
+  const [uploadingImage, setUploadingImage] = useState("")
   const [blocks, setBlocks] = useState([emptyBlock()])
   const [sending, setSending] = useState(false)
   const [sendingTest, setSendingTest] = useState(false)
@@ -47,6 +48,32 @@ export default function ComunicadosAdminPage() {
     callbackUrl.searchParams.set("next", "/admin/comunicados")
     const { error } = await supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: callbackUrl.toString() } })
     if (error) { setNotice("Não foi possível iniciar o login com Google. Tente novamente."); setAuthLoading(false) }
+  }
+
+  async function uploadNewsletterImage(file, target, key) {
+    if (!file) return
+    const { data } = await supabase.auth.getSession()
+    const token = data?.session?.access_token
+    if (!token) { setNotice("Sua sessão expirou. Entre novamente."); return }
+    setUploadingImage(key)
+    setNotice("")
+    try {
+      const form = new FormData()
+      form.append("file", file)
+      const response = await fetch("/api/admin/email-campaign/upload", {
+        method: "POST",
+        headers: { Authorization: "Bearer " + token },
+        body: form
+      })
+      const result = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(result.error || "Não foi possível enviar a imagem.")
+      target(result.url)
+      setNotice("Imagem armazenada no Maratonei com sucesso.")
+    } catch (error) {
+      setNotice(error.message || "Falha ao enviar imagem.")
+    } finally {
+      setUploadingImage("")
+    }
   }
 
   function updateBlock(index, field, value) {
@@ -113,7 +140,11 @@ export default function ComunicadosAdminPage() {
             <form onSubmit={queueCampaign} style={{background:"#12182F",border:"1px solid #ffffff18",borderRadius:18,padding:22}}>
               <h2 style={{fontSize:18,marginTop:0}}>1. Identificação</h2>
               {field("Assunto do e-mail",subject,setSubject,"Ex.: As novidades que chegaram nesta semana","text",140)}
-              {field("Imagem de capa (URL HTTPS)",coverImageUrl,setCoverImageUrl,"https://...")}
+              {<label style={labelStyle}>Imagem de capa
+                <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" disabled={!!uploadingImage} onChange={event=>uploadNewsletterImage(event.target.files?.[0],setCoverImageUrl,"cover")} style={{...inputStyle,padding:9}}/>
+                <small style={{display:"block",color:"#94A3B8",marginTop:5}}>JPG, PNG, WebP ou GIF • até 5 MB. {uploadingImage==="cover" ? "Enviando..." : "A imagem será armazenada no próprio Maratonei."}</small>
+              </label>}
+              {field("Ou usar URL de imagem (HTTPS)",coverImageUrl,setCoverImageUrl,"https://...")}
               <label style={labelStyle}>Texto de abertura
                 <textarea value={message} onChange={event=>setMessage(event.target.value)} minLength={10} maxLength={1200} required rows={4} placeholder="Apresente os destaques desta edição..." style={{...inputStyle,resize:"vertical"}}/>
               </label>
@@ -131,7 +162,11 @@ export default function ComunicadosAdminPage() {
                   <label style={labelStyle}>Texto
                     <textarea value={block.text} onChange={event=>updateBlock(index,"text",event.target.value)} maxLength={700} rows={3} placeholder="Escreva uma descrição curta..." style={{...inputStyle,resize:"vertical"}}/>
                   </label>
-                  {field("Imagem do bloco (URL HTTPS)",block.imageUrl,value=>updateBlock(index,"imageUrl",value),"https://...")}
+                  {<label style={labelStyle}>Imagem do bloco
+                    <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" disabled={!!uploadingImage} onChange={event=>uploadNewsletterImage(event.target.files?.[0],value=>updateBlock(index,"imageUrl",value),"block-"+index)} style={{...inputStyle,padding:9}}/>
+                    <small style={{display:"block",color:"#94A3B8",marginTop:5}}>{uploadingImage==="block-"+index ? "Enviando..." : "JPG, PNG, WebP ou GIF • até 5 MB"}</small>
+                  </label>}
+                  {field("Ou usar URL de imagem (HTTPS)",block.imageUrl,value=>updateBlock(index,"imageUrl",value),"https://...")}
                   {field("Link de destino (URL HTTPS)",block.linkUrl,value=>updateBlock(index,"linkUrl",value),"https://maratoneiapp.com.br/...")}
                   {field("Texto do botão",block.linkLabel,value=>updateBlock(index,"linkLabel",value),"SAIBA MAIS","text",40)}
                 </div>
