@@ -40,19 +40,13 @@ export default function FeedPage() {
       const ids = (relations || []).map(row => row.seguindo_id).filter(Boolean)
       setFollowing(ids)
 
-      if (ids.length === 0) {
-        setItems([])
-        setLoading(false)
-        return
-      }
-
       const [checkinResult, seriesResult, filmResult] = await Promise.all([
         supabase.from("checkins").select("id,user_id,data,created_at")
-          .in("user_id", ids).order("created_at", { ascending: false }).limit(50),
+          .order("created_at", { ascending: false }).limit(50),
         supabase.from("user_series").select("user_id,serie_id,titulo,ano,img,status,eps_vistos,updated_at")
-          .in("user_id", ids).order("updated_at", { ascending: false }).limit(80),
+          .order("updated_at", { ascending: false }).limit(80),
         supabase.from("user_filmes").select("user_id,filme_id,titulo,img,status,data_assistido,updated_at")
-          .in("user_id", ids).order("updated_at", { ascending: false }).limit(80)
+          .order("updated_at", { ascending: false }).limit(80)
       ])
       if (!active) return
 
