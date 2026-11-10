@@ -160,7 +160,7 @@ export async function POST(request) {
           : 'Você recebeu este e-mail porque ativou notificações por e-mail no Maratonei. Para alterar ou desativar suas preferências, acesse: ' + preferenceUrl.toString()
     ].join('\n')
     const preferenceFooter = isNewsletter && unsubscribeUrl
-      ? '<p style="font-size:12px;color:#64748B;margin-top:12px;text-align:center">Você recebe esta newsletter por ter uma conta no Maratonei. <a href="' + safeUnsubscribeUrl + '" style="color:#9A7414">Cancelar recebimento</a></p>'
+      ? '<p style="font-size:12px;color:#64748B;margin-top:12px;text-align:center">Não quer mais receber? <a href="' + safeUnsubscribeUrl + '" style="color:#9A7414">Cancelar recebimento</a>.</p>'
       : isWelcome
         ? ''
         : '<p style="font-size:12px;color:#94A3B8;margin-top:12px">Para alterar ou desativar suas preferências de e-mail, <a href="' + safePreferenceUrl + '" style="color:#9A7414">acesse as configurações</a>.</p>'
