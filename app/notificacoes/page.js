@@ -118,26 +118,29 @@ export default function Notificacoes() {
   return (
     <main style={styles.page}>
       <div style={styles.shell}>
-        <Link href="/" style={styles.back}>‹ <span>Início</span></Link>
+        <header style={styles.topbar}>
+          <Link href="/" style={styles.back}><span style={styles.backArrow}>‹</span> Início</Link>
+          <span style={styles.topBrand}>MARATONEI <i> SOCIAL</i></span>
+        </header>
 
         <section style={styles.hero}>
           <div style={styles.heroGlow} />
-          <div style={styles.eyebrow}>MARATONEI SOCIAL</div>
+          <div style={styles.heroTopline}><span style={styles.liveMark} /> SUA CENTRAL DE ATIVIDADES</div>
           <div style={styles.heroTitleRow}>
             <div>
-              <h1 style={styles.title}>Notificações</h1>
-              <p style={styles.subtitle}>Tudo o que acontece na sua comunidade.</p>
+              <h1 style={styles.title}>Notificações<span style={styles.titleDot}>.</span></h1>
+              <p style={styles.subtitle}>As novidades da sua comunidade, em um só lugar.</p>
             </div>
-            <div style={styles.bell}><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" /><path d="M10 21h4" /></svg></div>
+            <div style={styles.bell}><svg viewBox="0 0 24 24" width="25" height="25" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" /><path d="M10 21h4" /></svg></div>
           </div>
           <div style={styles.heroFooter}>
-            <div>
-              <strong style={styles.count}>{naoLidas}</strong>
-              <span style={styles.countLabel}> {naoLidas === 1 ? 'não lida' : 'não lidas'}</span>
+            <div style={styles.unreadSummary}>
+              <strong style={styles.count}>{naoLidas.toString().padStart(2,'0')}</strong>
+              <span style={styles.countLabel}>{naoLidas === 1 ? 'NOVIDADE NÃO LIDA' : 'NOVIDADES NÃO LIDAS'}</span>
             </div>
             {naoLidas > 0 && (
               <button onClick={marcarTodasComoLidas} disabled={salvando} style={styles.readAll}>
-                {salvando ? 'Atualizando...' : 'Marcar tudo como lido'}
+                {salvando ? 'Atualizando...' : 'Marcar todas como lidas'} <span>↗</span>
               </button>
             )}
           </div>
@@ -146,6 +149,7 @@ export default function Notificacoes() {
         <div style={styles.filterRow} role="tablist" aria-label="Filtrar notificações">
           <button role="tab" aria-selected={filtro === 'todas'} onClick={() => setFiltro('todas')} style={filtro === 'todas' ? styles.filterActive : styles.filter}>Todas <span>{notificacoes.length}</span></button>
           <button role="tab" aria-selected={filtro === 'nao_lidas'} onClick={() => setFiltro('nao_lidas')} style={filtro === 'nao_lidas' ? styles.filterActive : styles.filter}>Não lidas <span>{naoLidas}</span></button>
+          <span style={styles.filterCaption}>ATUALIZAÇÕES</span>
         </div>
 
         {erro && <div role="alert" style={styles.error}>{erro}</div>}
@@ -190,42 +194,49 @@ export default function Notificacoes() {
 }
 
 const styles = {
-  page: { minHeight: '100vh', background: '#070B18', color: '#F7F8FC', paddingBottom: 112, fontFamily: 'Inter,system-ui,sans-serif' },
-  shell: { maxWidth: 760, margin: '0 auto', padding: '20px 16px 32px' },
-  back: { display: 'inline-flex', alignItems: 'center', gap: 7, color: '#9BA8C7', textDecoration: 'none', fontSize: 13, marginBottom: 18 },
-  hero: { position: 'relative', overflow: 'hidden', padding: '23px 21px 18px', borderRadius: 24, border: '1px solid #ffffff16', background: 'linear-gradient(135deg,#17213C 0%,#111A31 54%,#17162E 100%)', boxShadow: '0 18px 55px #00000035' },
-  heroGlow: { position: 'absolute', width: 190, height: 190, borderRadius: '50%', right: -70, top: -110, background: '#FFD45A20', filter: 'blur(12px)', pointerEvents: 'none' },
-  eyebrow: { position: 'relative', color: '#FFD45A', fontSize: 9, fontWeight: 900, letterSpacing: 2.2, marginBottom: 12 },
-  heroTitleRow: { position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  title: { fontSize: 'clamp(26px,6vw,34px)', lineHeight: 1.1, letterSpacing: -1.2, fontWeight: 900, margin: 0 },
-  subtitle: { color: '#A9B4CC', fontSize: 12, margin: '8px 0 0' },
-  bell: { width: 52, height: 52, flexShrink: 0, borderRadius: 17, display: 'grid', placeItems: 'center', background: 'linear-gradient(145deg,#FFD45A,#D7A52E)', color: '#111827', fontSize: 26, boxShadow: '0 8px 24px #FFD45A25' },
-  heroFooter: { position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 24, paddingTop: 15, borderTop: '1px solid #ffffff14' },
-  count: { fontSize: 23, color: '#FFD45A', fontWeight: 900, fontVariantNumeric: 'tabular-nums' },
-  countLabel: { color: '#A9B4CC', fontSize: 11 },
-  readAll: { border: '1px solid #FFD45A55', background: '#FFD45A12', color: '#FFE29A', padding: '9px 12px', borderRadius: 999, fontSize: 10, fontWeight: 800, cursor: 'pointer' },
-  filterRow: { display: 'flex', gap: 8, margin: '18px 0 14px', padding: 4, borderRadius: 14, background: '#10182B', border: '1px solid #ffffff0d' },
-  filter: { flex: 1, border: 0, borderRadius: 10, padding: '11px 10px', background: 'transparent', color: '#9AA7C3', fontSize: 11, fontWeight: 800, cursor: 'pointer' },
-  filterActive: { flex: 1, border: 0, borderRadius: 10, padding: '11px 10px', background: '#273451', color: '#FFFFFF', fontSize: 11, fontWeight: 900, cursor: 'pointer', boxShadow: 'inset 0 0 0 1px #ffffff12' },
-  list: { display: 'grid', gap: 9 },
-  link: { textDecoration: 'none', color: 'inherit' },
-  notification: { position: 'relative', display: 'flex', alignItems: 'center', gap: 12, padding: 14, borderRadius: 17, background: 'linear-gradient(110deg,#111A2D,#0E1628)', border: '1px solid #ffffff0e', transition: 'border-color .2s, transform .2s' },
-  unread: { background: 'linear-gradient(110deg,#182440,#111A2D)', border: '1px solid #FFD45A35' },
-  avatarWrap: { width: 44, height: 44, borderRadius: '50%', flexShrink: 0, overflow: 'hidden', display: 'grid', placeItems: 'center', background: '#263451', border: '1px solid #ffffff20' },
-  avatar: { width: '100%', height: '100%', objectFit: 'cover' },
-  avatarFallback: { color: '#FFD45A', fontWeight: 900, fontSize: 17 },
-  notificationBody: { flex: 1, minWidth: 0 },
-  notificationText: { color: '#DDE4F2', fontSize: 12, lineHeight: 1.55 },
-  meta: { display: 'flex', alignItems: 'center', gap: 7, color: '#7F8CA8', fontSize: 10, marginTop: 6 },
-  dot: { color: '#53617E' },
-  typeIcon: { width: 34, height: 34, borderRadius: 11, border: '1px solid', display: 'grid', placeItems: 'center', fontSize: 16, flexShrink: 0 },
-  unreadDot: { width: 7, height: 7, borderRadius: '50%', background: '#FFD45A', position: 'absolute', top: 11, right: 11, boxShadow: '0 0 12px #FFD45A88' },
-  empty: { marginTop: 12, padding: '42px 22px', textAlign: 'center', borderRadius: 22, background: 'radial-gradient(circle at 50% 0%,#1A2746,#10182B 65%)', border: '1px solid #ffffff12' },
-  loader: { color: '#FFD45A', fontSize: 26, marginBottom: 10 },
-  emptyIcon: { width: 58, height: 58, margin: '0 auto 15px', borderRadius: 19, display: 'grid', placeItems: 'center', background: '#FFD45A15', color: '#FFD45A', fontSize: 28 },
-  emptyTitle: { fontSize: 17, fontWeight: 900, margin: '0 0 8px' },
-  emptyText: { maxWidth: 310, margin: '0 auto', color: '#95A2BF', fontSize: 12, lineHeight: 1.7 },
-  emptyLink: { display: 'inline-flex', gap: 8, alignItems: 'center', marginTop: 18, color: '#FFD45A', textDecoration: 'none', fontSize: 11, fontWeight: 900 },
-  error: { padding: 13, marginBottom: 12, borderRadius: 12, background: '#4A1F2B', color: '#FFC4C9', fontSize: 12 },
-  muted: { color: '#A9B4CC', textAlign: 'center', padding: 30 }
+  page: { minHeight: '100vh', background: '#05070D', color: '#F5F6FA', paddingBottom: 112, fontFamily: 'Inter,system-ui,sans-serif' },
+  shell: { maxWidth: 820, margin: '0 auto', padding: '17px 18px 40px' },
+  topbar: { display:'flex', justifyContent:'space-between', alignItems:'center', padding:'4px 2px 18px', marginBottom:22, borderBottom:'1px solid #FFFFFF12' },
+  back: { display:'inline-flex', alignItems:'center', gap:8, color:'#AAB2C3', textDecoration:'none', fontSize:12, fontWeight:650 },
+  backArrow: { fontSize:22, lineHeight:1, color:'#E8C66A' },
+  topBrand: { color:'#E7EAF1', fontSize:9, letterSpacing:2.2, fontWeight:900 },
+  hero: { position:'relative', overflow:'hidden', padding:'30px 27px 21px', borderRadius:25, border:'1px solid #FFFFFF1A', background:'linear-gradient(125deg,#171B25 0%,#10141D 52%,#181713 100%)', boxShadow:'0 24px 70px #00000055' },
+  heroGlow: { position:'absolute', width:260, height:260, borderRadius:'50%', right:-100, top:-160, background:'#D9B65A1C', filter:'blur(24px)', pointerEvents:'none' },
+  heroTopline: { position:'relative', display:'flex', alignItems:'center', gap:8, color:'#B8A16A', fontSize:9, fontWeight:850, letterSpacing:2.1, marginBottom:17 },
+  liveMark: { width:6, height:6, borderRadius:'50%', background:'#D9B65A', boxShadow:'0 0 12px #D9B65A99' },
+  heroTitleRow: { position:'relative', display:'flex', alignItems:'center', justifyContent:'space-between', gap:14 },
+  title: { fontSize:'clamp(30px,7vw,43px)', lineHeight:1.03, letterSpacing:-1.8, fontWeight:760, margin:0 },
+  titleDot: { color:'#D9B65A' },
+  subtitle: { color:'#A6ADBA', fontSize:12, lineHeight:1.6, margin:'10px 0 0', maxWidth:350 },
+  bell: { width:58, height:58, flexShrink:0, borderRadius:19, display:'grid', placeItems:'center', background:'linear-gradient(145deg,#E8D39B,#B9954B)', color:'#17140D', boxShadow:'0 10px 32px #D9B65A24' },
+  heroFooter: { position:'relative', display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, marginTop:25, paddingTop:17, borderTop:'1px solid #FFFFFF17' },
+  unreadSummary: { display:'flex', alignItems:'center', gap:10 },
+  count: { fontSize:25, color:'#E5C77A', fontWeight:800, fontVariantNumeric:'tabular-nums', letterSpacing:-1 },
+  countLabel: { color:'#8E96A5', fontSize:8, letterSpacing:1.2, fontWeight:800, maxWidth:95, lineHeight:1.4 },
+  readAll: { border:'1px solid #D9B65A55', background:'#D9B65A12', color:'#E9D49D', padding:'10px 13px', borderRadius:999, fontSize:9, fontWeight:800, cursor:'pointer' },
+  filterRow: { display:'flex', alignItems:'center', gap:7, margin:'21px 0 15px', padding:'5px 5px 5px 6px', borderRadius:999, background:'#0D1119', border:'1px solid #FFFFFF12' },
+  filter: { border:0, borderRadius:999, padding:'10px 15px', background:'transparent', color:'#858E9E', fontSize:10, fontWeight:750, cursor:'pointer' },
+  filterActive: { border:0, borderRadius:999, padding:'10px 16px', background:'linear-gradient(135deg,#E8D39B,#C4A45D)', color:'#17140D', fontSize:10, fontWeight:900, cursor:'pointer', boxShadow:'0 3px 14px #D9B65A20' },
+  filterCaption: { marginLeft:'auto', marginRight:10, color:'#596273', fontSize:8, letterSpacing:1.4, fontWeight:800 },
+  list: { display:'grid', gap:8 },
+  link: { textDecoration:'none', color:'inherit' },
+  notification: { position:'relative', display:'flex', alignItems:'center', gap:14, padding:'16px 15px', borderRadius:17, background:'linear-gradient(110deg,#10151F,#0B0F17)', border:'1px solid #FFFFFF0D', transition:'border-color .2s, transform .2s' },
+  unread: { background:'linear-gradient(110deg,#171B25,#10141C)', border:'1px solid #D9B65A45', boxShadow:'inset 3px 0 0 #D9B65A' },
+  avatarWrap: { width:45, height:45, borderRadius:'50%', flexShrink:0, overflow:'hidden', display:'grid', placeItems:'center', background:'#252A35', border:'1px solid #FFFFFF20' },
+  avatar: { width:'100%', height:'100%', objectFit:'cover' },
+  avatarFallback: { color:'#E4C779', fontWeight:850, fontSize:16 },
+  notificationBody: { flex:1, minWidth:0 },
+  notificationText: { color:'#DDE1E9', fontSize:12, lineHeight:1.6 },
+  meta: { display:'flex', alignItems:'center', gap:7, color:'#727B8B', fontSize:9, marginTop:6, letterSpacing:.2 },
+  dot: { color:'#596273' },
+  typeIcon: { width:34, height:34, borderRadius:12, border:'1px solid', display:'grid', placeItems:'center', fontSize:15, flexShrink:0 },
+  unreadDot: { width:6, height:6, borderRadius:'50%', background:'#E3C477', position:'absolute', top:12, right:12, boxShadow:'0 0 10px #E3C47788' },
+  empty: { marginTop:14, padding:'54px 24px', textAlign:'center', borderRadius:22, background:'radial-gradient(circle at 50% 0%,#1A1D25,#0C1018 70%)', border:'1px solid #FFFFFF12' },
+  loader: { color:'#D9B65A', fontSize:26, marginBottom:10 },
+  emptyIcon: { width:60, height:60, margin:'0 auto 17px', borderRadius:20, display:'grid', placeItems:'center', background:'#D9B65A16', color:'#E4C779', fontSize:27 },
+  emptyTitle: { fontSize:18, fontWeight:800, letterSpacing:-.4, margin:'0 0 8px' },
+  emptyText: { maxWidth:330, margin:'0 auto', color:'#929BAA', fontSize:11, lineHeight:1.8 },
+  emptyLink: { display:'inline-flex', gap:8, alignItems:'center', marginTop:20, color:'#E3C477', textDecoration:'none', fontSize:10, fontWeight:850, letterSpacing:.2 },
+  error: { padding:13, marginBottom:12, borderRadius:12, background:'#351D24', color:'#FFC4C9', fontSize:12 },
+  muted: { color:'#A9B4CC', textAlign:'center', padding:30 }
 }
