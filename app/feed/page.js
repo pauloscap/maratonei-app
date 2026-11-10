@@ -40,22 +40,44 @@ export default function FeedPage() {
       const ids = (relations || []).map(row => row.seguindo_id).filter(Boolean)
       setFollowing(ids)
 
-      const [checkinResult, seriesResult, filmResult] = await Promise.all([
-        supabase.from("checkins").select("id,user_id,data,created_at")
-          .order("created_at", { ascending: false }).limit(50),
-        supabase.from("user_series").select("user_id,serie_id,titulo,ano,img,status,eps_vistos,updated_at")
-          .order("updated_at", { ascending: false }).limit(80),
-        supabase.from("user_filmes").select("user_id,filme_id,titulo,img,status,data_assistido,updated_at")
-          .order("updated_at", { ascending: false }).limit(80)
+      const [checkinResult, seriesResult, filmResult, socialResult] = await Promise.all([
+        supabase.from("checkins").select("id,user_id,data,created_at").order("created_at", { ascending: false }).limit(50),
+        supabase.from("user_series").select("user_id,serie_id,titulo,ano,img,status,eps_vistos,updated_at").order("updated_at", { ascending: false }).limit(80),
+        supabase.from("user_filmes").select("user_id,filme_id,titulo,img,status,data_assistido,updated_at").order("updated_at", { ascending: false }).limit(80),
+        supabase.from("social_activities").select("*").order("created_at", { ascending: false }).limit(150)
       ])
       if (!active) return
 
-      const queryError = checkinResult.error || seriesResult.error || filmResult.error
+      const queryError = checkinResult.error || seriesResult.error || filmResult.error || socialResult.error
       if (queryError) {
         setError("O feed não conseguiu acessar todas as atividades. Verifique as permissões públicas de leitura das listas e dos check-ins no Supabase.")
       }
 
       const activities = []
+      const loggedKeys = new Set()
+      ;(socialResult.data || []).forEach(row => {
+        loggedKeys.add(row.actor_id + ":" + row.media_type + ":" + row.media_id)
+        const types = {
+          film_added: ["adicionou à lista", "Quero assistir"],
+          film_watched: ["marcou como assistido", "Já assisti"],
+          series_added: ["adicionou à lista", "Quero assistir"],
+          series_started: ["começou a assistir", "Em andamento"],
+          series_completed: ["maratonou", "Série concluída"],
+          episode_watched: ["concluiu o episódio", "Episódio concluído"]
+        }
+        const [verb, detail] = types[row.activity_type] || ["teve uma atividade em", "Atualização"]
+        const isEpisode = row.activity_type === "episode_watched"
+        activities.push({
+          id: "social-" + row.id, user_id: row.actor_id,
+          kind: isEpisode ? "episodio" : row.media_type === "tv" ? "serie" : "filme",
+          verb, date: row.created_at, title: row.title,
+          poster: isEpisode ? (row.episode_image_url || row.poster_url) : row.poster_url,
+          detail: isEpisode ? ("Temporada " + row.season_number + " · Episódio " + row.episode_number + (row.episode_title ? " · " + row.episode_title : "")) : detail,
+          episodeTitle: row.episode_title,
+          mediaId: row.media_id, mediaType: row.media_type,
+          season: row.season_number, episode: row.episode_number
+        })
+      })
       ;(checkinResult.data || []).forEach(row => {
         activities.push({
           id: "checkin-" + row.id,
@@ -70,6 +92,7 @@ export default function FeedPage() {
       })
 
       ;(seriesResult.data || []).forEach(row => {
+        if (loggedKeys.has(row.user_id + ":tv:" + row.serie_id)) return
         const status = row.status || ""
         const episodes = Array.isArray(row.eps_vistos) ? row.eps_vistos.length : 0
         let verb = ""
@@ -86,6 +109,7 @@ export default function FeedPage() {
       })
 
       ;(filmResult.data || []).forEach(row => {
+        if (loggedKeys.has(row.user_id + ":movie:" + row.filme_id)) return
         let verb = ""
         let detail = ""
         if (row.status === "quero_assistir") { verb = "salvou na lista"; detail = "Quero assistir" }
@@ -169,7 +193,7 @@ export default function FeedPage() {
             {item.title && <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 9, padding: 8, borderRadius: 12, background: "#ffffff07", border: "1px solid #ffffff0b" }}>
               {item.poster?.startsWith("http") ? <img src={item.poster} alt="" style={{ width: 38, height: 55, objectFit: "cover", borderRadius: 6, flexShrink: 0 }} /> : <div style={{ width: 38, height: 55, borderRadius: 6, background: "#263451", display: "grid", placeItems: "center", color: accent }}>{iconFor(item.kind)}</div>}
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 10, color: accent, fontWeight: 900, letterSpacing: .8 }}>{item.kind === "serie" ? "SÉRIE" : "FILME"}</div>
+                <div style={{ fontSize: 10, color: accent, fontWeight: 900, letterSpacing: .8 }}>{item.kind === "episodio" ? "EPISÓDIO" : item.kind === "serie" ? "SÉRIE" : "FILME"}</div>
                 <div style={{ fontSize: 11, color: "#DDE4F2", fontWeight: 700, marginTop: 3, lineHeight: 1.4 }}>{item.detail}</div>
                 <div style={{ fontSize: 9, color: "#7886A4", marginTop: 4 }}>{dateLabel(item.date)}</div>
               </div>
