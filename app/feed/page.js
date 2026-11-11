@@ -17,6 +17,7 @@ export default function FeedPage() {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
+  const [likeBusy, setLikeBusy] = useState([])
 
   useEffect(() => {
     let active = true
@@ -129,7 +130,25 @@ export default function FeedPage() {
       if (profileError) setError("Algumas informações dos perfis não puderam ser carregadas.")
       const profileMap = Object.fromEntries((profiles || []).map(profile => [profile.id, profile]))
       activities.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))
-      setItems(activities.map(item => ({ ...item, profile: profileMap[item.user_id] || null })))
+
+      const activityKeys = activities.map(item => item.id)
+      const { data: likes, error: likesError } = activityKeys.length
+        ? await supabase.from("activity_likes").select("activity_key,user_id").in("activity_key", activityKeys)
+        : { data: [], error: null }
+      if (!active) return
+      if (likesError) setError("As atividades foram carregadas, mas não foi possível consultar as curtidas.")
+      const likesByActivity = {}
+      ;(likes || []).forEach(like => {
+        if (!likesByActivity[like.activity_key]) likesByActivity[like.activity_key] = { count: 0, liked: false }
+        likesByActivity[like.activity_key].count += 1
+        if (like.user_id === viewer) likesByActivity[like.activity_key].liked = true
+      })
+      setItems(activities.map(item => ({
+        ...item,
+        profile: profileMap[item.user_id] || null,
+        likesCount: likesByActivity[item.id]?.count || 0,
+        liked: likesByActivity[item.id]?.liked || false
+      })))
       setLoading(false)
     }
     load()
@@ -139,6 +158,25 @@ export default function FeedPage() {
   const visible = useMemo(() => items.filter(item =>
     tab === "seguindo" ? (item.user_id === userId || following.includes(item.user_id)) : true
   ), [items, following, tab, userId])
+
+  async function toggleLike(item) {
+    if (!userId || likeBusy.includes(item.id)) return
+    setLikeBusy(current => [...current, item.id])
+    const { data, error: likeError } = await supabase.rpc("toggle_activity_like", {
+      p_activity_key: item.id,
+      p_like: !item.liked
+    })
+    if (likeError) {
+      setError(likeError.message || "Não foi possível registrar sua curtida. Tente novamente.")
+    } else {
+      const result = Array.isArray(data) ? data[0] : data
+      setItems(current => current.map(entry => entry.id === item.id
+        ? { ...entry, liked: Boolean(result?.liked), likesCount: Number(result?.likes_count || 0) }
+        : entry
+      ))
+    }
+    setLikeBusy(current => current.filter(id => id !== item.id))
+  }
 
   const dateLabel = value => {
     if (!value) return "Data não informada"
@@ -182,7 +220,7 @@ export default function FeedPage() {
       {!loading && visible.map(item => {
         const name = item.profile?.nome || item.profile?.username || "Maratoneiro"
         const accent = accentFor(item.kind)
-        return <article key={item.id} style={{ display: "flex", gap: 12, padding: 14, marginBottom: 10, borderRadius: 17, background: "linear-gradient(110deg,#111A2D,#0D1527)", border: "1px solid #ffffff10" }}>
+        return <article id={item.id} key={item.id} style={{ display: "flex", gap: 12, padding: 14, marginBottom: 10, borderRadius: 17, background: "linear-gradient(110deg,#111A2D,#0D1527)", border: "1px solid #ffffff10" }}>
           <Link href={"/perfil/" + item.user_id} aria-label={"Ver perfil de " + name} style={{ width: 42, height: 42, borderRadius: "50%", background: "#263451", display: "grid", placeItems: "center", flexShrink: 0, overflow: "hidden", border: "1px solid #ffffff1a", textDecoration: "none" }}>
             {item.profile?.avatar_url?.startsWith("http") ? <img src={item.profile.avatar_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontWeight: 900, color: "#FFD45A" }}>{name.slice(0, 1).toUpperCase()}</span>}
           </Link>
@@ -199,6 +237,14 @@ export default function FeedPage() {
               </div>
             </div>}
             {!item.title && <p style={{ margin: 0, color: "#8997B8", fontSize: 10 }}>{item.detail} · {dateLabel(item.date)}</p>}
+            <button type="button" onClick={() => toggleLike(item)} disabled={likeBusy.includes(item.id)}
+              aria-label={item.liked ? "Descurtir atividade" : "Curtir atividade"} aria-pressed={item.liked}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 11, padding: "5px 8px", border: "1px solid " + (item.liked ? "#FB718555" : "#ffffff18"), borderRadius: 999, background: item.liked ? "#FB718515" : "transparent", color: item.liked ? "#FB7185" : "#AAB4CE", cursor: likeBusy.includes(item.id) ? "wait" : "pointer", opacity: likeBusy.includes(item.id) ? .6 : 1, fontSize: 11, fontWeight: 800 }}>
+              <svg viewBox="0 0 24 24" width="16" height="16" fill={item.liked ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z" />
+              </svg>
+              {item.likesCount > 0 ? item.likesCount : "Curtir"}
+            </button>
           </div>
           <span aria-hidden="true" style={{ fontSize: 18, color: accent, flexShrink: 0 }}>{iconFor(item.kind)}</span>
         </article>
