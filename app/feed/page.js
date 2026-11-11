@@ -18,6 +18,7 @@ export default function FeedPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [likeBusy, setLikeBusy] = useState([])
+  const [highlightedActivity, setHighlightedActivity] = useState(null)
 
   useEffect(() => {
     let active = true
@@ -155,6 +156,14 @@ export default function FeedPage() {
     return () => { active = false }
   }, [])
 
+  useEffect(() => {
+    if (loading || !items.length || typeof window === "undefined") return
+    const activityKey = new URLSearchParams(window.location.search).get("activity")
+    if (!activityKey) return
+    setHighlightedActivity(activityKey)
+    document.getElementById(activityKey)?.scrollIntoView({ behavior: "smooth", block: "center" })
+  }, [loading, items])
+
   const visible = useMemo(() => items.filter(item =>
     tab === "seguindo" ? (item.user_id === userId || following.includes(item.user_id)) : true
   ), [items, following, tab, userId])
@@ -220,7 +229,7 @@ export default function FeedPage() {
       {!loading && visible.map(item => {
         const name = item.profile?.nome || item.profile?.username || "Maratoneiro"
         const accent = accentFor(item.kind)
-        return <article id={item.id} key={item.id} style={{ display: "flex", gap: 12, padding: 14, marginBottom: 10, borderRadius: 17, background: "linear-gradient(110deg,#111A2D,#0D1527)", border: "1px solid #ffffff10" }}>
+        return <article id={item.id} key={item.id} style={{ display: "flex", gap: 12, padding: 14, marginBottom: 10, borderRadius: 17, background: "linear-gradient(110deg,#111A2D,#0D1527)", border: item.id === highlightedActivity ? "1px solid #FFD45A" : "1px solid #ffffff10", scrollMarginTop: 90 }}>
           <Link href={"/perfil/" + item.user_id} aria-label={"Ver perfil de " + name} style={{ width: 42, height: 42, borderRadius: "50%", background: "#263451", display: "grid", placeItems: "center", flexShrink: 0, overflow: "hidden", border: "1px solid #ffffff1a", textDecoration: "none" }}>
             {item.profile?.avatar_url?.startsWith("http") ? <img src={item.profile.avatar_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontWeight: 900, color: "#FFD45A" }}>{name.slice(0, 1).toUpperCase()}</span>}
           </Link>
