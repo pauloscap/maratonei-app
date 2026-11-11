@@ -99,6 +99,7 @@ export default function Notificacoes() {
   }
 
   function detalhes(n) {
+    if (n.tipo === 'curtida') return { texto: `curtiu sua atualização sobre ${n.atividade_titulo || 'uma atividade'}`, icone: '♥', cor: '#FB7185', destino: n.atividade_id ? `/feed?activity=${encodeURIComponent(n.atividade_id)}` : '/feed', acao: 'Ver atualização' }
     if (n.tipo === 'seguiu') return { texto: 'começou a seguir você', icone: '＋', cor: '#7C9CFF', destino: `/perfil/${n.autor_id}`, acao: 'Ver perfil' }
     if (n.tipo === 'comentou') return {
       texto: `comentou em ${n.serie?.titulo || 'uma série'} · T${n.temporada_numero ?? '?'}E${n.episodio_numero ?? '?'}`,
