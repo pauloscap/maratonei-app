@@ -137,8 +137,8 @@ export default function FeedPage() {
   }, [])
 
   const visible = useMemo(() => items.filter(item =>
-    tab === "seguindo" ? following.includes(item.user_id) : true
-  ), [items, following, tab])
+    tab === "seguindo" ? (item.user_id === userId || following.includes(item.user_id)) : true
+  ), [items, following, tab, userId])
 
   const dateLabel = value => {
     if (!value) return "Data não informada"
@@ -159,7 +159,7 @@ export default function FeedPage() {
       <div style={{ maxWidth: 760, margin: "0 auto" }}>
         <p style={{ color: "#FFD45A", fontSize: 9, fontWeight: 900, letterSpacing: 2.3, margin: "0 0 8px" }}>MARATONEI SOCIAL</p>
         <h1 style={{ fontSize: 29, fontWeight: 950, letterSpacing: -1, margin: 0 }}>Amigos</h1>
-        <p style={{ color: "#A5B1CA", fontSize: 12, lineHeight: 1.6, margin: "8px 0 0" }}>As listas, descobertas e maratonas de quem você acompanha.</p>
+        <p style={{ color: "#A5B1CA", fontSize: 12, lineHeight: 1.6, margin: "8px 0 0" }}>Suas atualizações e as dos seus amigos, reunidas em uma só linha do tempo.</p>
       </div>
     </header>
     <section style={{ maxWidth: 760, margin: "0 auto", padding: "17px 14px" }}>
@@ -175,7 +175,7 @@ export default function FeedPage() {
       {!loading && userId && visible.length === 0 && <div style={emptyStyle}>
         <div style={{ fontSize: 34 }}>🎬</div>
         <h2 style={emptyTitle}>{tab === "seguindo" ? "Seu feed está começando" : "A comunidade está aquecendo"}</h2>
-        <p style={emptyText}>{tab === "seguindo" ? "Quando seus amigos salvarem filmes, começarem séries ou concluírem uma maratona, você verá tudo aqui." : "Ainda não há atividades públicas para mostrar."}</p>
+        <p style={emptyText}>{tab === "seguindo" ? "Quando você ou seus amigos salvarem filmes, começarem séries ou concluírem uma maratona, as atualizações aparecerão aqui." : "Ainda não há atividades públicas para mostrar."}</p>
         <Link href="/busca" style={actionLink}>Encontrar maratoneiros <span>→</span></Link>
       </div>}
 
