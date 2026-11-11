@@ -194,33 +194,7 @@ export default function BuscaPage() {
         <h1 style={{ fontSize:18, fontWeight:800, fontFamily:"Sora,sans-serif" }}>Descobrir</h1>
       </header>
       <main style={{ maxWidth:1100, margin:"0 auto", padding:"16px 12px" }}>
-        <section style={{marginBottom:28,background:"linear-gradient(145deg,#151f40,#10172e)",border:"1px solid #ffffff16",borderRadius:18,padding:16}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap",marginBottom:12}}>
-            <div>
-              <h2 style={{fontSize:17,fontWeight:900,margin:0}}>👥 Descubra maratoneiros</h2>
-              <p style={{fontSize:11,color:"#9CAACB",margin:"5px 0 0"}}>Encontre pessoas e acompanhe o que elas assistem.</p>
-            </div>
-            <span style={{fontSize:10,color:"#FFD400",fontWeight:800}}>COMUNIDADE</span>
-          </div>
-          <input value={buscaPessoa} onChange={e=>setBuscaPessoa(e.target.value)} placeholder="Buscar por nome ou @usuário..." style={{width:"100%",boxSizing:"border-box",height:42,borderRadius:12,border:"1px solid #ffffff20",background:"#080F25",color:"#fff",padding:"0 13px",outline:"none",marginBottom:14}} />
-          {pessoasLoading ? <p style={{fontSize:12,color:"#9CAACB"}}>Carregando comunidade...</p> : (
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:10}}>
-              {pessoas.filter(p => !buscaPessoa.trim() || (p.nome||"").toLowerCase().includes(buscaPessoa.toLowerCase()) || (p.username||"").toLowerCase().includes(buscaPessoa.toLowerCase().replace(/^@/,""))).slice(0,12).map(p => (
-                <div key={p.id} style={{display:"flex",alignItems:"center",gap:10,padding:10,borderRadius:14,background:"#ffffff08",border:"1px solid #ffffff10"}}>
-                  <div style={{width:42,height:42,borderRadius:"50%",overflow:"hidden",background:"#29365d",display:"grid",placeItems:"center",flexShrink:0}}>
-                    {p.avatar?.startsWith("http") ? <img src={p.avatar} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/> : <span style={{fontSize:21}}>{p.avatar?.startsWith("emoji:") ? p.avatar.slice(6) : (p.nome||"M").slice(0,1).toUpperCase()}</span>}
-                  </div>
-                  <div style={{minWidth:0,flex:1}}>
-                    <a href={"/perfil/"+p.id} style={{color:"#fff",fontSize:12,fontWeight:800,textDecoration:"none",display:"block",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.nome}</a>
-                    <span style={{fontSize:10,color:"#9CAACB"}}>{p.username ? "@"+p.username : "Maratoneiro"}</span>
-                  </div>
-                  <button onClick={()=>toggleSeguirPessoa(p.id)} disabled={followLoading===p.id} style={{border:seguindoIds.includes(p.id)?"1px solid #FFD400":"none",borderRadius:999,padding:"7px 10px",fontSize:10,fontWeight:900,background:seguindoIds.includes(p.id)?"#202A49":"#FFD400",color:seguindoIds.includes(p.id)?"#FFD400":"#080B1F",whiteSpace:"nowrap"}}>{followLoading===p.id?"...":seguindoIds.includes(p.id)?"Seguindo":"Seguir +"}</button>
-                </div>
-              ))}
-            </div>
-          )}
-          {!pessoasLoading && pessoas.filter(p => !buscaPessoa.trim() || (p.nome||"").toLowerCase().includes(buscaPessoa.toLowerCase()) || (p.username||"").toLowerCase().includes(buscaPessoa.toLowerCase().replace(/^@/,""))).length===0 && <p style={{fontSize:12,color:"#9CAACB"}}>Nenhum perfil encontrado para essa busca.</p>}
-        </section>
+
 
         <div style={{ display:"flex", alignItems:"center", gap:10, background:"#121B3A", border:"1px solid #ffffff18", height:46, borderRadius:999, padding:"0 16px", marginBottom:20 }}>
           <span style={{ opacity:0.5 }}>🔍</span>
@@ -253,6 +227,34 @@ export default function BuscaPage() {
             <Row title="✨ Lançamentos e No Ar - Séries" list={lancSeries} onClick={abrirSerie} />
           </>
         )}
+        <section style={{marginBottom:28,background:"linear-gradient(145deg,#151f40,#10172e)",border:"1px solid #ffffff16",borderRadius:18,padding:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap",marginBottom:12}}>
+            <div>
+              <h2 style={{fontSize:17,fontWeight:900,margin:0}}>👥 Descubra maratoneiros</h2>
+              <p style={{fontSize:11,color:"#9CAACB",margin:"5px 0 0"}}>Encontre pessoas e acompanhe o que elas assistem.</p>
+            </div>
+            <span style={{fontSize:10,color:"#FFD400",fontWeight:800}}>COMUNIDADE</span>
+          </div>
+          <input value={buscaPessoa} onChange={e=>setBuscaPessoa(e.target.value)} placeholder="Buscar por nome ou @usuário..." style={{width:"100%",boxSizing:"border-box",height:42,borderRadius:12,border:"1px solid #ffffff20",background:"#080F25",color:"#fff",padding:"0 13px",outline:"none",marginBottom:14}} />
+          {pessoasLoading ? <p style={{fontSize:12,color:"#9CAACB"}}>Carregando comunidade...</p> : (
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:10}}>
+              {pessoas.filter(p => !buscaPessoa.trim() || (p.nome||"").toLowerCase().includes(buscaPessoa.toLowerCase()) || (p.username||"").toLowerCase().includes(buscaPessoa.toLowerCase().replace(/^@/,""))).slice(0,12).map(p => (
+                <div key={p.id} style={{display:"flex",alignItems:"center",gap:10,padding:10,borderRadius:14,background:"#ffffff08",border:"1px solid #ffffff10"}}>
+                  <div style={{width:42,height:42,borderRadius:"50%",overflow:"hidden",background:"#29365d",display:"grid",placeItems:"center",flexShrink:0}}>
+                    {p.avatar?.startsWith("http") ? <img src={p.avatar} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/> : <span style={{fontSize:21}}>{p.avatar?.startsWith("emoji:") ? p.avatar.slice(6) : (p.nome||"M").slice(0,1).toUpperCase()}</span>}
+                  </div>
+                  <div style={{minWidth:0,flex:1}}>
+                    <a href={"/perfil/"+p.id} style={{color:"#fff",fontSize:12,fontWeight:800,textDecoration:"none",display:"block",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.nome}</a>
+                    <span style={{fontSize:10,color:"#9CAACB"}}>{p.username ? "@"+p.username : "Maratoneiro"}</span>
+                  </div>
+                  <button onClick={()=>toggleSeguirPessoa(p.id)} disabled={followLoading===p.id} style={{border:seguindoIds.includes(p.id)?"1px solid #FFD400":"none",borderRadius:999,padding:"7px 10px",fontSize:10,fontWeight:900,background:seguindoIds.includes(p.id)?"#202A49":"#FFD400",color:seguindoIds.includes(p.id)?"#FFD400":"#080B1F",whiteSpace:"nowrap"}}>{followLoading===p.id?"...":seguindoIds.includes(p.id)?"Seguindo":"Seguir +"}</button>
+                </div>
+              ))}
+            </div>
+          )}
+          {!pessoasLoading && pessoas.filter(p => !buscaPessoa.trim() || (p.nome||"").toLowerCase().includes(buscaPessoa.toLowerCase()) || (p.username||"").toLowerCase().includes(buscaPessoa.toLowerCase().replace(/^@/,""))).length===0 && <p style={{fontSize:12,color:"#9CAACB"}}>Nenhum perfil encontrado para essa busca.</p>}
+        </section>
+
       </main>
       <BottomNav />
     </div>
