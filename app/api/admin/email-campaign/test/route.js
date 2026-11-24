@@ -55,7 +55,7 @@ function buildHtml({ subject, message, coverImageUrl, blocks }) {
             ${coverImageUrl ? `<img src="${escapeHtml(coverImageUrl)}" alt="Capa da newsletter" width="536" style="display:block;width:100%;max-width:536px;height:auto;border:0;border-radius:8px;margin:0 0 20px">` : ''}
             <p style="font-family:Arial,sans-serif;font-size:15px;line-height:1.7;color:#4B5563;margin:0 0 18px;white-space:pre-wrap">${escapeHtml(message)}</p>
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${sections}</table>
-            <p style="text-align:center;margin:28px 0 8px"><a href="https://maratoneiapp.com.br" style="display:inline-block;background:#F2C94C;color:#172033;text-decoration:none;font-family:Arial,sans-serif;font-size:13px;font-weight:bold;padding:13px 21px;border-radius:6px">ACESSAR MARATONEI</a></p>
+            <p style="text-align:center;margin:28px 0 8px"><a href="https://www.maratoneiapp.com.br/admin/comunicados" style="display:inline-block;background:#F2C94C;color:#172033;text-decoration:none;font-family:Arial,sans-serif;font-size:13px;font-weight:bold;padding:13px 21px;border-radius:6px">ACESSAR MARATONEI</a></p>
           </td></tr>
           <tr><td style="padding:17px 28px;background:#F9FAFB;border-top:1px solid #E5E7EB">
             <p style="font-family:Arial,sans-serif;font-size:11px;line-height:1.5;color:#6B7280;text-align:center;margin:0">Este é um e-mail de teste enviado somente ao administrador do Maratonei.</p>
