@@ -104,11 +104,24 @@ export async function POST(request) {
     return Response.json({ error: error.message }, { status: 400 })
   }
 
-  const clientId = process.env.GMAIL_CLIENT_ID
-  const clientSecret = process.env.GMAIL_CLIENT_SECRET
-  const refreshToken = process.env.GMAIL_REFRESH_TOKEN
-  if (!clientId || !clientSecret || !refreshToken) {
-    return Response.json({ error: 'Gmail credentials are incomplete. Check GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET and GMAIL_REFRESH_TOKEN in the Preview environment.' }, { status: 503 })
+  const clientId = process.env.GMAIL_CLIENT_ID?.trim()
+  const clientSecret = process.env.GMAIL_CLIENT_SECRET?.trim()
+  const refreshToken = process.env.GMAIL_REFRESH_TOKEN?.trim()
+  const missingCredentials = [
+    !clientId && 'GMAIL_CLIENT_ID',
+    !clientSecret && 'GMAIL_CLIENT_SECRET',
+    !refreshToken && 'GMAIL_REFRESH_TOKEN'
+  ].filter(Boolean)
+
+  if (missingCredentials.length) {
+    const environment = process.env.VERCEL_ENV || 'unknown'
+    console.error('Gmail test configuration incomplete:', {
+      environment,
+      missing: missingCredentials
+    })
+    return Response.json({
+      error: 'Gmail credentials missing in ' + environment + ': ' + missingCredentials.join(', ') + '. Check these variables in the matching Vercel environment and redeploy.'
+    }, { status: 503 })
   }
 
   try {
