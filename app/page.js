@@ -1,4 +1,5 @@
 import Link from "next/link";
+import AuthReturnRedirect from "./AuthReturnRedirect";
 
 export const metadata = {
   title: "Maratonei App | Filmes, séries e comunidade",
@@ -13,6 +14,8 @@ const features = [
 
 export default function PublicHome() {
   return (
+    <>
+    <AuthReturnRedirect />
     <main style={{minHeight:"100vh",background:"#080B14",color:"#F5F6FA",fontFamily:"'Sora',Inter,system-ui,sans-serif"}}>
       <header style={{maxWidth:1160,margin:"0 auto",padding:"22px 24px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:18}}>
         <Link href="/" aria-label="Maratonei App — página inicial" style={{display:"flex",alignItems:"center",gap:11,textDecoration:"none",color:"inherit"}}>
@@ -101,5 +104,6 @@ export default function PublicHome() {
         <p style={{maxWidth:1160,margin:"10px auto 0",fontSize:10,color:"#596477"}}>© {new Date().getFullYear()} Maratonei App. Todos os direitos reservados.</p>
       </footer>
     </main>
+    </>
   );
 }
