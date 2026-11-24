@@ -96,7 +96,7 @@ export default function PublicHome() {
           </nav>
         </div>
         <p style={{maxWidth:1160,margin:"22px auto 0",fontSize:10,lineHeight:1.7,color:"#697386"}}>
-          O Maratonei App utiliza os serviços do Google para autenticação e envio de comunicações por e-mail. Não utiliza APIs do Google para criar ou distribuir imagens íntimas não consensuais geradas por inteligência artificial.
+          O Maratonei App utiliza os serviços do Google para autenticação e envio de comunicações por e-mail. O uso das informações recebidas das APIs do Google segue os requisitos de uso limitado (Limited Use) do Google. Não utiliza APIs do Google para criar, gerar ou distribuir imagens íntimas não consensuais (NCII), inclusive conteúdo gerado por inteligência artificial.
         </p>
         <p style={{maxWidth:1160,margin:"10px auto 0",fontSize:10,color:"#596477"}}>© {new Date().getFullYear()} Maratonei App. Todos os direitos reservados.</p>
       </footer>
