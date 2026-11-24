@@ -13,10 +13,10 @@ export default function AuthCallback() {
     );
 
     const params = new URLSearchParams(window.location.search);
-    const requestedPath = params.get('next') || '/';
+    const requestedPath = params.get('next') || '/inicio';
     const destination = requestedPath.startsWith('/') && !requestedPath.startsWith('//')
       ? requestedPath
-      : '/';
+      : '/inicio';
 
     let redirected = false;
     const goToDestination = () => {
