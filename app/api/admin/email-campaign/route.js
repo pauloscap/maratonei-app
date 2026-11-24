@@ -97,13 +97,22 @@ export async function POST(request) {
 
     const users = await loadUsers(auth.supabase)
     const campaignId = crypto.randomUUID()
+    const adminEmail = String(process.env.MARATONEI_ADMIN_EMAIL || '').trim().toLowerCase()
     const rows = users.filter(user => user.email && user.email_confirmed_at && !unsubscribed.has(user.id)).map(user => ({
       notification_id: null,
       event_key: 'announcement:' + campaignId,
       user_id: user.id,
       recipient_email: user.email,
       notification_type: 'comunicado',
-      payload: { subject, message, coverImageUrl, blocks, destination: '/' },
+      payload: {
+        subject,
+        message,
+        coverImageUrl,
+        blocks,
+        // Only the administrator's own copy opens the protected communications panel.
+        // All other subscribers continue to the public Maratonei homepage.
+        destination: String(user.email).trim().toLowerCase() === adminEmail ? '/admin/comunicados' : '/'
+      },
       status: 'pending'
     }))
 
