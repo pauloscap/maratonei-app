@@ -13,7 +13,8 @@ export default function AuthCallback() {
     );
 
     const params = new URLSearchParams(window.location.search);
-    const requestedPath = params.get('next') || '/inicio';
+    const storedPath = window.sessionStorage.getItem('maratonei_auth_next');
+    const requestedPath = params.get('next') || storedPath || '/inicio';
     const destination = requestedPath.startsWith('/') && !requestedPath.startsWith('//')
       ? requestedPath
       : '/inicio';
@@ -22,6 +23,7 @@ export default function AuthCallback() {
     const goToDestination = () => {
       if (redirected) return;
       redirected = true;
+      window.sessionStorage.removeItem('maratonei_auth_next');
       router.replace(destination);
     };
 
