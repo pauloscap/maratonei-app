@@ -46,8 +46,14 @@ export default function ComunicadosAdminPage() {
     setAuthLoading(true); setNotice("")
     const callbackUrl = new URL("/auth/callback", window.location.origin)
     callbackUrl.searchParams.set("next", "/admin/comunicados")
+    // Keep the intended destination in this tab in case Supabase falls back to Site URL.
+    window.sessionStorage.setItem("maratonei_auth_next", "/admin/comunicados")
     const { error } = await supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: callbackUrl.toString() } })
-    if (error) { setNotice("Não foi possível iniciar o login com Google. Tente novamente."); setAuthLoading(false) }
+    if (error) {
+      window.sessionStorage.removeItem("maratonei_auth_next")
+      setNotice("Não foi possível iniciar o login com Google. Tente novamente.")
+      setAuthLoading(false)
+    }
   }
 
   async function uploadNewsletterImage(file, target, key) {
