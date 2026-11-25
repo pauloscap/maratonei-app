@@ -211,6 +211,10 @@ export default function Home() {
       user_id: userId, serie_id: nova.id, titulo: nova.titulo, ano: nova.ano, img: nova.img, q: nova.q, status: "", origem: nova.origem, eps_vistos: [], updated_at: new Date().toISOString()
     }, { onConflict: 'user_id,serie_id' })
     if (error) { alert("Erro: " + error.message); return }
+    await supabase.from("social_activities").insert({
+      actor_id:userId, activity_type:"series_added", media_type:"tv",
+      media_id:String(nova.id), title:nova.titulo, poster_url:nova.img || ""
+    })
     setBusca(""); setResultados([])
     setTimeout(function(){ window.location.href = "/serie/" + nova.id }, 100)
   }

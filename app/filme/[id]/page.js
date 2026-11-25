@@ -235,6 +235,10 @@ export default function DetalheFilme() {
       }
       const { error } = await supabase.from("user_filmes").upsert(payload, { onConflict:"user_id,filme_id" })
       if(error) throw error
+      await supabase.from("social_activities").insert({
+        actor_id:uid, activity_type:novoStatus==="ja_assisti"?"film_watched":"film_added",
+        media_type:"movie", media_id:String(id), title:filme?.titulo || "Filme", poster_url:filme?.img || ""
+      })
     }catch(e){
       alert("Erro: "+e.message)
       setSalvando(false)

@@ -3,7 +3,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 
 const items = [
-  { href:"/", label:"Início", icon:"⌂", id:"inicio" },
+  { href:"/inicio", label:"Início", icon:"⌂", id:"inicio" },
   { href:"/feed", label:"Amigos", icon:"◎", id:"amigos" },
   { href:"/busca", label:"Descobrir", icon:"⌕", id:"descobrir" },
   { href:"/series", label:"Séries", icon:"▣", id:"series" },
@@ -15,7 +15,7 @@ export function BottomNav() {
   const path = usePathname()
 
   const isActive = (href) => {
-    if (href === "/") return path === "/"
+    if (href === "/inicio") return path === "/inicio"
     return path?.startsWith(href)
   }
 

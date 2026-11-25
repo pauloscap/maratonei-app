@@ -26,6 +26,10 @@ export default function PerfilPublico() {
   const [loading,setLoading] = useState(true)
   const [savingFollow,setSavingFollow] = useState(false)
   const [error,setError] = useState('')
+  const [stats,setStats] = useState({filmes:0,series:0,horasFilmes:0,horasSeries:0})
+  const [ultimosFilmes,setUltimosFilmes] = useState([])
+  const [ultimasSeries,setUltimasSeries] = useState([])
+  const [abaAtiva,setAbaAtiva] = useState('filmes')
 
   const carregarRelacoes = useCallback(async(viewerId) => {
     const [{count:followers,error:followersError},{count:following,error:followingError}] = await Promise.all([
@@ -67,6 +71,21 @@ export default function PerfilPublico() {
         xp:legacyData?.xp||0,
         moldura:legacyData?.moldura||'padrao'
       })
+      const [{data:filmesData,error:filmesError},{data:seriesData,error:seriesError}] = await Promise.all([
+        supabase.from('user_filmes').select('id,titulo,img,status,runtime,updated_at,data_assistido').eq('user_id',profileId).order('data_assistido',{ascending:false,nullsFirst:false}).order('updated_at',{ascending:false}).limit(100),
+        supabase.from('user_series').select('id,titulo,img,status,eps_vistos,updated_at').eq('user_id',profileId).order('updated_at',{ascending:false}).limit(100)
+      ])
+      if(ativo){
+        const filmes = filmesError ? [] : (filmesData||[])
+        const series = seriesError ? [] : (seriesData||[])
+        const vistos = filmes.filter(f=>f.status==='ja_assisti')
+        const seriesComProgresso = series.filter(x=>x.status==='maratonei' || (Array.isArray(x.eps_vistos) ? x.eps_vistos.length>0 : false))
+        const horasFilmes = vistos.reduce((total,f)=>total+((Number(f.runtime)||120)/60),0)
+        const horasSeries = series.reduce((total,x)=>total+(Array.isArray(x.eps_vistos)?x.eps_vistos.length:0)*0.75,0)
+        setStats({filmes:vistos.length,series:seriesComProgresso.length,horasFilmes:Math.round(horasFilmes),horasSeries:Math.round(horasSeries)})
+        setUltimosFilmes(vistos.slice(0,12))
+        setUltimasSeries(seriesComProgresso.slice(0,12))
+      }
       await carregarRelacoes(viewer?.id)
       if(ativo) setLoading(false)
     }
@@ -115,9 +134,51 @@ export default function PerfilPublico() {
         </div>
         {error&&<p role="alert" style={{color:'#FCA5A5',fontSize:13,marginTop:14}}>{error}</p>}
       </section>
-      <section style={{marginTop:18,background:'#111831',border:'1px solid #ffffff12',borderRadius:18,padding:20}}>
-        <h2 style={{fontSize:16,color:'#fff',marginBottom:8}}>Atividade no Maratonei</h2>
-        <p style={{fontSize:13,color:'#AAB4CE',lineHeight:1.6}}>O histórico público de filmes, séries e episódios será exibido aqui conforme as próximas etapas do Maratonei Social forem ativadas.</p>
+      <section style={{marginTop:18,display:'grid',gridTemplateColumns:'repeat(2,minmax(0,1fr))',gap:10}}>
+        <div style={{background:'linear-gradient(145deg,#1B2747,#111831)',border:'1px solid #ffffff12',borderRadius:16,padding:16}}>
+          <div style={{fontSize:11,color:'#AAB4CE'}}>🎬 Filmes assistidos</div>
+          <strong style={{display:'block',fontSize:27,color:'#FFD400',marginTop:5}}>{stats.filmes}</strong>
+          <span style={{fontSize:12,color:'#AAB4CE'}}>{stats.horasFilmes} horas de filmes</span>
+        </div>
+        <div style={{background:'linear-gradient(145deg,#1B2747,#111831)',border:'1px solid #ffffff12',borderRadius:16,padding:16}}>
+          <div style={{fontSize:11,color:'#AAB4CE'}}>📺 Séries acompanhadas</div>
+          <strong style={{display:'block',fontSize:27,color:'#FFD400',marginTop:5}}>{stats.series}</strong>
+          <span style={{fontSize:12,color:'#AAB4CE'}}>{stats.horasSeries} horas de séries</span>
+        </div>
+      </section>
+      <section style={{marginTop:18,background:'#111831',border:'1px solid #ffffff12',borderRadius:18,padding:16}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:10,marginBottom:14}}>
+          <div>
+            <h2 style={{fontSize:17,color:'#fff',fontWeight:900}}>O que anda assistindo</h2>
+            <p style={{fontSize:12,color:'#8793B2',marginTop:3}}>Últimas atualizações deste perfil</p>
+          </div>
+          <span style={{fontSize:10,color:'#FFD400',fontWeight:800,letterSpacing:1}}>MARATONEI</span>
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:16}}>
+          <button onClick={()=>setAbaAtiva('filmes')} style={{padding:'11px 8px',borderRadius:12,border:abaAtiva==='filmes'?'1px solid #FFD400':'1px solid #ffffff14',background:abaAtiva==='filmes'?'#FFD40018':'#ffffff06',color:abaAtiva==='filmes'?'#FFD400':'#AAB4CE',fontWeight:900,cursor:'pointer'}}>🎬 Últimos filmes</button>
+          <button onClick={()=>setAbaAtiva('series')} style={{padding:'11px 8px',borderRadius:12,border:abaAtiva==='series'?'1px solid #FFD400':'1px solid #ffffff14',background:abaAtiva==='series'?'#FFD40018':'#ffffff06',color:abaAtiva==='series'?'#FFD400':'#AAB4CE',fontWeight:900,cursor:'pointer'}}>📺 Últimas séries</button>
+        </div>
+        {abaAtiva==='filmes' ? (
+          ultimosFilmes.length ? <div style={{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:10}}>
+            {ultimosFilmes.map(f=><div key={f.id} style={{minWidth:0}}>
+              <div style={{aspectRatio:'2/3',borderRadius:10,overflow:'hidden',background:'#202A49',border:'1px solid #ffffff12'}}>
+                {f.img?<img src={f.img} alt={f.titulo||'Filme'} loading="lazy" style={{width:'100%',height:'100%',objectFit:'cover'}}/>:<div style={{height:'100%',display:'grid',placeItems:'center',fontSize:28}}>🎬</div>}
+              </div>
+              <div style={{fontSize:12,color:'#F8FAFC',fontWeight:800,lineHeight:1.35,marginTop:7,display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden'}}>{f.titulo||'Filme'}</div>
+              <div style={{fontSize:10,color:'#8793B2',marginTop:3}}>Assistido</div>
+            </div>)}
+          </div> : <p style={{fontSize:13,color:'#AAB4CE',textAlign:'center',padding:'24px 8px'}}>Ainda não há filmes assistidos por aqui.</p>
+        ) : (
+          ultimasSeries.length ? <div style={{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:10}}>
+            {ultimasSeries.map(x=><div key={x.id} style={{minWidth:0}}>
+              <div style={{aspectRatio:'2/3',borderRadius:10,overflow:'hidden',background:'#202A49',border:'1px solid #ffffff12'}}>
+                {x.img?<img src={x.img} alt={x.titulo||'Série'} loading="lazy" style={{width:'100%',height:'100%',objectFit:'cover'}}/>:<div style={{height:'100%',display:'grid',placeItems:'center',fontSize:28}}>📺</div>}
+              </div>
+              <div style={{fontSize:12,color:'#F8FAFC',fontWeight:800,lineHeight:1.35,marginTop:7,display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden'}}>{x.titulo||'Série'}</div>
+              <div style={{fontSize:10,color:'#8793B2',marginTop:3}}>{Array.isArray(x.eps_vistos)?x.eps_vistos.length:0} episódios vistos</div>
+            </div>)}
+          </div> : <p style={{fontSize:13,color:'#AAB4CE',textAlign:'center',padding:'24px 8px'}}>Ainda não há séries com progresso registrado.</p>
+        )}
       </section>
     </main>
   )
