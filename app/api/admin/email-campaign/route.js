@@ -98,6 +98,10 @@ export async function POST(request) {
     const users = await loadUsers(auth.supabase)
     const campaignId = crypto.randomUUID()
     const adminEmail = String(process.env.MARATONEI_ADMIN_EMAIL || '').trim().toLowerCase()
+    // The isolated test recipient is also the verified administrator inbox.
+    // Keep it as a fallback so a missing/mismatched env value cannot send the
+    // administrator's own newsletter copy to the public homepage.
+    const adminRecipients = new Set([adminEmail, 'paulor.garcia7@gmail.com'].filter(Boolean))
     const rows = users.filter(user => user.email && user.email_confirmed_at && !unsubscribed.has(user.id)).map(user => ({
       notification_id: null,
       event_key: 'announcement:' + campaignId,
@@ -111,7 +115,7 @@ export async function POST(request) {
         blocks,
         // Only the administrator's own copy opens the protected communications panel.
         // All other subscribers continue to the public Maratonei homepage.
-        destination: String(user.email).trim().toLowerCase() === adminEmail ? '/admin/comunicados' : '/'
+        destination: adminRecipients.has(String(user.email).trim().toLowerCase()) ? '/admin/comunicados' : '/'
       },
       status: 'pending'
     }))
