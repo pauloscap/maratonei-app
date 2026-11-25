@@ -133,8 +133,20 @@ export async function POST(request) {
     })
     const tokenData = await tokenResponse.json()
     if (!tokenResponse.ok || !tokenData.access_token) {
-      console.error('Gmail OAuth refresh failed:', tokenData.error || tokenResponse.status)
-      return Response.json({ error: 'Gmail authentication failed. Review the OAuth credentials and refresh token.' }, { status: 502 })
+      // OAuth error codes/descriptions are safe diagnostic metadata; never log or return credentials.
+      const oauthError = String(tokenData.error || 'unknown_error').slice(0, 100)
+      const oauthDescription = String(tokenData.error_description || 'No description returned').slice(0, 300)
+      const oauthSubtype = String(tokenData.error_subtype || '').slice(0, 100)
+      console.error('Gmail OAuth refresh failed:', JSON.stringify({
+        environment: process.env.VERCEL_ENV || 'unknown',
+        status: tokenResponse.status,
+        error: oauthError,
+        error_description: oauthDescription,
+        error_subtype: oauthSubtype || undefined
+      }))
+      return Response.json({
+        error: 'Google OAuth: ' + oauthError + '. ' + oauthDescription + (oauthSubtype ? ' (' + oauthSubtype + ')' : '')
+      }, { status: 502 })
     }
 
     const html = buildHtml({ subject, message, coverImageUrl, blocks })
