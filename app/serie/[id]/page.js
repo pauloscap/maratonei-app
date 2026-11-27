@@ -4,7 +4,86 @@ import { getSupa } from "../../../lib/supabase";
 import { useParams, useRouter } from "next/navigation"
 import ShareModal from "../../../components/ShareModal"
 
-const supabase = getSupa();)
+const supabase = getSupa();const TMDB_KEY = process.env.NEXT_PUBLIC_TMDB_KEY || "4e44d9029b1273360df0be1de39768d1"
+const SITE_URL = "https://www.maratoneiapp.com.br"
+
+export default function DetalheSerie() {
+  const params = useParams()
+  const router = useRouter()
+  const id = String(params.id)
+  const [userId, setUserId] = useState(null)
+  const [serie, setSerie] = useState(null)
+  const [status, setStatus] = useState("")
+  const [epsVistos, setEpsVistos] = useState([])
+  const [temporadas, setTemporadas] = useState([])
+  const [aberta, setAberta] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [detalhes, setDetalhes] = useState({ sinopse:"", nota:0, votos:0, providers:[] })
+  const [showRating, setShowRating] = useState(false)
+  const [minhaNota, setMinhaNota] = useState(0)
+  const [hoverNota, setHoverNota] = useState(0)
+  
+  // SHARE
+  const [showShare, setShowShare] = useState(false)
+  const [shareData, setShareData] = useState(null)
+  const [showCelebration, setShowCelebration] = useState(false)
+
+  useEffect(() => {
+    async function run() {
+      setLoading(true)
+      setSerie(null)
+      setTemporadas([])
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) { router.push("/login"); return }
+      const uid = session.user.id
+      setUserId(uid)
+      const { data: row } = await supabase.from("user_series").select("*").eq("user_id", uid).eq("serie_id", id).maybeSingle()
+      if (!row) { router.push("/"); return }
+      let s = { id: row.serie_id, titulo: row.titulo, ano: row.ano, img: row.img, q: row.q, status: row.status, origem: row.origem || "tmdb" }
+      setSerie(s)
+      setStatus(row.status || "")
+      setEpsVistos(row.eps_vistos || [])
+      if(row.nota || row.avaliacao) setMinhaNota(row.nota || row.avaliacao)
+      try {
+        let lista = [], updates = {}, sinopse="", notaTmdb=0, votos=0, providers=[], detalhesTMDB=null
+        if (s.origem === "tmdb") {
+          const details = await fetch(`https://api.themoviedb.org/3/tv/${id}?api_key=${TMDB_KEY}&language=pt-BR`, { cache: 'no-store' }).then(r=>r.json())
+          detalhesTMDB = details
+          if (details?.name) {
+            sinopse = details.overview || ""; notaTmdb = details.vote_average || 0; votos = details.vote_count || 0
+            const newImg = details.poster_path? `https://image.tmdb.org/t/p/w500${details.poster_path}` : s.img
+            if(newImg!==s.img) updates.img=newImg
+            s = {...s, titulo: details.name, ano: details.first_air_date?.slice(0,4) || s.ano, img: newImg, banner: newImg }
+            setSerie(s)
+            try{
+              const prov = await fetch(`https://api.themoviedb.org/3/tv/${id}/watch/providers?api_key=${TMDB_KEY}`).then(r=>r.json())
+              const br = prov.results?.BR
+              if(br){ const all=[...(br.flatrate||[]),...(br.rent||[]),...(br.buy||[])]; providers=[...new Map(all.map(p=>[p.provider_id,p])).values()].slice(0,6) }
+            }catch{}
+          }
+          if(details?.seasons){
+            const seasonsData = await Promise.all(details.seasons.filter(se=>se.season_number>0).map(se=>fetch(`https://api.themoviedb.org/3/tv/${id}/season/${se.season_number}?api_key=${TMDB_KEY}&language=pt-BR`).then(r=>r.json())))
+            const mapa={}; seasonsData.forEach(se=>{ mapa[se.season_number]={ numero: se.season_number, eps: se.episodes.map(ep=>({ id:String(ep.id), numero:ep.episode_number, nome:ep.name, resumo: ep.overview?.replace(/<[^>]+>/g,"").trim()||"Sem resumo.", img: ep.still_path? `https://image.tmdb.org/t/p/w300${ep.still_path}`:"", runtime:ep.runtime||0, airdate:ep.air_date||"" })) } })
+            lista=Object.values(mapa).sort((x,y)=>x.numero-y.numero)
+          }
+        }
+        if(Object.keys(updates).length) await supabase.from("user_series").update({...updates, updated_at:new Date().toISOString()}).eq("user_id",uid).eq("serie_id",id)
+        setDetalhes({ sinopse, nota:notaTmdb, votos, providers })
+        const totalCalc = lista.reduce((a,t)=>a+t.eps.length,0)
+        localStorage.setItem(uid+":total-"+id, String(totalCalc))
+        const hoje = new Date().toISOString().slice(0,10)
+        const idsLancados = lista.flatMap(t=>t.eps.filter(ep=>!ep.airdate || ep.airdate<=hoje).map(ep=>String(ep.id)))
+        const vistosNormalizados = new Set((row.eps_vistos || []).map(String))
+        const concluiuLancados = idsLancados.length>0 && idsLancados.every(eid=>vistosNormalizados.has(eid))
+        // No hiato de uma série em continuidade, sem próximo episódio anunciado,
+        // conclui-se automaticamente o ciclo de episódios atualmente disponível.
+        const semProximoEpisodio = detalhesTMDB?.status === "Returning Series" && !detalhesTMDB?.next_episode_to_air
+        const cicloDisponivelConcluido = semProximoEpisodio && idsLancados.length>0
+        // Episódio lançado depois da atualização do status reabre a série.
+        const dataStatus = row.updated_at?.slice(0,10) || ""
+        const episodioNovoDesdeStatus = lista.some(t=>t.eps.some(ep=>
+          ep.airdate && ep.airdate<=hoje && dataStatus && ep.airdate>dataStatus
+        ))
         const deveMaratonei = concluiuLancados || cicloDisponivelConcluido
         const novoStatusAuto = row.status==="maratonei" && episodioNovoDesdeStatus
           ? "assistindo"
