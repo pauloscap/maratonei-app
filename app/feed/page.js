@@ -1,12 +1,10 @@
 "use client"
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { createClient } from "@supabase/supabase-js"
+import { getSupa } from "../../lib/supabase";
 import { BottomNav } from "../../components/BottomNav"
 
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_KEY)
-
-export default function FeedPage() {
+const supabase = getSupa();export default function FeedPage() {
   const [tab,setTab] = useState("seguindo")
   const [userId,setUserId] = useState(null)
   const [following,setFollowing] = useState([])

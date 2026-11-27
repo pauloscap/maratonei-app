@@ -1,10 +1,9 @@
 "use client"
 import { useEffect, useState, useMemo } from "react"
-import { createClient } from "@supabase/supabase-js"
+import { getSupa } from "../../lib/supabase";
 import { BottomNav } from "../../components/BottomNav"
 
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_KEY)
-const IDS_REMOVER = ["101","102","103","201"]
+const supabase = getSupa();const IDS_REMOVER = ["101","102","103","201"]
 const TITULOS_BUGADOS = ["Ever Decreasing Circles", "MyPam!", "13 de Novembro - Terror em Paris", "13 de Novembro"]
 const TMDB_KEY = process.env.NEXT_PUBLIC_TMDB_KEY || "4e44d9029b1273360df0be1de39768d1"
 const TMDB_IMG = "https://image.tmdb.org/t/p/w342"

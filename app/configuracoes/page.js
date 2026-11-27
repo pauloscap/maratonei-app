@@ -1,14 +1,9 @@
 "use client"
 import { useEffect, useState } from "react"
-import { createClient } from "@supabase/supabase-js"
+import { getSupa } from "../../lib/supabase";
 import { BottomNav } from "../../components/BottomNav"
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_KEY
-)
-
-export default function ConfigPage(){
+const supabase = getSupa();export default function ConfigPage(){
   const [user,setUser]=useState(null)
   const [nome,setNome]=useState("")
   const [loading,setLoading]=useState(false)

@@ -2,11 +2,10 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { createClient } from '@supabase/supabase-js'
+import { getSupa } from "../../../lib/supabase";
 import Link from 'next/link'
 
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_KEY)
-const EMOJIS = {
+const supabase = getSupa();const EMOJIS = {
   Barbie:{emoji:'💖',cor:'#ff69b4'}, Naruto:{emoji:'🍥',cor:'#ff8c00'}, Stitch:{emoji:'👽',cor:'#2a7fff'},
   Wandinha:{emoji:'🖤',cor:'#1a1a1a'}, 'Harry Potter':{emoji:'⚡',cor:'#7a0000'},
   'Homem-Aranha':{emoji:'🕷',cor:'#b00000'}, Luffy:{emoji:'👒',cor:'#d00000'},

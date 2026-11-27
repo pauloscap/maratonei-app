@@ -1,13 +1,11 @@
 "use client"
 import { useEffect, useState } from "react"
 import { BottomNav } from "../../components/BottomNav"
-import { createClient } from "@supabase/supabase-js"
+import { getSupa } from "../../lib/supabase";
 
 const IMG = "https://image.tmdb.org/t/p/w185"
 const IMG_BIG = "https://image.tmdb.org/t/p/w342"
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_KEY)
-
-export default function BuscaPage() {
+const supabase = getSupa();export default function BuscaPage() {
   const [userId, setUserId] = useState("anon")
   const [trendSeries, setTrendSeries] = useState([])
   const [lancSeries, setLancSeries] = useState([])

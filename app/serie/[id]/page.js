@@ -1,11 +1,10 @@
 "use client"
 import { useEffect, useState, useMemo } from "react"
-import { createClient } from "@supabase/supabase-js"
+import { getSupa } from "../../../lib/supabase";
 import { useParams, useRouter } from "next/navigation"
 import ShareModal from "../../../components/ShareModal"
 
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_KEY)
-const TMDB_KEY = process.env.NEXT_PUBLIC_TMDB_KEY || "4e44d9029b1273360df0be1de39768d1"
+const supabase = getSupa();const TMDB_KEY = process.env.NEXT_PUBLIC_TMDB_KEY || "4e44d9029b1273360df0be1de39768d1"
 const SITE_URL = "https://www.maratoneiapp.com.br"
 
 export default function DetalheSerie() {
