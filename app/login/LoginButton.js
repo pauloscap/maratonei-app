@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { getSupa } from "../../lib/supabase";
 
 export default function LoginButton(){
   const [loading, setLoading] = useState(false);
@@ -9,16 +9,7 @@ export default function LoginButton(){
     try {
       setLoading(true);
       
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_KEY;
-
-      if (!supabaseUrl || !supabaseKey) {
-        alert('Erro: Variáveis do Supabase não configuradas');
-        setLoading(false);
-        return;
-      }
-
-      const supabase = createClient(supabaseUrl, supabaseKey);
+      const supabase = getSupa();
       
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
