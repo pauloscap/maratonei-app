@@ -3,8 +3,7 @@ import { useEffect, useState, useMemo } from "react"
 import { getSupa } from "../../lib/supabase";
 import { BottomNav } from "../../components/BottomNav"
 
-const supabase = getSupa();
-const TMDB_KEY = process.env.NEXT_PUBLIC_TMDB_KEY || "4e44d9029b1273360df0be1de39768d1"
+const supabase = getSupa();const TMDB_KEY = process.env.NEXT_PUBLIC_TMDB_KEY || "4e44d9029b1273360df0be1de39768d1"
 const TMDB_IMG = "https://image.tmdb.org/t/p/w342"
 
 async function buscarFilmes(q){
