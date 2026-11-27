@@ -4,9 +4,7 @@ import Link from "next/link"
 import { getSupa } from "../../lib/supabase";
 import { BottomNav } from "../../components/BottomNav"
 
-const supabase = getSupa();
-
-export default function FeedPage() {
+const supabase = getSupa();export default function FeedPage() {
   const [tab,setTab] = useState("seguindo")
   const [userId,setUserId] = useState(null)
   const [following,setFollowing] = useState([])
