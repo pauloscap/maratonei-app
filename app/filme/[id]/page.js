@@ -4,8 +4,7 @@ import { getSupa } from "../../../lib/supabase";
 import { useParams } from "next/navigation"
 import ShareModal from "../../../components/ShareModal"
 
-const supabase = getSupa();
-const TMDB_KEY = process.env.NEXT_PUBLIC_TMDB_KEY || "4e44d9029b1273360df0be1de39768d1"
+const supabase = getSupa();const TMDB_KEY = process.env.NEXT_PUBLIC_TMDB_KEY || "4e44d9029b1273360df0be1de39768d1"
 const TMDB_IMG = "https://image.tmdb.org/t/p/w500"
 const SITE_URL = "https://www.maratoneiapp.com.br"
 
