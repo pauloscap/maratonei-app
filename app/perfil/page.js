@@ -3,7 +3,248 @@ import { useEffect, useState, useMemo } from "react"
 import { getSupa } from "../../lib/supabase";
 import { BottomNav } from "../../components/BottomNav"
 
-const supabase = getSupa();}
+const supabase = getSupa();const TMDB_IMG_BIG = "https://image.tmdb.org/t/p/w500"
+const TMDB_KEY = process.env.NEXT_PUBLIC_TMDB_KEY || "4e44d9029b1273360df0be1de39768d1"
+const SITE_URL = "https://www.maratoneiapp.com.br"
+
+const hojeISO = ()=>new Date().toISOString().slice(0,10)
+const ontemISO = ()=>{ const d=new Date(); d.setDate(d.getDate()-1); return d.toISOString().slice(0,10) }
+
+function calcularStreak(datas){
+  if(!datas.length) return { atual:0, quebrado:true }
+  const set = new Set(datas)
+  const hoje = hojeISO()
+  const ontem = ontemISO()
+  if(!set.has(hoje) &&!set.has(ontem)) return { atual:0, quebrado:true }
+  let atual = 0
+  let d = new Date()
+  if(!set.has(hoje)) d.setDate(d.getDate()-1)
+  while(true){
+    const iso = d.toISOString().slice(0,10)
+    if(set.has(iso)){ atual++; d.setDate(d.getDate()-1) } else break
+  }
+  return { atual, quebrado:false }
+}
+
+const CONQUISTAS = [
+  { id:1, nome:"Pipoquinha", emoji:"🍿", min:1, max:7 },
+  { id:2, nome:"Pipoca Média", emoji:"🍿", min:8, max:14 },
+  { id:3, nome:"Baldão", emoji:"🪣", min:15, max:21 },
+  { id:4, nome:"Ticket", emoji:"🎟", min:22, max:28 },
+  { id:5, nome:"Óculos 3D", emoji:"🕶", min:29, max:35 },
+  { id:6, nome:"Claquete", emoji:"🎬", min:36, max:42 },
+  { id:7, nome:"Câmera", emoji:"🎥", min:43, max:49 },
+  { id:8, nome:"Troféu", emoji:"🏆", min:50, max:56 },
+  { id:9, nome:"Coroa", emoji:"👑", min:57, max:999 },
+]
+
+const PERSONAGENS_EMOJI = [
+  { nome:"Wandinha", emoji:"🖤", cor:"#1a1a1a" },
+  { nome:"【entity-Harry Potter¦canonical_name=Harry Potter】", emoji:"⚡", cor:"#7a0000" },
+  { nome:"Stitch", emoji:"👽", cor:"#2a7fff" },
+  { nome:"Homem-Aranha", emoji:"🕷", cor:"#b00000" },
+  { nome:"【entity-Barbie¦canonical_name=Barbie】", emoji:"💖", cor:"#ff69b4" },
+  { nome:"Naruto", emoji:"🍥", cor:"#ff8c00" },
+  { nome:"Luffy", emoji:"👒", cor:"#d00000" },
+  { nome:"Pikachu", emoji:"⚡", cor:"#ffcc00" },
+  { nome:"Batman", emoji:"🦇", cor:"#111111" },
+  { nome:"【entity-Deadpool¦canonical_name=Deadpool】", emoji:"🗡", cor:"#a00000" },
+  { nome:"Grogu", emoji:"👶", cor:"#7ab000" },
+  { nome:"Eleven", emoji:"🧇", cor:"#e00000" },
+]
+
+export default function Perfil(){
+  const [user,setUser]=useState(null)
+  const [nome,setNome]=useState("Carregando...")
+  const [foto,setFoto]=useState("")
+  const [fotoOriginal,setFotoOriginal]=useState("")
+  const [avatarEmoji,setAvatarEmoji]=useState(null)
+  const [cks,setCks]=useState([])
+  const [streak,setStreak]=useState(0)
+  const [streakQuebrado,setStreakQuebrado]=useState(false)
+  const [showFoto,setShowFoto]=useState(false)
+  const [showPuzzle,setShowPuzzle]=useState(false)
+  const [showShare,setShowShare]=useState(false)
+  const [shareData,setShareData]=useState(null)
+  const [posterOutubro,setPosterOutubro]=useState("")
+  const [stats,setStats]=useState({t:0,n:1,xp:0, seriesTotal:0, filmesTotal:0, seriesMaratonadas:0, filmesVistos:0, horasSeries:0, horasFilmes:0})
+  const [loading,setLoading]=useState(true)
+
+  useEffect(()=>{
+    async function getRingsOfPowerSeason3(){
+      try{
+        const r = await fetch(`https://api.themoviedb.org/3/tv/84773/season/3?api_key=${TMDB_KEY}&language=pt-BR`)
+        const j = await r.json()
+        if(j.poster_path) setPosterOutubro(TMDB_IMG_BIG + j.poster_path)
+      }catch{}
+    }
+    getRingsOfPowerSeason3()
+  },[])
+
+  useEffect(()=>{
+    const loadData = async ()=>{
+      const { data:{session} } = await supabase.auth.getSession()
+      if(!session){ location.href="/login"; return }
+      const u=session.user
+      setUser(u)
+      setNome(u.user_metadata?.full_name || u.email?.split("@")[0] || "Você")
+      const avatarGmail = u.user_metadata?.avatar_url || ""
+      setFotoOriginal(avatarGmail)
+      setFoto(avatarGmail)
+      const savedEmoji = localStorage.getItem(u.id+":avatar_emoji")
+      if(savedEmoji) setAvatarEmoji(JSON.parse(savedEmoji))
+      let { data: perfil } = await supabase.from("perfis").select("*").eq("user_id", u.id).single()
+      if(perfil){ if(perfil.nome) setNome(perfil.nome); if(perfil.avatar_url && perfil.avatar_url.startsWith("http")) setFoto(perfil.avatar_url) }
+      const [ { data: checkinsData }, { data: filmes }, { data: series } ] = await Promise.all([
+        supabase.from("checkins").select("data").eq("user_id", u.id).order("data",{ascending:true}),
+        supabase.from("user_filmes").select("status, runtime").eq("user_id", u.id),
+        supabase.from("user_series").select("status, eps_vistos").eq("user_id", u.id)
+      ])
+      const listaDatas = checkinsData?.map(c=>c.data) || []
+      setCks(listaDatas)
+      const { atual, quebrado } = calcularStreak(listaDatas)
+      setStreak(atual); setStreakQuebrado(quebrado && listaDatas.length>0)
+      const qtdFilmes = filmes?.length || 0
+      const qtdSeries = series?.length || 0
+      const filmesVistos = filmes?.filter(f=>f.status==="ja_assisti") || []
+      const seriesMaratonadas = series?.filter(s=>s.status==="maratonei") || []
+      let horasFilmes=0, horasSeries=0
+      filmesVistos.forEach(f=>{ horasFilmes += (f.runtime || 120)/60 })
+      series?.forEach(s=>{ const eps = Array.isArray(s.eps_vistos)? s.eps_vistos.length : 0; horasSeries += eps * 0.75 })
+      const maratonados = filmesVistos.length + seriesMaratonadas.length
+      const xp = (listaDatas.length*15) + (maratonados*100) + ((qtdFilmes+qtdSeries)*10) + (atual*5)
+      const nivel = Math.max(1, Math.floor(xp/250)+1)
+      setStats({ t:qtdFilmes+qtdSeries, n:nivel, xp, seriesTotal:qtdSeries, filmesTotal:qtdFilmes, seriesMaratonadas:seriesMaratonadas.length, filmesVistos:filmesVistos.length, horasSeries:Math.round(horasSeries), horasFilmes:Math.round(horasFilmes) })
+      setLoading(false)
+    }
+    loadData()
+  },[])
+
+  const doCheck = async()=>{
+    const h=hojeISO(); if(cks.includes(h)) return
+    const { data:{session} } = await supabase.auth.getSession()
+    const { error } = await supabase.from("checkins").insert({ user_id: session.user.id, data: h })
+    if(!error){ const novo=[...cks,h].sort(); setCks(novo); const { atual } = calcularStreak(novo); setStreak(atual); setStreakQuebrado(false); setStats(s=>{ const xp=s.xp+20; return {...s, n:Math.floor(xp/250)+1, xp} }) }
+  }
+
+  const escolherEmoji = async(item)=>{
+    setAvatarEmoji(item)
+    setFoto("")
+    setShowFoto(false)
+    localStorage.setItem(user.id+":avatar_emoji", JSON.stringify(item))
+    const { data:{session} } = await supabase.auth.getSession()
+    await supabase.from("perfis").upsert({ user_id: session.user.id, avatar_url: `emoji:${item.nome}`, nome }, { onConflict:"user_id" })
+  }
+
+  function abrirShareSelo(conquista){
+    const texto = `Acabei de conquistar o selo ${conquista.emoji} ${conquista.nome} no Maratonei App! Estou com ${streak} dias de streak 🔥 Vem organizar seus filmes também: ${SITE_URL}`
+    setShareData({ tipo: 'selo', titulo: conquista.nome, emoji: conquista.emoji, texto, subtexto: `${streak} dias • Nível ${stats.n}`, cor: "#FFD400" })
+    setShowShare(true)
+  }
+
+  function abrirShareBanner(){
+    const texto = `Completei o Desafio de Outubro do Maratonei App! 🧩 Montei o cartaz de Os Anéis de Poder - 3ª temporada com 30 check-ins! Vem organizar seus filmes também: ${SITE_URL}`
+    setShareData({ tipo: 'banner', titulo: 'Desafio Outubro Completo!', emoji: '🧩', texto, subtexto: `Os Anéis de Poder • 3ª temporada • 30/30 peças`, imagem: posterOutubro, cor: "#22c55e" })
+    setShowShare(true)
+  }
+
+  function compartilhar(tipo){
+    if(!shareData) return
+    const txt = shareData.texto
+    if(navigator.share && tipo==='nativo'){ navigator.share({ title: 'Maratonei App', text: txt, url: SITE_URL }).catch(()=>{}); return }
+    if(tipo==='whatsapp') window.open(`https://wa.me/?text=${encodeURIComponent(txt)}`, '_blank')
+    if(tipo==='twitter') window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(txt)}`, '_blank')
+    if(tipo==='copiar'){ navigator.clipboard.writeText(txt); alert('Copiado!') }
+  }
+
+  async function baixarImagemShare(){
+    if(!shareData) return
+    const canvas = document.createElement('canvas')
+    canvas.width = 1080
+    canvas.height = 1350
+    const ctx = canvas.getContext('2d')
+    ctx.fillStyle = '#080B1F'
+    ctx.fillRect(0,0,1080,1350)
+    ctx.fillStyle = shareData.cor || '#FFD400'
+    ctx.fillRect(0,0,1080,12)
+    ctx.font = '220px serif'
+    ctx.textAlign = 'center'
+    ctx.fillText(shareData.emoji, 540, 380)
+    ctx.fillStyle = '#fff'
+    ctx.font = 'bold 72px sans-serif'
+    ctx.fillText(shareData.titulo, 540, 520)
+    ctx.fillStyle = '#94a3b8'
+    ctx.font = '32px sans-serif'
+    ctx.fillText(shareData.subtexto, 540, 600)
+    ctx.fillStyle = '#FFD400'
+    ctx.font = 'bold 36px sans-serif'
+    ctx.fillText(`${nome} • Maratonei`, 540, 900)
+    const a = document.createElement('a')
+    a.download = `maratonei-${Date.now()}.png`
+    a.href = canvas.toDataURL()
+    a.click()
+  }
+
+  const progresso = (stats.xp%250)/2.5
+  const fezHoje = cks.includes(hojeISO())
+  const iconesDesbloqueados = streakQuebrado? 0 : CONQUISTAS.filter(c=> streak>=c.min).length
+  const conquistaAtual = streakQuebrado? null : CONQUISTAS.find(c=> streak>=c.min && streak<=c.max)
+
+  const pecasDesbloqueadas = useMemo(()=>{
+    const hoje = new Date()
+    const mesAtual = hoje.getMonth()
+    const anoAtual = hoje.getFullYear()
+    const checkinsDoMes = cks.filter(dataStr=>{
+      const d = new Date(dataStr+"T12:00:00")
+      return d.getMonth()===mesAtual && d.getFullYear()===anoAtual
+    })
+    return Math.min(30, checkinsDoMes.length)
+  },[cks])
+
+  const calendario = useMemo(()=>{
+    const hoje = new Date(); const ano=hoje.getFullYear(); const mes=hoje.getMonth()
+    const primeiroDia=new Date(ano,mes,1).getDay(); const diasNoMes=new Date(ano,mes+1,0).getDate()
+    const dias=[]; for(let i=0;i<primeiroDia;i++) dias.push(null); for(let d=1; d<=diasNoMes; d++) dias.push(new Date(ano,mes,d))
+    return { dias, mesNome: hoje.toLocaleString('pt-BR',{month:'long'}), ano }
+  },[cks])
+
+  if(loading) return <div style={{minHeight:"100vh", background:"#080B1F", display:"grid", placeItems:"center", color:"#fff"}}>Carregando...</div>
+
+  return(
+    <div style={{minHeight:"100vh", background:"#080B1F", color:"#fff", paddingBottom:90}}>
+      <header style={{height:56, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 16px", borderBottom:"1px solid #ffffff0f", background:"#080B1F", position:"sticky", top:0, zIndex:10}}>
+        <b>Perfil</b>
+        <div style={{display:"flex", gap:7, alignItems:"center"}}>
+          <button onClick={()=>user?.id && (location.href="/perfil/"+user.id)} style={{background:"#ffffff12", color:"#fff", border:"1px solid #ffffff20", borderRadius:999, padding:"7px 10px", fontWeight:800, fontSize:11}}>👤 Perfil público</button>
+          <button onClick={()=>location.href="/configuracoes"} style={{width:32, height:32, borderRadius:999, background:"#ffffff12", border:"1px solid #ffffff15", color:"#fff"}}>⚙</button>
+          <button onClick={()=>setShowPuzzle(true)} style={{background:"#FFD400", color:"#000", border:0, borderRadius:999, padding:"6px 10px", fontWeight:900, fontSize:11}}>🧩 Desafio</button>
+        </div>
+      </header>
+
+      <main style={{maxWidth:560, margin:"0 auto", padding:"14px", display:"flex", flexDirection:"column", gap:12}}>
+        <div style={{background:"#12182F", border:"1px solid #ffffff12", borderRadius:18, padding:16, display:"flex", gap:12, alignItems:"center"}}>
+          <div style={{position:"relative"}}>
+            <div onClick={()=>setShowFoto(true)} style={{width:68, height:68, borderRadius:999, overflow:"hidden", display:"grid", placeItems:"center", background: avatarEmoji? avatarEmoji.cor : "#1a1a1a", border:`2px solid #FFD400`, cursor:"pointer", fontSize:32}}>
+              {avatarEmoji? avatarEmoji.emoji : foto? <img src={foto} style={{width:"100%",height:"100%",objectFit:"cover"}} /> : nome[0]}
+            </div>
+            <div onClick={()=>setShowFoto(true)} style={{position:"absolute", bottom:-2, right:-2, width:22, height:22, borderRadius:999, background:"#FFD400", display:"grid", placeItems:"center", fontSize:10, border:"2px solid #12182F", cursor:"pointer", color:"#000"}}>✎</div>
+          </div>
+          <div style={{flex:1}}>
+            <div style={{fontWeight:900, fontSize:15, display:"flex", gap:6, alignItems:"center"}}>{nome} <span style={{fontSize:9, background:streak>1?"#FFD40022":"#38bdf822", color:streak>1?"#FFD400":"#38bdf8", border:"1px solid #ffffff15", padding:"2px 6px", borderRadius:99}}>{streak>0? "🍿" : "🧊"} {streak} dias</span></div>
+            <div style={{fontSize:12, opacity:.6, marginTop:2}}>Nível {stats.n} • {conquistaAtual? conquistaAtual.emoji+" "+conquistaAtual.nome : "Sem conquista"} • {pecasDesbloqueadas}/30 peças</div>
+            <div style={{height:6, background:"#ffffff14", borderRadius:99, marginTop:8, overflow:"hidden"}}><div style={{width:progresso+"%", height:"100%", background:"linear-gradient(90deg,#FFD400,#FFA600)"}}/></div>
+          </div>
+          <button onClick={doCheck} disabled={fezHoje} style={{minWidth:96, height:44, borderRadius:999, border:0, background:fezHoje?"#22c55e":"#FFD400", color:fezHoje?"#fff":"#000", fontWeight:900, cursor:fezHoje?"default":"pointer", fontSize:12}}>{fezHoje? "✓ Hoje" : "☑ Check-in"}</button>
+        </div>
+
+        <div style={{background:"linear-gradient(135deg,#1A2142,#12182F)", border: streakQuebrado? "1px solid #38bdf833" : "1px solid #FFD40033", borderRadius:18, padding:14}}>
+          <div style={{display:"flex", justifyContent:"space-between", alignItems:"center"}}><b style={{fontSize:14}}>🍿 Minha Maratona</b><span style={{fontSize:11, background:streakQuebrado?"#38bdf822":"#FFD40022", color:streakQuebrado?"#38bdf8":"#FFD400", padding:"3px 8px", borderRadius:99}}>{streakQuebrado? "Zerado" : `${iconesDesbloqueados}/9 ícones`}</span></div>
+          {conquistaAtual && (
+            <div style={{marginTop:12, background:"#FFD40014", border:"1px solid #FFD40044", borderRadius:12, padding:"10px 12px", display:"flex", justifyContent:"space-between", alignItems:"center"}}>
+              <div><div style={{fontSize:11, opacity:0.6}}>Conquista atual</div><div style={{fontSize:13, fontWeight:900, marginTop:2}}>{conquistaAtual.emoji} {conquistaAtual.nome} • {streak} dias</div></div>
+              <button onClick={()=>abrirShareSelo(conquistaAtual)} style={{background:"#FFD400", color:"#000", border:0, borderRadius:999, padding:"6px 12px", fontWeight:900, fontSize:11}}>↗ Compartilhar</button>
+            </div>
+          )}
           <div style={{display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginTop:12}}>
             {CONQUISTAS.map(c=>{ const desbloq = streak>=c.min &&!streakQuebrado; return (
               <div key={c.id} onClick={()=> desbloq && abrirShareSelo(c)} style={{background: desbloq? "#FFD40014" : "#ffffff06", border: desbloq? "1px solid #FFD40044" : "1px solid #ffffff10", borderRadius:12, padding:10, textAlign:"center", opacity: desbloq? 1 : 0.35, cursor: desbloq? "pointer" : "default"}}>
