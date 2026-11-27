@@ -1,14 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createClient } from '@supabase/supabase-js'
+import { getSupa } from "../../lib/supabase";
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_KEY
-)
+const supabase = getSupa();
 
 export default function Notificacoes() {
   const [user, setUser] = useState(null)
