@@ -3,9 +3,7 @@ import { useEffect, useState } from "react"
 import { getSupa } from "../../lib/supabase";
 import { BottomNav } from "../../components/BottomNav"
 
-const supabase = getSupa();
-
-export default function ConfigPage(){
+const supabase = getSupa();export default function ConfigPage(){
   const [user,setUser]=useState(null)
   const [nome,setNome]=useState("")
   const [loading,setLoading]=useState(false)
