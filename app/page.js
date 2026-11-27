@@ -1,13 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { createClient } from "@supabase/supabase-js";
+import { getSupa } from "../lib/supabase";
 import { BottomNav } from "../components/BottomNav";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-);
+const supabase = getSupa();
 
 const atalhos = [
   { href: "/feed", icon: "◎", titulo: "Amigos", texto: "Veja o que a comunidade está assistindo.", cor: "#FFD400" },
